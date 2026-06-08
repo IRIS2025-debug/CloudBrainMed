@@ -21,6 +21,20 @@ spring:
       idle-timeout: 30000
       max-lifetime: 1800000
       connection-timeout: 20000
+  ai:
+    openai:
+      api-key: sk-86f5064268574a0ab487cb9a04fe5c5f
+      base-url: https://api.deepseek.com
+      chat:
+        options:
+          model: deepseek-chat
+          temperature: 0.1
+          max-tokens: 1024
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      timeout: 3000ms
     jpa:
       hibernate:
         ddl-auto: none
