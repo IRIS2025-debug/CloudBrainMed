@@ -2,7 +2,7 @@ import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
 const request = axios.create({
-    baseURL: import.meta.env.NODE_ENV === 'development' ? 'http://localhost:5173' : 'http://localhost:80',
+    baseURL: import.meta.env.PROD ? 'http://localhost:80' : '',
     timeout: 15000,
 })
 

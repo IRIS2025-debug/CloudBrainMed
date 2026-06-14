@@ -54,7 +54,7 @@
   </el-button>
   <el-button type="primary" @click="$router.push('/doctor/ai-medicine')">
     <el-icon><Cpu /></el-icon>
-    AI 医学助手
+    AI 药物推荐
   </el-button>
   <el-button @click="$router.push('/doctor/profile')">
     <el-icon><UserFilled /></el-icon>

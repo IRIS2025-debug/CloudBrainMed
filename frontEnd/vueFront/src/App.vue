@@ -27,8 +27,14 @@
       </nav>
 
       <div class="sidebar-footer" v-show="!collapsed">
-        <div class="status-dot"></div>
-        <span>系统运行中</span>
+        <div class="footer-status">
+          <div class="status-dot"></div>
+          <span>系统运行中</span>
+        </div>
+        <el-button class="logout-btn" @click="handleLogout" text>
+          <el-icon :size="16"><SwitchButton /></el-icon>
+          <span>退出登录</span>
+        </el-button>
       </div>
     </aside>
 
@@ -40,9 +46,9 @@
 </template>
 
 <script setup lang="ts">
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { computed, ref, watch } from 'vue'
-import { ElIcon } from 'element-plus'
+import { ElIcon, ElMessage } from 'element-plus'
 import {
   UserFilled,
   List,
@@ -50,11 +56,22 @@ import {
   CollectionTag,
   Cpu,
   Camera,
-  HomeFilled,  // 新增：首页图标
+  HomeFilled,
+  SwitchButton,
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
+const router = useRouter()
 const collapsed = ref(false)
+
+// 退出登录
+const handleLogout = () => {
+  sessionStorage.removeItem('token')
+  sessionStorage.removeItem('roleType')
+  sessionStorage.removeItem('userRole')
+  ElMessage.success('已退出登录')
+  router.push('/login')
+}
 
 const showSidebar = computed(() => route.path !== '/login')
 
@@ -191,11 +208,16 @@ body { font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', sans-serif; backg
 .nav-item.router-link-active::before { content: ''; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px; background: var(--brand); border-radius: 0 3px 3px 0; }
 
 .sidebar-footer {
-  padding: 14px 20px; border-top: 1px solid rgba(255,255,255,.06);
-  display: flex; align-items: center; gap: 8px;
+  padding: 10px 20px; border-top: 1px solid rgba(255,255,255,.06);
+  display: flex; flex-direction: column; gap: 8px;
   font-size: 12px; color: #64748b;
 }
+.footer-status { display: flex; align-items: center; gap: 8px; }
 .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,.5); }
+.logout-btn {
+  justify-content: flex-start; width: 100%; color: #94a3b8; font-size: 13px; padding: 6px 8px; border-radius: 8px;
+}
+.logout-btn:hover { color: #ef4444; background: rgba(239,68,68,.12); }
 
 .main { flex: 1; overflow-y: auto; overflow-x: hidden; background: var(--bg); }
 </style>

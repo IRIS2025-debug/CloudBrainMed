@@ -128,6 +128,9 @@ const handleLogin = async (): Promise<void> => {
       sessionStorage.setItem('token', result.data.token)
       // roleType 优先用后端返回值，兜底取表单里的
       sessionStorage.setItem('roleType', String(result.data.roleType ?? loginForm.value.roleType))
+      // 同时设置 userRole 供 App.vue 侧边栏角色判断使用
+      const role = result.data.roleType ?? loginForm.value.roleType
+      sessionStorage.setItem('userRole', role === 3 ? 'admin' : 'doctor')
 
       ElMessage.success('登录成功')
       if(loginForm.value.roleType==2){await router.push({ name: 'DoctorHome' })}
@@ -150,7 +153,7 @@ const handleLogin = async (): Promise<void> => {
 html, body, #app {
   height: 100%;
   margin: 0;
-  background: linear-gradient(135deg, #F6F9FC 0%, #F0F4F9 100%) !important;
+  background: #f1f5f9 !important;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -180,7 +183,7 @@ html, body, #app {
 .login-page {
   width: 100vw;
   height: 100vh;
-  background: linear-gradient(135deg, #F6F9FC 0%, #F0F4F9 100%);
+  background: #f1f5f9;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -196,9 +199,9 @@ html, body, #app {
   width: 100%;
   height: 100%;
   background:
-      radial-gradient(circle at 0% 0%, rgba(22, 93, 255, 0.04) 0%, transparent 50%),
-      radial-gradient(circle at 100% 100%, rgba(22, 93, 255, 0.04) 0%, transparent 50%),
-      radial-gradient(circle at 70% 20%, rgba(22, 93, 255, 0.02) 0%, transparent 60%);
+      radial-gradient(circle at 0% 0%, rgba(37, 99, 235, 0.04) 0%, transparent 50%),
+      radial-gradient(circle at 100% 100%, rgba(37, 99, 235, 0.04) 0%, transparent 50%),
+      radial-gradient(circle at 70% 20%, rgba(37, 99, 235, 0.02) 0%, transparent 60%);
   pointer-events: none;
   z-index: 0;
 }
@@ -219,8 +222,8 @@ html, body, #app {
 /* 左侧品牌栏 - 明确背景色与层级，避免黑色区域 */
 .brand-side {
   width: 38%;
-  background: linear-gradient(145deg, #165DFF 0%, #0E42CC 100%);
-  background-color: #165DFF; /* 明确纯色后备，防止滤镜渲染异常 */
+  background: linear-gradient(145deg, #2563eb 0%, #1d4ed8 100%);
+  background-color: #2563eb; /* 明确纯色后备，防止滤镜渲染异常 */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -347,11 +350,11 @@ html, body, #app {
 }
 
 .login-form :deep(.el-input__wrapper:hover) {
-  box-shadow: 0 0 0 1px #165DFF inset;
+  box-shadow: 0 0 0 1px #2563eb inset;
 }
 
 .login-form :deep(.el-input__wrapper.is-focus) {
-  box-shadow: 0 0 0 2px rgba(22, 93, 255, 0.2), 0 0 0 1px #165DFF inset;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2), 0 0 0 1px #2563eb inset;
 }
 
 .login-form :deep(.el-select .el-input__wrapper) {
@@ -361,20 +364,20 @@ html, body, #app {
 .login-btn {
   width: 100%;
   height: 48px;
-  background: linear-gradient(105deg, #165DFF 0%, #0E42CC 100%);
+  background: linear-gradient(105deg, #2563eb 0%, #1d4ed8 100%);
   border: none;
   border-radius: 12px;
   font-size: 15px;
   font-weight: 500;
   margin-top: 12px;
   transition: all 0.2s ease;
-  box-shadow: 0 2px 8px rgba(22, 93, 255, 0.25);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
 }
 
 .login-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(22, 93, 255, 0.3);
-  background: linear-gradient(105deg, #2B6EFF 0%, #1652C4 100%);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.3);
+  background: linear-gradient(105deg, #3b82f6 0%, #1d4ed8 100%);
 }
 
 .login-btn:active {

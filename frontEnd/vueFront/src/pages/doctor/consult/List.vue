@@ -45,7 +45,7 @@
       </el-table>
       <div class="table-footer">
         <span class="tf-total">共 {{ list.length }} 条</span>
-        <el-pagination v-model:current-page="page" :page-size="10" :total="total" layout="prev, pager, next" @current-change="fetchList" small />
+        <el-pagination v-model:current-page="page" :page-size="10" :total="total" layout="prev, pager, next" @current-change="fetchList" size="small" />
       </div>
     </div>
   </div>
@@ -57,12 +57,24 @@ import { getConsultList } from '@/api/doctor/consult'
 const list = ref<any[]>([]); const loading = ref(false); const page = ref(1); const total = ref(0)
 const filters = reactive({ consultStatus: '', date: '' })
 
+// Mock 数据 —— API 不可达时作为开发测试数据
+const mockList = [
+  { registerId: 'REG-20260612-001', name: '陈建国', gender: 1, patientAge: 45, chiefComplaint: '反复头痛、眩晕一周，加重两天', consultStatus: 'PENDING', visitDate: '2026-06-12' },
+  { registerId: 'REG-20260612-002', name: '林美娟', gender: 2, patientAge: 32, chiefComplaint: '右下腹持续性隐痛三天，伴恶心', consultStatus: 'IN_PROGRESS', visitDate: '2026-06-12' },
+  { registerId: 'REG-20260612-003', name: '黄志强', gender: 1, patientAge: 58, chiefComplaint: '胸闷气短两周，夜间加重', consultStatus: 'RECORD_CONFIRMED', visitDate: '2026-06-11' },
+  { registerId: 'REG-20260612-004', name: '赵小燕', gender: 2, patientAge: 27, chiefComplaint: '咳嗽咳痰五天，发热一天，体温38.2℃', consultStatus: 'COMPLETED', visitDate: '2026-06-11' },
+  { registerId: 'REG-20260612-005', name: '周文博', gender: 1, patientAge: 66, chiefComplaint: '双下肢水肿一周，既往高血压病史10年', consultStatus: 'PENDING', visitDate: '2026-06-12' },
+]
+
 async function fetchList() {
   loading.value = true
   try {
     const res = await getConsultList({ ...filters, page: page.value, limit: 10 })
     list.value = res.data || []
-  } catch {} finally { loading.value = false }
+  } catch {
+    // API 不可达时使用 mock 数据进行开发测试
+    list.value = mockList
+  } finally { loading.value = false }
 }
 function statusLabel(s: string) {
   const m: Record<string, string> = { PENDING: '待接诊', IN_PROGRESS: '接诊中', RECORD_CONFIRMED: '已确认', COMPLETED: '已完成' }

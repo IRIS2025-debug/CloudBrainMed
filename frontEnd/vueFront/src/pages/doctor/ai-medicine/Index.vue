@@ -4,7 +4,7 @@
       <div class="header-left">
         <div class="logo-icon"></div>
         <div class="header-title">
-          <h2>AI智能问诊助手</h2>
+          <h2>AI 药物推荐</h2>
           <span>CloudBrainMed · 医生专用药品快速查询系统</span>
         </div>
       </div>
@@ -153,26 +153,26 @@ html, body, #app {
   padding: 0;
 }
 
-/* 页面容器：匹配系统#F6F9FC全局底色 */
+/* 页面容器：使用系统全局底色 --bg */
 .page-container {
   display: flex;
   flex-direction: column;
   width: 100%; /* 使用 100% 避免 100vw + padding 导致水平溢出被隐藏 */
   height: 100vh;
-  background-color: #F6F9FC;
+  background: var(--bg, #f1f5f9);
   padding: 24px 32px;
   box-sizing: border-box;
 }
 
-/* 头部导航：项目主蓝#165DFF，和登录页左侧蓝色统一 */
+/* 头部导航：使用系统品牌色 --brand */
 .chat-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #165DFF;
+  background: var(--brand, #2563eb);
   padding: 20px 28px;
   border-radius: 12px;
-  box-shadow: 0 1px 12px rgba(22, 93, 255, 0.12);
+  box-shadow: 0 1px 12px rgba(37, 99, 235, 0.12);
   margin-bottom: 20px;
   color: #FFFFFF;
 }
@@ -244,7 +244,7 @@ html, body, #app {
 .sidebar-tip {
   margin-top: 32px;
   padding: 15px;
-  background: #F0F6FF;
+  background: #f0f4ff;
   border-radius: 10px;
   font-size:13px;
   color:#485770;
@@ -287,7 +287,7 @@ html, body, #app {
 }
 .send-btn {
   min-width: 130px;
-  background-color: #165DFF;
+  background-color: var(--brand, #2563eb);
   flex-shrink: 0;
 }
 
@@ -310,7 +310,7 @@ html, body, #app {
 }
 
 .user-bubble {
-  background: #165DFF;
+  background: var(--brand, #2563eb);
   color: #FFFFFF;
 }
 
@@ -328,12 +328,12 @@ html, body, #app {
 }
 
 .ai-avatar {
-  background: #165DFF;
+  background: var(--brand, #2563eb);
   color: #fff;
 }
 
 .user-avatar {
-  background: #74B3FF;
+  background: var(--brand-light, #74B3FF);
   color: #fff;
 }
 
@@ -367,7 +367,7 @@ html, body, #app {
   margin-top: 16px;
   margin-bottom: 8px;
   font-weight: 700;
-  color: #165DFF;
+  color: #2563eb;
   font-size: 15px;
 }
 </style>

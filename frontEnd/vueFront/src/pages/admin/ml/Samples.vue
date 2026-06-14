@@ -44,7 +44,7 @@
 
       <div class="table-footer">
         <span class="tf-total">共 {{ samples.length }} 条</span>
-        <el-pagination v-model:current-page="page" :page-size="20" layout="prev, pager, next" @current-change="fetchSamples" small />
+        <el-pagination v-model:current-page="page" :page-size="20" layout="prev, pager, next" @current-change="fetchSamples" size="small" />
       </div>
     </div>
 
