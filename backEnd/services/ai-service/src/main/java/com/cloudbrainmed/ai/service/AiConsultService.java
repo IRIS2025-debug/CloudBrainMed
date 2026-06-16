@@ -1,12 +1,19 @@
 package com.cloudbrainmed.ai.service;
 
-import java.util.Map;
+import com.cloudbrainmed.ai.dto.ConsultRecommendDto;
+import com.cloudbrainmed.ai.vo.AiRecommendResponseVo;
 
 public interface AiConsultService {
+
     /**
-     * AI 接诊分析
-     * @param request 包含 chiefComplaint, recordDesc, patientAge, patientGender
-     * @return 结构化分析结果
+     * AI问诊推荐医生
+     * @param consultRecommendDto 问诊请求
+     * @return 推荐结果
      */
-    Map<String, Object> analyze(Map<String, String> request);
+    AiRecommendResponseVo recommendDoctor(ConsultRecommendDto consultRecommendDto);
+
+    /**
+     * 获取所有科室列表
+     */
+    java.util.List<String> getAllDepartments();
 }

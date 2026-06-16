@@ -6,22 +6,42 @@ spring:
           uri: lb://admin-service
           predicates:
           - Path=/admin-service/**
+        - id: admin-service-api-route
+          uri: lb://admin-service
+          predicates:
+          - Path=/api/admin/**
         - id: ai-service-route
           uri: lb://ai-service
           predicates:
           - Path=/ai-service/**
+        - id: ai-service-api-route
+          uri: lb://ai-service
+          predicates:
+          - Path=/api/ai/**
         - id: auth-service-route
           uri: lb://auth-service
           predicates:
           - Path=/auth-service/**
+        - id: auth-service-api-route
+          uri: lb://auth-service
+          predicates:
+          - Path=/api/auth/**
         - id: doctor-service-route
           uri: lb://doctor-service
           predicates:
           - Path=/doctor-service/**
+        - id: doctor-service-api-route
+          uri: lb://doctor-service
+          predicates:
+          - Path=/api/doctor/**
         - id: patient-service-route
           uri: lb://patient-service
           predicates:
           - Path=/patient-service/**
+        - id: patient-service-api-route
+          uri: lb://patient-service
+          predicates:
+          - Path=/api/patient/**
         - id: payment-service-route
           uri: lb://payment-service
           predicates:

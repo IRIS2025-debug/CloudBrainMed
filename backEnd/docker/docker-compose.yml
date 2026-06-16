@@ -31,7 +31,27 @@ services:
     networks:
       - app-network
 
-  # 3. 网关
+  # 3. Redis 缓存（带密码验证）
+  redis:
+    image: redis:7.2-alpine
+    container_name: redis
+    restart: always
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes --appendfsync everysec
+    environment:
+      TZ: Asia/Shanghai
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - app-network
+
+  # 4. 网关
   gateway-server:
     build:
       context: ../gateway-server
@@ -45,13 +65,23 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE}
       SPRING_CLOUD_NACOS_DISCOVERY_SERVER-ADDR: ${NACOS_SERVER}
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      SPRING_REDIS_PASSWORD: ${REDIS_PASSWORD}
+      SPRING_REDIS_DATABASE: 0
+      SPRING_REDIS_TIMEOUT: 5000ms
+      SPRING_REDIS_LETTUCE_POOL_MAX-ACTIVE: 8
+      SPRING_REDIS_LETTUCE_POOL_MAX-IDLE: 8
+      SPRING_REDIS_LETTUCE_POOL_MIN-IDLE: 0
     depends_on:
       nacos:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - app-network
 
-  # 4. admin-service
+  # 5. admin-service
   admin-service:
     build:
       context: ../services/admin-service
@@ -65,16 +95,23 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE}
       SPRING_CLOUD_NACOS_DISCOVERY_SERVER-ADDR: ${NACOS_SERVER}
-      SPRING_DATASOURCE_URL: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}?currentSchema=public&sslmode=require
-      SPRING_DATASOURCE_USERNAME: ${DB_USER}
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASS}
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      SPRING_REDIS_PASSWORD: ${REDIS_PASSWORD}
+      SPRING_REDIS_DATABASE: 0
+      SPRING_REDIS_TIMEOUT: 5000ms
+      SPRING_REDIS_LETTUCE_POOL_MAX-ACTIVE: 8
+      SPRING_REDIS_LETTUCE_POOL_MAX-IDLE: 8
+      SPRING_REDIS_LETTUCE_POOL_MIN-IDLE: 0
     depends_on:
       nacos:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - app-network
 
-  # 5. ai-service
+  # 6. ai-service
   ai-service:
     build:
       context: ../services/ai-service
@@ -88,16 +125,23 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE}
       SPRING_CLOUD_NACOS_DISCOVERY_SERVER-ADDR: ${NACOS_SERVER}
-      SPRING_DATASOURCE_URL: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}?currentSchema=public&sslmode=require
-      SPRING_DATASOURCE_USERNAME: ${DB_USER}
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASS}
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      SPRING_REDIS_PASSWORD: ${REDIS_PASSWORD}
+      SPRING_REDIS_DATABASE: 0
+      SPRING_REDIS_TIMEOUT: 5000ms
+      SPRING_REDIS_LETTUCE_POOL_MAX-ACTIVE: 8
+      SPRING_REDIS_LETTUCE_POOL_MAX-IDLE: 8
+      SPRING_REDIS_LETTUCE_POOL_MIN-IDLE: 0
     depends_on:
       nacos:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - app-network
 
-  # 6. auth-service
+  # 7. auth-service
   auth-service:
     build:
       context: ../services/auth-service
@@ -111,13 +155,23 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE}
       SPRING_CLOUD_NACOS_DISCOVERY_SERVER-ADDR: ${NACOS_SERVER}
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      SPRING_REDIS_PASSWORD: ${REDIS_PASSWORD}
+      SPRING_REDIS_DATABASE: 0
+      SPRING_REDIS_TIMEOUT: 5000ms
+      SPRING_REDIS_LETTUCE_POOL_MAX-ACTIVE: 8
+      SPRING_REDIS_LETTUCE_POOL_MAX-IDLE: 8
+      SPRING_REDIS_LETTUCE_POOL_MIN-IDLE: 0
     depends_on:
       nacos:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - app-network
 
-  # 7. doctor-service
+  # 8. doctor-service
   doctor-service:
     build:
       context: ../services/doctor-service
@@ -131,16 +185,23 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE}
       SPRING_CLOUD_NACOS_DISCOVERY_SERVER-ADDR: ${NACOS_SERVER}
-      SPRING_DATASOURCE_URL: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}?currentSchema=public&sslmode=require
-      SPRING_DATASOURCE_USERNAME: ${DB_USER}
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASS}
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      SPRING_REDIS_PASSWORD: ${REDIS_PASSWORD}
+      SPRING_REDIS_DATABASE: 0
+      SPRING_REDIS_TIMEOUT: 5000ms
+      SPRING_REDIS_LETTUCE_POOL_MAX-ACTIVE: 8
+      SPRING_REDIS_LETTUCE_POOL_MAX-IDLE: 8
+      SPRING_REDIS_LETTUCE_POOL_MIN-IDLE: 0
     depends_on:
       nacos:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - app-network
 
-  # 8. patient-service
+  # 9. patient-service
   patient-service:
     build:
       context: ../services/patient-service
@@ -154,16 +215,23 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE}
       SPRING_CLOUD_NACOS_DISCOVERY_SERVER-ADDR: ${NACOS_SERVER}
-      SPRING_DATASOURCE_URL: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}?currentSchema=public&sslmode=require
-      SPRING_DATASOURCE_USERNAME: ${DB_USER}
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASS}
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      SPRING_REDIS_PASSWORD: ${REDIS_PASSWORD}
+      SPRING_REDIS_DATABASE: 0
+      SPRING_REDIS_TIMEOUT: 5000ms
+      SPRING_REDIS_LETTUCE_POOL_MAX-ACTIVE: 8
+      SPRING_REDIS_LETTUCE_POOL_MAX-IDLE: 8
+      SPRING_REDIS_LETTUCE_POOL_MIN-IDLE: 0
     depends_on:
       nacos:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - app-network
 
-  # 9. payment-service
+  # 10. payment-service
   payment-service:
     build:
       context: ../services/payment-service
@@ -177,11 +245,18 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE}
       SPRING_CLOUD_NACOS_DISCOVERY_SERVER-ADDR: ${NACOS_SERVER}
-      SPRING_DATASOURCE_URL: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}?currentSchema=public&sslmode=require
-      SPRING_DATASOURCE_USERNAME: ${DB_USER}
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASS}
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      SPRING_REDIS_PASSWORD: ${REDIS_PASSWORD}
+      SPRING_REDIS_DATABASE: 0
+      SPRING_REDIS_TIMEOUT: 5000ms
+      SPRING_REDIS_LETTUCE_POOL_MAX-ACTIVE: 8
+      SPRING_REDIS_LETTUCE_POOL_MAX-IDLE: 8
+      SPRING_REDIS_LETTUCE_POOL_MIN-IDLE: 0
     depends_on:
       nacos:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - app-network
@@ -189,3 +264,7 @@ services:
 networks:
   app-network:
     driver: bridge
+
+volumes:
+  redis-data:
+    driver: local
