@@ -23,4 +23,9 @@ public class DoctorFeignFallback implements DoctorFeignClient {
     public Map<String, Object> getDoctorSchedules(String doctorId) {
         return Map.of("schedules", Collections.emptyList());
     }
+
+    @Override
+    public Map<String, Object> getConsultContext(String registerId) {
+        return Map.of("error", "医生服务暂不可用，无法获取病历上下文");
+    }
 }

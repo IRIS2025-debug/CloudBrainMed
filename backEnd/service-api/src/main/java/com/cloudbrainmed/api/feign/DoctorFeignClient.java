@@ -25,4 +25,12 @@ public interface DoctorFeignClient {
     /** 查询医生排班（AI 智能排班用） */
     @GetMapping("/api/doctor/schedule/{doctorId}")
     Map<String, Object> getDoctorSchedules(@PathVariable("doctorId") String doctorId);
+
+    /**
+     * 获取接诊上下文（供 AI 接诊分析反查病历数据）
+     * 返回: { chiefComplaint, recordDesc, patientAge, patientGender,
+     *         historyRecords: [...], examReports: [...] }
+     */
+    @GetMapping("/internal/doctor/consult/context")
+    Map<String, Object> getConsultContext(@RequestParam("registerId") String registerId);
 }
