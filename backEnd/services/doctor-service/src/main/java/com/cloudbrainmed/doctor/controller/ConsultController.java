@@ -32,7 +32,8 @@ public class ConsultController {
     @GetMapping("/detail")
     public Result<?> detail(@RequestHeader(value = "token", required = false) String token,
                             @RequestParam String registerId) {
-        return Result.ok(service.getDetail(registerId));
+        String doctorId = extractDoctorId(token);
+        return Result.ok(service.getDetail(doctorId, registerId));
     }
 
     /** 4.4.2.3 暂存病历草稿 */
@@ -66,20 +67,6 @@ public class ConsultController {
                               @RequestBody Map<String, String> body) {
         service.completeConsult(body.get("registerId"));
         return Result.ok();
-    }
-
-    /** 4.4.2.7 AI 接诊分析（通过 Feign → ai-service → DeepSeek） */
-    @PostMapping("/ai-analyze")
-    public Result<?> aiAnalyze(@RequestHeader(value = "token", required = false) String token,
-                               @RequestBody Map<String, String> body) {
-        Map<String, Object> result = service.aiAnalyze(
-                body.get("registerId"),
-                body.get("chiefComplaint"),
-                body.get("recordDesc"),
-                body.get("patientAge"),
-                body.get("patientGender")
-        );
-        return Result.ok(result);
     }
 
     /**

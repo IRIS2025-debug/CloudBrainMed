@@ -1,6 +1,5 @@
 package com.cloudbrainmed.doctor.service.impl;
 
-import com.cloudbrainmed.api.feign.AiFeignClient;
 import com.cloudbrainmed.common.exception.BusinessException;
 import com.cloudbrainmed.doctor.entity.ConsultRecord;
 import com.cloudbrainmed.doctor.mapper.ConsultMapper;
@@ -9,20 +8,16 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 @Service
 public class ConsultServiceImpl implements ConsultService {
 
     private final ConsultMapper consultMapper;
-    private final AiFeignClient aiFeignClient;
 
-    public ConsultServiceImpl(ConsultMapper consultMapper, AiFeignClient aiFeignClient) {
+    public ConsultServiceImpl(ConsultMapper consultMapper) {
         this.consultMapper = consultMapper;
-        this.aiFeignClient = aiFeignClient;
     }
 
     @Override
@@ -32,9 +27,12 @@ public class ConsultServiceImpl implements ConsultService {
     }
 
     @Override
-    public ConsultRecord getDetail(String registerId) {
+    public ConsultRecord getDetail(String doctorId, String registerId) {
         ConsultRecord r = consultMapper.findDetail(registerId);
         if (r == null) throw new BusinessException("就诊记录不存在");
+        if (!doctorId.equals(r.getDoctorId())) {
+            throw new BusinessException("无权查看该接诊记录");
+        }
         return r;
     }
 
@@ -83,26 +81,5 @@ public class ConsultServiceImpl implements ConsultService {
     @Override
     public void completeConsult(String registerId) {
         consultMapper.completeConsult(registerId);
-    }
-
-    @Override
-    public Map<String, Object> aiAnalyze(String registerId, String chiefComplaint, String recordDesc,
-                                          String patientAge, String patientGender) {
-        // 先查挂号记录，补全患者信息
-        ConsultRecord detail = consultMapper.findDetail(registerId);
-        if (detail == null) throw new BusinessException("就诊记录不存在");
-
-        Map<String, String> aiRequest = new HashMap<>();
-        aiRequest.put("registerId", registerId);
-        aiRequest.put("chiefComplaint", chiefComplaint != null ? chiefComplaint :
-                (detail.getChiefComplaint() != null ? detail.getChiefComplaint() : ""));
-        aiRequest.put("recordDesc", recordDesc);
-        aiRequest.put("patientAge", patientAge != null ? patientAge :
-                (detail.getPatientAge() != null ? String.valueOf(detail.getPatientAge()) : "未知"));
-        aiRequest.put("patientGender", patientGender != null ? patientGender :
-                (detail.getGender() != null ? (detail.getGender() == 1 ? "男" : "女") : "未知"));
-
-        // 通过 Feign 调用 ai-service
-        return aiFeignClient.analyzeConsult(aiRequest);
     }
 }
