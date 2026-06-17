@@ -11,9 +11,9 @@ spring:
   config:
     import: optional:nacos:admin-service.yml
   datasource:
-    url: ${SPRING_DATASOURCE_URL}
-    username: ${SPRING_DATASOURCE_USERNAME}
-    password: ${SPRING_DATASOURCE_PASSWORD}
+    url: jdbc:postgresql://pgm-bp101mh91d37956ybo.pg.rds.aliyuncs.com:5432/CloudBrainMed?ssl=false
+    username: iris
+    password: Abc39173551
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 15
