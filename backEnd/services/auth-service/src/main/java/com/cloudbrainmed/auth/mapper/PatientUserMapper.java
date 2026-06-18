@@ -30,5 +30,11 @@ public interface PatientUserMapper {
     @Update("UPDATE patient SET update_time = NOW() WHERE patient_id = #{patientId}")
     int updateLastLoginTime(@Param("patientId") String patientId);
 
+    /**
+     * 获取最新的患者ID（用于生成新ID）
+     * @return 最新的patient_id，如 p003
+     */
+    @Select("SELECT patient_id FROM patient WHERE patient_id LIKE 'p%' ORDER BY patient_id DESC LIMIT 1")
+    String getLatestPatientId();
 
 }

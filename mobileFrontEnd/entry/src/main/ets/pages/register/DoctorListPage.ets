@@ -28,7 +28,7 @@ export struct DoctorListPage {
   @State deptName: string = '';
   private deptId: string = '';
   private patientId: string = '';
-  private baseUrl: string = 'http://172.22.101.145:8004/patient-service';
+  private baseUrl: string = 'http://192.168.25.143:8004/patient-service';
 
   aboutToAppear() {
     const params = router.getParams() as Record<string, string>;
@@ -63,6 +63,24 @@ export struct DoctorListPage {
     } finally {
       this.isLoading = false;
     }
+  }
+
+  private getGenderText(gender: number): string {
+    if (gender === 1) {
+      return '男';
+    } else if (gender === 2) {
+      return '女';
+    }
+    return '未知';
+  }
+
+  private getGenderIcon(gender: number): string {
+    if (gender === 1) {
+      return '👨';
+    } else if (gender === 2) {
+      return '👩';
+    }
+    return '👤';
   }
 
   build() {
@@ -101,52 +119,104 @@ export struct DoctorListPage {
         .justifyContent(FlexAlign.Center)
       } else if (this.doctors.length === 0) {
         Column() {
+          Text('📋')
+            .fontSize(60)
+            .margin({ bottom: 16 })
           Text('暂无医生')
             .fontSize(16)
             .fontColor('#999999')
+          Text('请选择其他科室')
+            .fontSize(12)
+            .fontColor('#CCCCCC')
+            .margin({ top: 8 })
         }
         .width('100%')
         .height('100%')
         .justifyContent(FlexAlign.Center)
       } else {
         Scroll() {
+          // 关键修改：设置 Column 宽度100% 和 alignItems 为 Start
           Column() {
             ForEach(this.doctors, (doctor: Doctor) => {
+              // 医生卡片 - 宽度100%，内容左对齐
               Column() {
+                // 医生信息行
                 Row() {
-                  // 头像
+                  // 头像区域
                   Column() {
-                    Text(doctor.avatar || '👨‍⚕️')
-                      .fontSize(48)
+                    Text(doctor.avatar || this.getGenderIcon(doctor.gender))
+                      .fontSize(40)
                       .backgroundColor('#E3F2FD')
-                      .width(60)
-                      .height(60)
-                      .borderRadius(30)
+                      .width(56)
+                      .height(56)
+                      .borderRadius(28)
                       .textAlign(TextAlign.Center)
-                      .lineHeight(60)
+                      .lineHeight(56)
                   }
 
+                  // 医生详细信息区域 - 左对齐
                   Column() {
+                    // 姓名和职称行
                     Row() {
                       Text(doctor.name)
-                        .fontSize(18)
+                        .fontSize(16)
                         .fontWeight(FontWeight.Bold)
                         .fontColor('#333333')
                       Text(doctor.position)
-                        .fontSize(12)
+                        .fontSize(11)
                         .fontColor('#FF6B6B')
                         .backgroundColor('#FFF0F0')
-                        .padding({ left: 8, right: 8, top: 2, bottom: 2 })
+                        .padding({ left: 6, right: 6, top: 2, bottom: 2 })
                         .borderRadius(4)
                         .margin({ left: 8 })
                     }
+                    .width('100%')
+                    .margin({ bottom: 8 })
+
+                    // 性别行
+                    Row() {
+                      Text('性别：')
+                        .fontSize(12)
+                        .fontColor('#999999')
+                      Text(this.getGenderText(doctor.gender))
+                        .fontSize(12)
+                        .fontColor('#666666')
+                    }
+                    .width('100%')
                     .margin({ bottom: 6 })
 
-                    Text(doctor.goodAt ? (doctor.goodAt.length > 35 ? doctor.goodAt.substring(0, 35) + '...' : doctor.goodAt) : '暂无简介')
-                      .fontSize(13)
-                      .fontColor('#999999')
-                      .maxLines(2)
-                      .textOverflow({ overflow: TextOverflow.Ellipsis })
+                    // 擅长领域
+                    if (doctor.goodAt && doctor.goodAt.length > 0) {
+                      Row() {
+                        Text('擅长：')
+                          .fontSize(12)
+                          .fontColor('#999999')
+                        Text(doctor.goodAt)
+                          .fontSize(12)
+                          .fontColor('#666666')
+                          .layoutWeight(1)
+                          .maxLines(2)
+                          .textOverflow({ overflow: TextOverflow.Ellipsis })
+                      }
+                      .width('100%')
+                      .margin({ bottom: 6 })
+                    }
+
+                    // 简介
+                    if (doctor.introduction && doctor.introduction.length > 0) {
+                      Row() {
+                        Text('简介：')
+                          .fontSize(12)
+                          .fontColor('#999999')
+                        Text(doctor.introduction)
+                          .fontSize(12)
+                          .fontColor('#666666')
+                          .layoutWeight(1)
+                          .maxLines(2)
+                          .textOverflow({ overflow: TextOverflow.Ellipsis })
+                      }
+                      .width('100%')
+                    }
                   }
                   .alignItems(HorizontalAlign.Start)
                   .layoutWeight(1)
@@ -154,37 +224,52 @@ export struct DoctorListPage {
                 }
                 .width('100%')
                 .padding(16)
+                .alignItems(VerticalAlign.Top)
 
-                Button('预约挂号')
-                  .width('100%')
-                  .height(40)
-                  .fontSize(14)
-                  .fontColor('#FFFFFF')
-                  .backgroundColor('#007AFF')
-                  .borderRadius(20)
-                  .onClick(() => {
-                    router.pushUrl({
-                      url: 'pages/register/ScheduleSelectPage',
-                      params: {
-                        doctorId: doctor.doctorId,
-                        doctorName: doctor.name,
-                        patientId: this.patientId
-                      }
-                    });
-                  })
+                // 分割线
+                Divider()
+                  .color('#F0F0F0')
+                  .margin({ left: 16, right: 16 })
+
+                // 预约按钮
+                Row() {
+                  Text('立即预约')
+                    .fontSize(14)
+                    .fontColor('#FFFFFF')
+                    .fontWeight(FontWeight.Medium)
+                }
+                .width('100%')
+                .height(40)
+                .backgroundColor('#007AFF')
+                .borderRadius(20)
+                .justifyContent(FlexAlign.Center)
+                .margin({ top: 12, bottom: 16, left: 16, right: 16 })
+                .onClick(() => {
+                  router.pushUrl({
+                    url: 'pages/register/ScheduleSelectPage',
+                    params: {
+                      doctorId: doctor.doctorId,
+                      doctorName: doctor.name,
+                      patientId: this.patientId
+                    }
+                  });
+                })
               }
               .width('100%')
               .backgroundColor('#FFFFFF')
               .borderRadius(16)
               .margin({ bottom: 12 })
+              .alignItems(HorizontalAlign.Start)  // 关键：卡片内容左对齐
             })
           }
-          .width('100%')
+          .width('100%')  // 关键：设置宽度100%
+          .alignItems(HorizontalAlign.Start)  // 关键：Column内容左对齐
           .padding(16)
         }
         .scrollable(ScrollDirection.Vertical)
         .scrollBar(BarState.Off)
         .layoutWeight(1)
+        .align(Alignment.TopStart)  // 关键：Scroll内容从左上角开始
       }
     }
     .width('100%')

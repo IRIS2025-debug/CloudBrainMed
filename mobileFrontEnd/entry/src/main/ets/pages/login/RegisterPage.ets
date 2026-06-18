@@ -1,9 +1,9 @@
-// pages/RegisterPage.ets
+// pages/login/RegisterPage.ets
 import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
 import { HttpUtil } from '../common/HttpUtil';
+import { LogoIcon } from '../common/LogoIcon';
 
-// 定义接口类型
 interface RegisterParams {
   name: string;
   phone: string;
@@ -42,9 +42,17 @@ struct RegisterPage {
   @State idCardError: string = '';
   @State passwordError: string = '';
 
-  private baseUrl: string = 'http://172.22.101.145:8002/auth-service';
+  @State nameFocused: boolean = false;
+  @State phoneFocused: boolean = false;
+  @State idCardFocused: boolean = false;
+  @State passwordFocused: boolean = false;
+  @State confirmPasswordFocused: boolean = false;
 
-  // 简单的前端验证
+  @State showPassword: boolean = false;
+  @State showConfirmPassword: boolean = false;
+
+  private baseUrl: string = 'http://192.168.25.143:8002/auth-service';
+
   private validateForm(): boolean {
     let isValid = true;
 
@@ -104,14 +112,12 @@ struct RegisterPage {
     return isValid;
   }
 
-  // 注册
   private async register(): Promise<void> {
     if (!this.validateForm()) {
       return;
     }
 
     this.isLoading = true;
-
     const context = getContext(this);
 
     const requestData: RegisterParams = {
@@ -131,7 +137,7 @@ struct RegisterPage {
 
       if (result.code === 200) {
         promptAction.showToast({
-          message: '注册成功！请登录',
+          message: '🎉 注册成功！请登录',
           duration: 2000
         });
 
@@ -148,14 +154,14 @@ struct RegisterPage {
         }, 1500);
       } else {
         promptAction.showToast({
-          message: result.message,
+          message: result.message || '注册失败，请稍后重试',
           duration: 2000
         });
       }
     } catch (error) {
       console.error('注册失败：' + JSON.stringify(error));
       promptAction.showToast({
-        message: '注册失败，请稍后重试',
+        message: '网络请求失败，请检查网络连接',
         duration: 2000
       });
     } finally {
@@ -163,72 +169,105 @@ struct RegisterPage {
     }
   }
 
-  // 跳转到登录页
-  // 跳转到登录页并传递参数
   private goToLogin(): void {
     router.pushUrl({
       url: 'pages/login/LoginPage',
       params: {
-        phone: this.phone,      // 传递手机号
-        password: this.password  // 传递密码
+        phone: this.phone,
+        password: this.password
       }
     }).catch((err: Error) => {
       console.error('跳转失败：' + JSON.stringify(err));
     });
   }
 
-  // 获取焦点时的样式
-  @State nameFocused: boolean = false;
-  @State phoneFocused: boolean = false;
-  @State idCardFocused: boolean = false;
-  @State passwordFocused: boolean = false;
-  @State confirmPasswordFocused: boolean = false;
-
   build() {
-    Scroll() {
-      Column() {
-        // Logo 图片
-        Image($r('app.media.logo'))
-          .width(80)
-          .height(80)
-          .margin({ top: 40, bottom: 16 })
-          .objectFit(ImageFit.Contain)
-
-        // 标题区域
-        Column() {
-          Text('用户注册')
-            .fontSize(40)  // 字体从32加大到40
-            .fontWeight(FontWeight.Bold)
-            .fontColor('#333333')  // 改为纯黑色，不用渐变
-            .margin({ bottom: 8 })
-
-          Text('开启您的健康之旅')
-            .fontSize(14)
-            .fontColor('#8a8a8a')
-        }
+    Stack() {
+      // ======= 顶部蓝色渐变背景 =======
+      Column()
         .width('100%')
-        .margin({ top: 8, bottom: 40 })
-        .alignItems(HorizontalAlign.Center)
+        .height('40%')
+        .linearGradient({
+          angle: 180,
+          colors: [
+            ['#1a3a8a', 0],
+            ['#2563eb', 0.4],
+            ['rgba(37, 99, 235, 0.3)', 0.7],
+            ['rgba(37, 99, 235, 0.05)', 1]
+          ]
+        })
+        .position({ x: 0, y: 0 })
 
-        // 表单区域 - 下划线样式
+      // ======= 底部白色背景 =======
+      Column()
+        .width('100%')
+        .height('55%')
+        .backgroundColor('#ffffff')
+        .position({ x: 0, y: '55%' })
+
+      Scroll() {
         Column() {
-          // 姓名
+          // ======= 顶部间距 =======
+          Blank()
+            .height(40)
+
+          // ======= Logo区域 =======
           Column() {
-            Row() {
+            LogoIcon({
+              iconSize: 50
+            })
+          }
+          .width(60)
+          .height(60)
+          .margin({ bottom: 10 })
+          .borderRadius(14)
+          .backgroundColor('rgba(255, 255, 255, 0.15)')
+          .backdropBlur(10)
+          .border({
+            width: 1,
+            color: 'rgba(255, 255, 255, 0.2)'
+          })
+          .justifyContent(FlexAlign.Center)
+          .alignItems(HorizontalAlign.Center)
+
+          // ======= 标题 =======
+          Text('CloudBrainMed')
+            .fontSize(20)
+            .fontWeight(FontWeight.Bold)
+            .fontColor('#ffffff')
+            .letterSpacing(1.5)
+            .margin({ bottom: 2 })
+
+          Text('AI智能医疗诊疗系统')
+            .fontSize(11)
+            .fontColor('rgba(255, 255, 255, 0.6)')
+            .letterSpacing(3)
+            .margin({ bottom: 28 })
+
+          // ======= 白色卡片区域 =======
+          Column() {
+            // ===== 姓名 =====
+            Column() {
               Text('姓名')
                 .fontSize(14)
                 .fontColor('#333333')
-                .width(80)
                 .fontWeight(500)
+                .margin({ bottom: 8 })
+                .width('100%')
 
-              TextInput({ placeholder: '请输入真实姓名', text: this.name })
-                .layoutWeight(1)
-                .height(44)
-                .backgroundColor('transparent')
-                .border({ width: { bottom: 1 }, color: this.nameFocused ? '#007AFF' : '#e0e0e0' })  // 焦点改为蓝色
-                .padding({ left: 0, right: 0, bottom: 8 })
-                .fontSize(14)
+              TextInput({ placeholder: '请输入您的姓名', text: this.name })
+                .width('100%')
+                .height(46)
+                .backgroundColor('#f5f6fa')
+                .borderRadius(10)
+                .padding({ left: 16, right: 16 })
+                .fontSize(15)
+                .fontColor('#1a1a1a')
                 .placeholderColor('#bfbfbf')
+                .border({
+                  width: 1.5,
+                  color: this.nameFocused ? '#2563eb' : 'transparent'
+                })
                 .onChange((value: string) => {
                   this.name = value;
                   if (this.nameError) this.nameError = '';
@@ -239,39 +278,42 @@ struct RegisterPage {
                 .onBlur(() => {
                   this.nameFocused = false;
                 })
+
+              if (this.nameError) {
+                Text(this.nameError)
+                  .fontSize(12)
+                  .fontColor('#ff4d4f')
+                  .margin({ top: 6 })
+                  .width('100%')
+              }
             }
+            .margin({ bottom: 16 })
             .width('100%')
-            .alignItems(VerticalAlign.Center)
 
-            if (this.nameError) {
-              Text(this.nameError)
-                .fontSize(12)
-                .fontColor('#ff4d4f')
-                .margin({ top: 4, left: 80 })
-            }
-          }
-          .margin({ bottom: 24 })
-          .width('100%')
-
-          // 手机号
-          Column() {
-            Row() {
+            // ===== 手机号 =====
+            Column() {
               Text('手机号')
                 .fontSize(14)
                 .fontColor('#333333')
-                .width(80)
                 .fontWeight(500)
+                .margin({ bottom: 8 })
+                .width('100%')
 
-              TextInput({ placeholder: '请输入手机号', text: this.phone })
-                .layoutWeight(1)
-                .height(44)
-                .backgroundColor('transparent')
-                .border({ width: { bottom: 1 }, color: this.phoneFocused ? '#007AFF' : '#e0e0e0' })  // 焦点改为蓝色
-                .padding({ left: 0, right: 0, bottom: 8 })
+              TextInput({ placeholder: '请输入您的手机号', text: this.phone })
+                .width('100%')
+                .height(46)
+                .backgroundColor('#f5f6fa')
+                .borderRadius(10)
+                .padding({ left: 16, right: 16 })
                 .type(InputType.PhoneNumber)
                 .maxLength(11)
-                .fontSize(14)
+                .fontSize(15)
+                .fontColor('#1a1a1a')
                 .placeholderColor('#bfbfbf')
+                .border({
+                  width: 1.5,
+                  color: this.phoneFocused ? '#2563eb' : 'transparent'
+                })
                 .onChange((value: string) => {
                   this.phone = value;
                   if (this.phoneError) this.phoneError = '';
@@ -282,38 +324,41 @@ struct RegisterPage {
                 .onBlur(() => {
                   this.phoneFocused = false;
                 })
+
+              if (this.phoneError) {
+                Text(this.phoneError)
+                  .fontSize(12)
+                  .fontColor('#ff4d4f')
+                  .margin({ top: 6 })
+                  .width('100%')
+              }
             }
+            .margin({ bottom: 16 })
             .width('100%')
-            .alignItems(VerticalAlign.Center)
 
-            if (this.phoneError) {
-              Text(this.phoneError)
-                .fontSize(12)
-                .fontColor('#ff4d4f')
-                .margin({ top: 4, left: 80 })
-            }
-          }
-          .margin({ bottom: 24 })
-          .width('100%')
-
-          // 身份证号
-          Column() {
-            Row() {
+            // ===== 身份证号 =====
+            Column() {
               Text('身份证号')
                 .fontSize(14)
                 .fontColor('#333333')
-                .width(80)
                 .fontWeight(500)
+                .margin({ bottom: 8 })
+                .width('100%')
 
-              TextInput({ placeholder: '请输入身份证号', text: this.idCard })
-                .layoutWeight(1)
-                .height(44)
-                .backgroundColor('transparent')
-                .border({ width: { bottom: 1 }, color: this.idCardFocused ? '#007AFF' : '#e0e0e0' })  // 焦点改为蓝色
-                .padding({ left: 0, right: 0, bottom: 8 })
+              TextInput({ placeholder: '请输入您的身份证号', text: this.idCard })
+                .width('100%')
+                .height(46)
+                .backgroundColor('#f5f6fa')
+                .borderRadius(10)
+                .padding({ left: 16, right: 16 })
                 .maxLength(18)
-                .fontSize(14)
+                .fontSize(15)
+                .fontColor('#1a1a1a')
                 .placeholderColor('#bfbfbf')
+                .border({
+                  width: 1.5,
+                  color: this.idCardFocused ? '#2563eb' : 'transparent'
+                })
                 .onChange((value: string) => {
                   this.idCard = value;
                   if (this.idCardError) this.idCardError = '';
@@ -324,38 +369,42 @@ struct RegisterPage {
                 .onBlur(() => {
                   this.idCardFocused = false;
                 })
+
+              if (this.idCardError) {
+                Text(this.idCardError)
+                  .fontSize(12)
+                  .fontColor('#ff4d4f')
+                  .margin({ top: 6 })
+                  .width('100%')
+              }
             }
+            .margin({ bottom: 16 })
             .width('100%')
-            .alignItems(VerticalAlign.Center)
 
-            if (this.idCardError) {
-              Text(this.idCardError)
-                .fontSize(12)
-                .fontColor('#ff4d4f')
-                .margin({ top: 4, left: 80 })
-            }
-          }
-          .margin({ bottom: 24 })
-          .width('100%')
-
-          // 密码
-          Column() {
-            Row() {
+            // ===== 密码 =====
+            Column() {
               Text('密码')
                 .fontSize(14)
                 .fontColor('#333333')
-                .width(80)
                 .fontWeight(500)
+                .margin({ bottom: 8 })
+                .width('100%')
 
               TextInput({ placeholder: '请输入密码（6-20位）', text: this.password })
-                .layoutWeight(1)
-                .height(44)
-                .backgroundColor('transparent')
-                .border({ width: { bottom: 1 }, color: this.passwordFocused ? '#007AFF' : '#e0e0e0' })  // 焦点改为蓝色
-                .padding({ left: 0, right: 0, bottom: 8 })
-                .type(InputType.Password)
-                .fontSize(14)
+                .width('100%')
+                .height(46)
+                .backgroundColor('#f5f6fa')
+                .borderRadius(10)
+                .padding({ left: 16, right: 16 })
+                .type(this.showPassword ? InputType.Normal : InputType.Password)
+                .fontSize(15)
+                .fontColor('#1a1a1a')
                 .placeholderColor('#bfbfbf')
+                .border({
+                  width: 1.5,
+                  color: this.passwordFocused ? '#2563eb' : 'transparent'
+                })
+                .showPasswordIcon(true)  // 显示密码眼睛图标
                 .onChange((value: string) => {
                   this.password = value;
                   if (this.passwordError) this.passwordError = '';
@@ -367,30 +416,33 @@ struct RegisterPage {
                   this.passwordFocused = false;
                 })
             }
+            .margin({ bottom: 16 })
             .width('100%')
-            .alignItems(VerticalAlign.Center)
-          }
-          .margin({ bottom: 24 })
-          .width('100%')
 
-          // 确认密码
-          Column() {
-            Row() {
+            // ===== 确认密码 =====
+            Column() {
               Text('确认密码')
                 .fontSize(14)
                 .fontColor('#333333')
-                .width(80)
                 .fontWeight(500)
+                .margin({ bottom: 8 })
+                .width('100%')
 
               TextInput({ placeholder: '请再次输入密码', text: this.confirmPassword })
-                .layoutWeight(1)
-                .height(44)
-                .backgroundColor('transparent')
-                .border({ width: { bottom: 1 }, color: this.confirmPasswordFocused ? '#007AFF' : '#e0e0e0' })  // 焦点改为蓝色
-                .padding({ left: 0, right: 0, bottom: 8 })
-                .type(InputType.Password)
-                .fontSize(14)
+                .width('100%')
+                .height(46)
+                .backgroundColor('#f5f6fa')
+                .borderRadius(10)
+                .padding({ left: 16, right: 16 })
+                .type(this.showConfirmPassword ? InputType.Normal : InputType.Password)
+                .fontSize(15)
+                .fontColor('#1a1a1a')
                 .placeholderColor('#bfbfbf')
+                .border({
+                  width: 1.5,
+                  color: this.confirmPasswordFocused ? '#2563eb' : 'transparent'
+                })
+                .showPasswordIcon(true)  // 显示密码眼睛图标
                 .onChange((value: string) => {
                   this.confirmPassword = value;
                   if (this.passwordError) this.passwordError = '';
@@ -401,93 +453,95 @@ struct RegisterPage {
                 .onBlur(() => {
                   this.confirmPasswordFocused = false;
                 })
-            }
-            .width('100%')
-            .alignItems(VerticalAlign.Center)
 
-            if (this.passwordError) {
-              Text(this.passwordError)
-                .fontSize(12)
-                .fontColor('#ff4d4f')
-                .margin({ top: 4, left: 80 })
+              if (this.passwordError) {
+                Text(this.passwordError)
+                  .fontSize(12)
+                  .fontColor('#ff4d4f')
+                  .margin({ top: 6 })
+                  .width('100%')
+              }
             }
+            .margin({ bottom: 8 })
+            .width('100%')
+
+            // ===== 用户协议 =====
+            Row() {
+              Checkbox({ name: 'agree' })
+                .width(18)
+                .height(18)
+                .select(this.agreeProtocol)
+                .onChange((value: boolean) => {
+                  this.agreeProtocol = value;
+                })
+              Text('我已阅读并同意')
+                .fontSize(13)
+                .fontColor('#8a8a8a')
+                .margin({ left: 6 })
+              Text('《用户协议》')
+                .fontSize(13)
+                .fontColor('#2563eb')
+              Text('和')
+                .fontSize(13)
+                .fontColor('#8a8a8a')
+              Text('《隐私政策》')
+                .fontSize(13)
+                .fontColor('#2563eb')
+            }
+            .margin({ top: 20, bottom: 24 })
+
+            // ===== 注册按钮 =====
+            Button('注 册')
+              .width('100%')
+              .height(50)
+              .fontSize(17)
+              .fontWeight(FontWeight.Medium)
+              .fontColor('#ffffff')
+              .backgroundColor(this.isLoading ? '#d9d9d9' : '#2563eb')
+              .borderRadius(12)
+              .enabled(!this.isLoading)
+              .onClick(() => this.register())
+
+            if (this.isLoading) {
+              LoadingProgress()
+                .width(28)
+                .height(28)
+                .color('#2563eb')
+                .margin({ top: 12 })
+            }
+
+            // ===== 已有账号跳转 =====
+            Row() {
+              Text('已有账号？')
+                .fontSize(14)
+                .fontColor('#8a8a8a')
+              Text('立即登录')
+                .fontSize(14)
+                .fontColor('#2563eb')
+                .fontWeight(FontWeight.Medium)
+                .margin({ left: 6 })
+                .onClick(() => this.goToLogin())
+            }
+            .margin({ top: 16, bottom: 8 })
           }
-          .margin({ bottom: 32 })
           .width('100%')
+          .padding({ left: 28, right: 28, top: 28, bottom: 24 })
+          .backgroundColor('rgba(255, 255, 255, 0.92)')
+          .borderRadius(20)
+          .backdropBlur(20)
+
+          Blank()
+            .height(30)
         }
         .width('100%')
         .padding({ left: 24, right: 24 })
-
-        // 用户协议
-        Row() {
-          Checkbox({ name: 'agree' })
-            .width(16)
-            .height(16)
-            .select(this.agreeProtocol)
-            .onChange((value: boolean) => {
-              this.agreeProtocol = value;
-            })
-
-          Text('我已阅读并同意')
-            .fontSize(12)
-            .fontColor('#8a8a8a')
-
-          Text('《用户协议》')
-            .fontSize(12)
-            .fontColor('#007AFF')  // 改为蓝色
-
-          Text('和')
-            .fontSize(12)
-            .fontColor('#8a8a8a')
-
-          Text('《隐私政策》')
-            .fontSize(12)
-            .fontColor('#007AFF')  // 改为蓝色
-        }
-        .margin({ bottom: 40 })
-
-        // 注册按钮 - 纯蓝色背景
-        Button('立即注册')
-          .width('85%')
-          .height(48)
-          .fontSize(16)
-          .fontWeight(FontWeight.Medium)
-          .fontColor('#ffffff')
-          .backgroundColor(this.isLoading ? '#d9d9d9' : '#007AFF')  // 改为纯蓝色
-          .borderRadius(24)
-          .enabled(!this.isLoading)
-          .onClick(() => this.register())
-
-        if (this.isLoading) {
-          LoadingProgress()
-            .width(32)
-            .height(32)
-            .color('#007AFF')  // 改为蓝色
-            .margin({ top: 12 })
-        }
-
-        // 已有账号 - 跳转登录
-        Row() {
-          Text('已有账号？')
-            .fontSize(14)
-            .fontColor('#8a8a8a')
-
-          Text('立即登录')
-            .fontSize(14)
-            .fontColor('#007AFF')  // 改为蓝色
-            .fontWeight(FontWeight.Medium)
-            .margin({ left: 8 })
-            .onClick(() => this.goToLogin())
-        }
-        .margin({ top: 32, bottom: 50 })
       }
       .width('100%')
-      .padding({ left: 16, right: 16 })
+      .height('100%')
+      .scrollable(ScrollDirection.Vertical)
+      .scrollBar(BarState.Off)
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#ffffff')
-    .scrollable(ScrollDirection.Vertical)
-    .scrollBar(BarState.Off)
   }
 }

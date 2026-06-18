@@ -31,7 +31,7 @@ export struct OrderSuccessPage {
   @State registerId: string = '';
   @State orderInfo: Registration | null = null;
   @State isLoading: boolean = true;
-  private baseUrl: string = 'http://172.22.101.145:8004/patient-service';
+  private baseUrl: string = 'http://192.168.25.143:8004/patient-service';
 
   aboutToAppear() {
     const params = router.getParams() as Record<string, string>;

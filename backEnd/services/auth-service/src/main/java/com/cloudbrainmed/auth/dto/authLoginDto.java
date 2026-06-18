@@ -12,8 +12,11 @@ public class authLoginDto {
     @Pattern(regexp = "^1[3-9]\\d{9}$", message = "手机号格式不正确")
     private String phone;
 
-    @NotBlank(message = "密码不能为空")
     private String password;
+
+    private String verifyCode;  // 验证码（仿真用）
+
+    private Integer loginType;  // 登录类型：1-密码登录，2-验证码登录
 
     // Getters and Setters
     public String getPhone() {
@@ -30,5 +33,21 @@ public class authLoginDto {
 
     public void setPassword(String password) {
         this.password = password;
+    }
+
+    public String getVerifyCode() {
+        return verifyCode;
+    }
+
+    public void setVerifyCode(String verifyCode) {
+        this.verifyCode = verifyCode;
+    }
+
+    public Integer getLoginType() {
+        return loginType;
+    }
+
+    public void setLoginType(Integer loginType) {
+        this.loginType = loginType;
     }
 }

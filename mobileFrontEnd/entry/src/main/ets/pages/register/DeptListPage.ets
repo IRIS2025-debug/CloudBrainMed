@@ -25,7 +25,7 @@ export struct DeptListPage {
   @State depts: Dept[] = [];
   @State isLoading: boolean = true;
   private patientId: string = '';
-  private baseUrl: string = 'http://172.22.101.145:8004/patient-service';
+  private baseUrl: string = 'http://192.168.25.143:8004/patient-service';
 
   aboutToAppear() {
     const params = router.getParams() as Record<string, string>;
@@ -58,6 +58,22 @@ export struct DeptListPage {
     } finally {
       this.isLoading = false;
     }
+  }
+
+  private getDeptIcon(deptName: string): string {
+    const iconMap: Record<string, string> = {
+      '内科': '🏥',
+      '外科': '🔪',
+      '放射科': '📷',
+      '儿科': '👶',
+      '妇产科': '👩',
+      '眼科': '👁️',
+      '口腔科': '🦷',
+      '皮肤科': '🧴',
+      '中医科': '🌿',
+      '急诊科': '🚑'
+    };
+    return iconMap[deptName] || '🏥';
   }
 
   build() {
@@ -96,30 +112,66 @@ export struct DeptListPage {
         .justifyContent(FlexAlign.Center)
       } else {
         Scroll() {
+          // 关键：设置Column宽度100%和左对齐
           Column() {
-            Grid() {
-              ForEach(this.depts, (dept: Dept) => {
-                GridItem() {
+            ForEach(this.depts, (dept: Dept) => {
+              // 科室卡片 - 一行一行展示，左对齐
+              Column() {
+                Row() {
+                  // 科室图标
+                  Text(this.getDeptIcon(dept.deptName))
+                    .fontSize(32)
+                    .margin({ right: 16 })
+
+                  // 科室信息区域 - 左对齐
                   Column() {
-                    Text('🏥')
-                      .fontSize(40)
-                      .margin({ bottom: 12 })
                     Text(dept.deptName)
-                      .fontSize(14)
-                      .fontColor('#333333')
+                      .fontSize(16)
                       .fontWeight(FontWeight.Medium)
-                      .maxLines(2)
-                      .textAlign(TextAlign.Center)
-                    Text('剩余号源 ' + (dept.freeCapacity || 0))
-                      .fontSize(11)
-                      .fontColor('#999999')
-                      .margin({ top: 8 })
+                      .fontColor('#333333')
+                      .margin({ bottom: 6 })
+
+                    Row() {
+                      Text('剩余号源')
+                        .fontSize(12)
+                        .fontColor('#999999')
+                      Text(String(dept.freeCapacity || 0))
+                        .fontSize(12)
+                        .fontColor('#007AFF')
+                        .fontWeight(FontWeight.Medium)
+                        .margin({ left: 4 })
+                    }
                   }
-                  .width('100%')
-                  .padding(16)
-                  .backgroundColor('#F8F9FA')
-                  .borderRadius(16)
-                  .onClick(() => {
+                  .alignItems(HorizontalAlign.Start)
+                  .layoutWeight(1)
+
+                  // 状态标签
+                  if ((dept.freeCapacity || 0) > 0) {
+                    Text('可预约')
+                      .fontSize(11)
+                      .fontColor('#52C41A')
+                      .backgroundColor('#F6FFED')
+                      .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+                      .borderRadius(12)
+                  } else {
+                    Text('已满')
+                      .fontSize(11)
+                      .fontColor('#FF4D4F')
+                      .backgroundColor('#FFF2F0')
+                      .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+                      .borderRadius(12)
+                  }
+
+                  // 箭头
+                  Text('›')
+                    .fontSize(20)
+                    .fontColor('#CCCCCC')
+                    .margin({ left: 12 })
+                }
+                .width('100%')
+                .padding(16)
+                .onClick(() => {
+                  if ((dept.freeCapacity || 0) > 0) {
                     router.pushUrl({
                       url: 'pages/register/DoctorListPage',
                       params: {
@@ -128,20 +180,29 @@ export struct DeptListPage {
                         patientId: this.patientId
                       }
                     });
-                  })
-                }
-              })
-            }
-            .columnsTemplate('1fr 1fr')
-            .rowsGap(16)
-            .columnsGap(16)
-            .padding(16)
+                  } else {
+                    promptAction.showToast({
+                      message: '该科室号源已满',
+                      duration: 2000
+                    });
+                  }
+                })
+              }
+              .width('100%')
+              .backgroundColor('#FFFFFF')
+              .borderRadius(12)
+              .margin({ bottom: 12 })
+              .alignItems(HorizontalAlign.Start)  // 卡片内容左对齐
+            })
           }
-          .width('100%')
+          .width('100%')  // 宽度占满
+          .alignItems(HorizontalAlign.Start)  // 内容左对齐
+          .padding(16)
         }
         .scrollable(ScrollDirection.Vertical)
         .scrollBar(BarState.Off)
         .layoutWeight(1)
+        .align(Alignment.TopStart)  // Scroll内容从左上角开始
       }
     }
     .width('100%')

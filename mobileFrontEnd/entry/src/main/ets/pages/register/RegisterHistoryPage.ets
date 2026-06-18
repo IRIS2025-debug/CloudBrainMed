@@ -33,7 +33,7 @@ export struct RegisterHistoryPage {
   @State isLoading: boolean = true;
   @State selectedTab: number = 0;
   private patientId: string = '';
-  private baseUrl: string = 'http://172.22.101.145:8004/patient-service';
+  private baseUrl: string = 'http://192.168.25.143:8004/patient-service';
 
   aboutToAppear() {
     const params = router.getParams() as Record<string, string>;

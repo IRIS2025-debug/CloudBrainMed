@@ -4,7 +4,7 @@ import { HttpUtil } from '../pages/common/HttpUtil';
 import { HomePage } from './HomePage';
 import { ConsultationAssistantPage } from './aiConsult/ConsultationAssistantPage';
 import { MedicalRecordsPage } from './medical/MedicalRecordsPage';
-import { ProfilePage } from './profile/ProfilePage';
+import { PersonalCenter } from './profile/PersonalCenter';
 
 // 定义类型接口
 interface TabItem {
@@ -20,6 +20,9 @@ struct Index {
   @State patientId: string = '';
   @State userName: string = '';
   @State userPhone: string = '';
+  @State userGender: number = 0; // 0:未知, 1:男, 2:女
+  @State userGenderText: string = '未知';
+  @State userAge: number = 0;
   @State isLoading: boolean = true;
 
   private pages: TabItem[] = [
@@ -30,16 +33,22 @@ struct Index {
   ];
 
   aboutToAppear() {
-    const params = router.getParams() as Record<string, string>;
+    const params = router.getParams() as Record<string, string | number>;
     console.log('Index接收参数: ' + JSON.stringify(params));
 
     if (params) {
-      this.patientId = params['patientId'] || '';
-      this.userName = params['name'] || '';
-      this.userPhone = params['phone'] || '';
+      this.patientId = (params['patientId'] as string) || '';
+      this.userName = (params['name'] as string) || '';
+      this.userPhone = (params['phone'] as string) || '';
+      this.userGender = (params['gender'] as number) || 0;
+      this.userGenderText = (params['genderText'] as string) || '未知';
+      this.userAge = (params['age'] as number) || 0;
 
       if (this.patientId) {
         console.log('患者ID: ' + this.patientId);
+        console.log('患者姓名: ' + this.userName);
+        console.log('患者性别: ' + this.userGenderText);
+        console.log('患者年龄: ' + this.userAge);
       } else {
         console.error('未接收到患者ID');
         setTimeout(() => {
@@ -78,7 +87,10 @@ struct Index {
           HomePage({
             patientId: this.patientId,
             userName: this.userName,
-            userPhone: this.userPhone
+            userPhone: this.userPhone,
+            userGender: this.userGender,
+            userGenderText: this.userGenderText,
+            userAge: this.userAge
           })
         } else if (this.currentTab === 1) {
           ConsultationAssistantPage({
@@ -91,7 +103,7 @@ struct Index {
             userName: this.userName
           })
         } else {
-          ProfilePage({
+          PersonalCenter({
             patientId: this.patientId,
             userName: this.userName,
             userPhone: this.userPhone

@@ -2,7 +2,7 @@ package com.cloudbrainmed.patient.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 @Data
 @TableName("department")
@@ -15,5 +15,5 @@ public class Dept {
     private Integer freeCapacity;
     private Integer status;
     @TableField(fill = FieldFill.INSERT)
-    private LocalDateTime createTime;
+    private OffsetDateTime  createTime;
 }

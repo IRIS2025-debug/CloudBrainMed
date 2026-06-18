@@ -2,7 +2,7 @@ package com.cloudbrainmed.patient.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime ;
 
 @Data
 @TableName("doctor")
@@ -21,7 +21,7 @@ public class Doctor {
     private String departmentId;
     private Integer status;
     @TableField(fill = FieldFill.INSERT)
-    private LocalDateTime createTime;
+    private OffsetDateTime createTime;
     @TableLogic
     private Integer isDeleted;
 }

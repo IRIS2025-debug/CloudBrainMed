@@ -1,3 +1,4 @@
+// com.cloudbrainmed.patient.vo.DoctorDetailVo.java
 package com.cloudbrainmed.patient.vo;
 
 import lombok.Data;

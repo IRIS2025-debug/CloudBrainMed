@@ -11,7 +11,7 @@ import java.util.List;
 
 @Mapper
 public interface DoctorScheduleMapper extends BaseMapper<DoctorSchedule> {
-    @Select("SELECT * FROM doctor_schedule WHERE doctor_id = #{doctorId} AND status = 1 ORDER BY create_time")
+    @Select("SELECT * FROM doctor_schedule WHERE doctor_id = #{doctorId} AND status = 1 ORDER BY work_date, start_time")
     List<DoctorSchedule> selectByDoctorId(@Param("doctorId") String doctorId);
 
     @Select("SELECT * FROM doctor_schedule WHERE schedule_id = #{scheduleId} AND status = 1")

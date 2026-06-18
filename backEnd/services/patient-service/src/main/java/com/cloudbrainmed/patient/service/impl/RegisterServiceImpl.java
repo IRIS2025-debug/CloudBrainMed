@@ -11,9 +11,12 @@ import com.cloudbrainmed.patient.vo.ScheduleVo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -48,7 +51,7 @@ public class RegisterServiceImpl implements RegisterService {
 
         Dept dept = deptMapper.selectById(doctor.getDepartmentId());
 
-        List<DoctorSchedule> schedules = doctorScheduleMapper.selectByDoctorId(doctorId);
+        List<ScheduleVo> schedules = getDoctorSchedules(doctorId);
 
         DoctorDetailVo vo = new DoctorDetailVo();
         vo.setDoctorId(doctor.getDoctorId());
@@ -58,41 +61,55 @@ public class RegisterServiceImpl implements RegisterService {
         vo.setIntroduction(doctor.getIntroduction());
         vo.setAvatar(doctor.getAvatar());
         vo.setDeptName(dept != null ? dept.getDeptName() : "");
-        vo.setSchedules(schedules.stream().map(s -> {
-            ScheduleVo scheduleVo = new ScheduleVo();
-            scheduleVo.setScheduleId(s.getScheduleId());
-            scheduleVo.setTimeJson(s.getTimeJson());
-            scheduleVo.setMaxNum(s.getMaxNum());
-            scheduleVo.setRemainNum(s.getRemainNum());
-            scheduleVo.setPrice(s.getPrice());
-            scheduleVo.setRoom(s.getRoom());
-            return scheduleVo;
-        }).collect(Collectors.toList()));
-
+        vo.setSchedules(schedules);
         return vo;
     }
 
     @Override
-    public List<DoctorSchedule> getDoctorSchedules(String doctorId) {
-        return doctorScheduleMapper.selectByDoctorId(doctorId);
+    public List<ScheduleVo> getDoctorSchedules(String doctorId) {
+        List<DoctorSchedule> schedules = doctorScheduleMapper.selectByDoctorId(doctorId);
+        return schedules.stream().map(s -> {
+            ScheduleVo vo = new ScheduleVo();
+            vo.setScheduleId(s.getScheduleId());
+            vo.setDoctorId(s.getDoctorId());
+            vo.setDoctorName(s.getDoctorName());
+            vo.setWorkDate(s.getWorkDate());
+            vo.setStartTime(s.getStartTime());
+            vo.setEndTime(s.getEndTime());
+            vo.setMaxNum(s.getMaxNum());
+            vo.setRemainNum(s.getRemainNum());
+            vo.setStatus(s.getStatus());
+            vo.setPrice(s.getPrice());
+            vo.setRoom(s.getRoom());
+            return vo;
+        }).collect(Collectors.toList());
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Registration submitRegister(RegisterSubmitDto dto) {
-        // 校验患者是否存在
+        // 1. 校验患者是否存在
         Patient patient = patientMapper.selectById(dto.getPatientId());
         if (patient == null) {
             throw new BusinessException("患者不存在");
         }
 
-        // 校验医生是否存在
+        // 2. 校验患者信息是否完整
+        validatePatientInfo(patient);
+
+        // 3. 校验医生是否存在
         Doctor doctor = doctorMapper.selectByDoctorId(dto.getDoctorId());
         if (doctor == null) {
             throw new BusinessException("医生不存在");
         }
 
-        // 校验排班是否存在且有余号
+        // 4. 获取科室信息
+        Dept dept = deptMapper.selectById(doctor.getDepartmentId());
+        if (dept == null) {
+            throw new BusinessException("科室不存在");
+        }
+
+        // 5. 校验排班是否存在且有余号
         DoctorSchedule schedule = doctorScheduleMapper.selectByScheduleId(dto.getScheduleId());
         if (schedule == null) {
             throw new BusinessException("排班不存在");
@@ -101,27 +118,28 @@ public class RegisterServiceImpl implements RegisterService {
             throw new BusinessException("号源已满");
         }
 
-        // 扣减剩余号源
+        // 6. 扣减剩余号源
         int updated = doctorScheduleMapper.decrementRemainNum(dto.getScheduleId());
         if (updated == 0) {
             throw new BusinessException("扣减号源失败，请重试");
         }
 
-        // 创建挂号记录
+        // 7. 创建挂号记录
         Registration registration = new Registration();
+        registration.setRegisterId(generateRegisterId());
         registration.setPatientId(dto.getPatientId());
         registration.setDoctorId(dto.getDoctorId());
         registration.setName(patient.getName());
         registration.setGender(patient.getGender());
         registration.setBirthday(patient.getBirthday());
         registration.setChiefComplaint(dto.getChiefComplaint());
-        registration.setDepartment(doctor.getPosition());
+        registration.setDepartment(dept.getDeptName());
         registration.setConsultRoom(schedule.getRoom());
         registration.setVisitDate(dto.getVisitDate());
         registration.setConsultTime(dto.getConsultTime());
         registration.setPrice(schedule.getPrice());
         registration.setPayStatus("WAITING");
-        registration.setCreateTime(LocalDateTime.now());
+        registration.setCreateTime(OffsetDateTime.now(ZoneOffset.ofHours(8)));
 
         registrationMapper.insert(registration);
 
@@ -136,5 +154,86 @@ public class RegisterServiceImpl implements RegisterService {
     @Override
     public Registration getRegisterDetail(String registerId) {
         return registrationMapper.selectByRegisterId(registerId);
+    }
+
+    @Override
+    public Map<String, Object> checkPatientInfo(String patientId) {
+        Patient patient = patientMapper.selectById(patientId);
+        if (patient == null) {
+            throw new BusinessException("患者不存在");
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        StringBuilder missingFields = new StringBuilder();
+        boolean isComplete = true;
+
+        if (patient.getName() == null || patient.getName().trim().isEmpty()) {
+            missingFields.append("姓名、");
+            isComplete = false;
+        }
+        if (patient.getGender() == null) {
+            missingFields.append("性别、");
+            isComplete = false;
+        }
+        if (patient.getBirthday() == null) {
+            missingFields.append("生日、");
+            isComplete = false;
+        }
+        if (patient.getIdCard() == null || patient.getIdCard().trim().isEmpty()) {
+            missingFields.append("身份证号、");
+            isComplete = false;
+        }
+        if (patient.getPhone() == null || patient.getPhone().trim().isEmpty()) {
+            missingFields.append("手机号、");
+            isComplete = false;
+        }
+
+        result.put("isComplete", isComplete);
+        if (!isComplete) {
+            String fields = missingFields.substring(0, missingFields.length() - 1);
+            result.put("missingFields", fields);
+        } else {
+            result.put("missingFields", "");
+        }
+
+        return result;
+    }
+
+
+    private String generateRegisterId() {
+        String latestId = registrationMapper.getLastRegisterId();
+        int nextNum = 1;
+        if (latestId != null && latestId.startsWith("reg")) {
+            try {
+                String numStr = latestId.substring(3);
+                nextNum = Integer.parseInt(numStr) + 1;
+            } catch (NumberFormatException e) {
+                nextNum = 1;
+            }
+        }
+        return String.format("reg%03d", nextNum);
+    }
+
+    private void validatePatientInfo(Patient patient) {
+        StringBuilder missingFields = new StringBuilder();
+        if (patient.getName() == null || patient.getName().trim().isEmpty()) {
+            missingFields.append("姓名、");
+        }
+        if (patient.getGender() == null) {
+            missingFields.append("性别、");
+        }
+        if (patient.getBirthday() == null) {
+            missingFields.append("生日、");
+        }
+        if (patient.getIdCard() == null || patient.getIdCard().trim().isEmpty()) {
+            missingFields.append("身份证号、");
+        }
+        if (patient.getPhone() == null || patient.getPhone().trim().isEmpty()) {
+            missingFields.append("手机号、");
+        }
+        if (missingFields.length() > 0) {
+            String fields = missingFields.substring(0, missingFields.length() - 1);
+            throw new BusinessException("患者信息不完整，请先完善以下信息：" + fields);
+        }
     }
 }

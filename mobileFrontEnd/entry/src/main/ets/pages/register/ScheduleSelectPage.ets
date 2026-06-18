@@ -3,18 +3,13 @@ import router from '@ohos.router';
 import { HttpUtil } from '../common/HttpUtil';
 import promptAction from '@ohos.promptAction';
 
-// 定义时间JSON对象接口
-interface TimeJsonObject {
-  startTime?: string;
-  endTime?: string;
-  timeDesc?: string;
-}
-
 interface DoctorSchedule {
   scheduleId: string;
   doctorId: string;
   doctorName: string;
-  timeJson: string;
+  workDate: string;
+  startTime: string;
+  endTime: string;
   maxNum: number;
   remainNum: number;
   status: number;
@@ -45,7 +40,6 @@ interface ApiResponse<T> {
   data: T;
 }
 
-// 定义提交请求的接口
 interface SubmitRegisterRequest {
   patientId: string;
   doctorId: string;
@@ -55,19 +49,54 @@ interface SubmitRegisterRequest {
   consultTime: string;
 }
 
+interface DateGroup {
+  workDate: string;
+  slots: TimeSlot[];
+}
+
+interface TimeSlot {
+  id: string;
+  scheduleId: string;
+  time: string;
+  startTime: string;
+  endTime: string;
+  room: string;
+  remainNum: number;
+  price: number;
+}
+
+// 患者信息校验响应接口
+interface PatientCheckData {
+  isComplete: boolean;
+  missingFields: string;
+}
+
+interface PatientCheckResponse {
+  code: number;
+  message: string;
+  data: PatientCheckData;
+}
+
+interface GeneratedTypeLiteralInterface_1 {
+  index: number;
+}
+
 @Entry
 @Component
 export struct ScheduleSelectPage {
   @State schedules: DoctorSchedule[] = [];
+  @State dateGroups: DateGroup[] = [];
   @State isLoading: boolean = true;
-  @State selectedScheduleId: string = '';
+  @State selectedSlotId: string = '';
+  @State selectedTime: string = '';
   @State chiefComplaint: string = '';
+  @State isSubmitting: boolean = false;
   private doctorId: string = '';
   private doctorName: string = '';
   private patientId: string = '';
-  private baseUrl: string = 'http://172.22.101.145:8004/patient-service';
+  private baseUrl: string = 'http://192.168.25.143:8004/patient-service';
 
-  aboutToAppear() {
+  aboutToAppear(): void {
     const params = router.getParams() as Record<string, string>;
     this.doctorId = params?.['doctorId'] || '';
     this.doctorName = params?.['doctorName'] || '';
@@ -75,7 +104,7 @@ export struct ScheduleSelectPage {
     this.loadSchedules();
   }
 
-  async loadSchedules() {
+  async loadSchedules(): Promise<void> {
     this.isLoading = true;
     const context = getContext(this);
     try {
@@ -84,7 +113,7 @@ export struct ScheduleSelectPage {
         context
       );
       if (result.code === 200) {
-        const allSchedules = result.data;
+        const allSchedules: DoctorSchedule[] = result.data;
         const availableSchedules: DoctorSchedule[] = [];
         for (let i = 0; i < allSchedules.length; i++) {
           if (allSchedules[i].remainNum > 0 && allSchedules[i].status === 1) {
@@ -92,6 +121,7 @@ export struct ScheduleSelectPage {
           }
         }
         this.schedules = availableSchedules;
+        this.groupByDate();
       } else {
         promptAction.showToast({
           message: result.message || '加载排班失败',
@@ -109,57 +139,165 @@ export struct ScheduleSelectPage {
     }
   }
 
-  getCurrentDate(): string {
-    const date: Date = new Date();
-    const year: number = date.getFullYear();
-    const month: number = date.getMonth() + 1;
-    const day: number = date.getDate();
-    const monthStr: string = month < 10 ? '0' + month : '' + month;
-    const dayStr: string = day < 10 ? '0' + day : '' + day;
-    return year + '-' + monthStr + '-' + dayStr;
+  private groupByDate(): void {
+    const dateMap: Record<string, TimeSlot[]> = {};
+
+    for (let i = 0; i < this.schedules.length; i++) {
+      const s = this.schedules[i];
+      const workDate = s.workDate || '';
+
+      if (!dateMap[workDate]) {
+        dateMap[workDate] = [];
+      }
+
+      const timeStr = s.startTime + '-' + s.endTime;
+
+      const slot: TimeSlot = {
+        id: s.scheduleId,
+        scheduleId: s.scheduleId,
+        time: timeStr,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        room: s.room || '待定',
+        remainNum: s.remainNum,
+        price: s.price
+      };
+
+      dateMap[workDate].push(slot);
+    }
+
+    const groups: DateGroup[] = [];
+    const dateKeys = Object.keys(dateMap);
+
+    for (let i = 0; i < dateKeys.length; i++) {
+      const workDate = dateKeys[i];
+      const slots = dateMap[workDate];
+
+      slots.sort((a: TimeSlot, b: TimeSlot) => {
+        return a.startTime.localeCompare(b.startTime);
+      });
+
+      groups.push({
+        workDate: workDate,
+        slots: slots
+      });
+    }
+
+    groups.sort((a: DateGroup, b: DateGroup) => {
+      return a.workDate.localeCompare(b.workDate);
+    });
+
+    this.dateGroups = groups;
   }
 
-  parseTimeFromJson(timeJson: string): string {
-    if (!timeJson || timeJson.length === 0) {
-      return '09:00';
+  private formatDate(dateStr: string): string {
+    if (!dateStr) return '未知日期';
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      return parts[0] + '年' + parseInt(parts[1]) + '月' + parseInt(parts[2]) + '日';
     }
-    try {
-      const obj: TimeJsonObject = JSON.parse(timeJson) as TimeJsonObject;
-      if (obj.startTime && obj.startTime.length > 0) {
-        return obj.startTime;
-      }
-      return '09:00';
-    } catch (e) {
-      console.error('解析时间JSON失败：' + JSON.stringify(e));
-      return '09:00';
-    }
+    return dateStr;
   }
 
-  parseTimeJsonForDisplay(timeJson: string): string {
-    if (!timeJson || timeJson.length === 0) {
-      return '全天';
-    }
-    try {
-      const obj: TimeJsonObject = JSON.parse(timeJson) as TimeJsonObject;
-      if (obj.timeDesc && obj.timeDesc.length > 0) {
-        return obj.timeDesc;
-      }
-      if (obj.startTime && obj.startTime.length > 0) {
-        let result: string = obj.startTime;
-        if (obj.endTime && obj.endTime.length > 0) {
-          result = result + '-' + obj.endTime;
+  private selectTimeSlot(slot: TimeSlot): void {
+    this.selectedSlotId = slot.id;
+    this.selectedTime = slot.time;
+  }
+
+  private getSelectedScheduleId(): string {
+    return this.selectedSlotId;
+  }
+
+  private getSelectedRoom(): string {
+    for (let i = 0; i < this.dateGroups.length; i++) {
+      const group = this.dateGroups[i];
+      for (let j = 0; j < group.slots.length; j++) {
+        if (group.slots[j].id === this.selectedSlotId) {
+          return group.slots[j].room;
         }
-        return result;
       }
-      return '全天';
-    } catch (e) {
-      console.error('解析时间JSON失败：' + JSON.stringify(e));
-      return '全天';
+    }
+    return '';
+  }
+
+  private getSelectedRemainNum(): number {
+    for (let i = 0; i < this.dateGroups.length; i++) {
+      const group = this.dateGroups[i];
+      for (let j = 0; j < group.slots.length; j++) {
+        if (group.slots[j].id === this.selectedSlotId) {
+          return group.slots[j].remainNum;
+        }
+      }
+    }
+    return 0;
+  }
+
+  private getSelectedPrice(): number {
+    for (let i = 0; i < this.dateGroups.length; i++) {
+      const group = this.dateGroups[i];
+      for (let j = 0; j < group.slots.length; j++) {
+        if (group.slots[j].id === this.selectedSlotId) {
+          return group.slots[j].price;
+        }
+      }
+    }
+    return 0;
+  }
+
+  /**
+   * 检查患者信息是否完整
+   */
+  private async checkPatientInfo(): Promise<boolean> {
+    const context = getContext(this);
+    try {
+      const result = await HttpUtil.get<PatientCheckResponse>(
+        this.baseUrl + '/register/check-patient/' + this.patientId,
+        context
+      );
+      if (result.code === 200) {
+        return result.data.isComplete;
+      } else {
+        return false;
+      }
+    } catch (error) {
+      console.error('检查患者信息失败：' + JSON.stringify(error));
+      return false;
     }
   }
 
-  async submitRegister() {
-    if (!this.selectedScheduleId) {
+  /**
+   * 显示信息不完整弹框
+   */
+  private showIncompleteDialog(): void {
+    promptAction.showDialog({
+      title: '提示',
+      message: '您的个人信息不完善，请先完善个人信息后再预约挂号',
+      buttons: [
+        {
+          text: '去完善',
+          color: '#007AFF'
+        },
+        {
+          text: '取消',
+          color: '#999999'
+        }
+      ]
+    }).then((result: GeneratedTypeLiteralInterface_1) => {
+      if (result.index === 0) {
+        router.pushUrl({
+          url: 'pages/profile/PersonalCenter',
+          params: {
+            patientId: this.patientId
+          }
+        });
+      }
+    }).catch(() => {
+      // 忽略错误
+    });
+  }
+
+  async submitRegister(): Promise<void> {
+    if (!this.selectedSlotId) {
       promptAction.showToast({
         message: '请选择就诊时间',
         duration: 2000
@@ -174,40 +312,35 @@ export struct ScheduleSelectPage {
       return;
     }
 
-    // 获取选中的排班对象
-    let selectedSchedule: DoctorSchedule | null = null;
-    for (let i = 0; i < this.schedules.length; i++) {
-      if (this.schedules[i].scheduleId === this.selectedScheduleId) {
-        selectedSchedule = this.schedules[i];
-        break;
-      }
-    }
-
-    if (!selectedSchedule) {
-      promptAction.showToast({
-        message: '请选择有效的就诊时间',
-        duration: 2000
-      });
-      return;
-    }
-
-    const visitDate: string = this.getCurrentDate();
-    const consultTime: string = this.parseTimeFromJson(selectedSchedule.timeJson);
-
-    // 使用明确的接口类型创建请求对象
-    const requestData: SubmitRegisterRequest = {
-      patientId: this.patientId,
-      doctorId: this.doctorId,
-      scheduleId: this.selectedScheduleId,
-      chiefComplaint: this.chiefComplaint,
-      visitDate: visitDate,
-      consultTime: consultTime
-    };
-
-    const context = getContext(this);
-    this.isLoading = true;
-
+    this.isSubmitting = true;
     try {
+      // 检查患者信息是否完整
+      const isComplete = await this.checkPatientInfo();
+
+      if (!isComplete) {
+        this.isSubmitting = false;
+        this.showIncompleteDialog();
+        return;
+      }
+
+      // 信息完整，继续提交预约
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const visitDate = year + '-' + month + '-' + day;
+
+      const requestData: SubmitRegisterRequest = {
+        patientId: this.patientId,
+        doctorId: this.doctorId,
+        scheduleId: this.selectedSlotId,
+        chiefComplaint: this.chiefComplaint,
+        visitDate: visitDate,
+        consultTime: this.selectedTime
+      };
+
+      const context = getContext(this);
+
       const result = await HttpUtil.post<ApiResponse<Registration>>(
         this.baseUrl + '/register/submit',
         requestData,
@@ -219,7 +352,7 @@ export struct ScheduleSelectPage {
           message: '预约成功，请前往支付',
           duration: 2000
         });
-        setTimeout(() => {
+        setTimeout((): void => {
           router.pushUrl({
             url: 'pages/register/OrderSuccessPage',
             params: {
@@ -228,29 +361,37 @@ export struct ScheduleSelectPage {
           });
         }, 1500);
       } else {
-        promptAction.showToast({
-          message: result.message || '预约失败',
-          duration: 2000
-        });
+        if (result.message && result.message.indexOf('患者信息不完整') !== -1) {
+          this.showIncompleteDialog();
+        } else {
+          promptAction.showToast({
+            message: result.message || '预约失败',
+            duration: 2000
+          });
+        }
       }
     } catch (error) {
       console.error('提交挂号失败：' + JSON.stringify(error));
-      promptAction.showToast({
-        message: '网络请求失败，请稍后重试',
-        duration: 2000
-      });
+      const errorStr: string = JSON.stringify(error);
+      if (errorStr.indexOf('患者信息不完整') !== -1) {
+        this.showIncompleteDialog();
+      } else {
+        promptAction.showToast({
+          message: '网络请求失败，请稍后重试',
+          duration: 2000
+        });
+      }
     } finally {
-      this.isLoading = false;
+      this.isSubmitting = false;
     }
   }
 
   build() {
     Column() {
-      // 标题栏
       Row() {
         Text('←')
           .fontSize(24)
-          .onClick(() => {
+          .onClick((): void => {
             router.back();
           })
         Text('选择就诊时间')
@@ -264,7 +405,7 @@ export struct ScheduleSelectPage {
       .padding(16)
       .backgroundColor('#FFFFFF')
 
-      if (this.isLoading && this.schedules.length === 0) {
+      if (this.isLoading) {
         Column() {
           LoadingProgress()
             .width(60)
@@ -281,23 +422,32 @@ export struct ScheduleSelectPage {
       } else {
         Scroll() {
           Column() {
-            // 医生信息
             Column() {
-              Text(this.doctorName)
-                .fontSize(18)
-                .fontWeight(FontWeight.Bold)
-                .fontColor('#333333')
-              Text('主任医师')
-                .fontSize(14)
-                .fontColor('#666666')
-                .margin({ top: 4 })
+              Row() {
+                Text('👨‍⚕️')
+                  .fontSize(48)
+                  .margin({ right: 16 })
+                Column() {
+                  Text(this.doctorName)
+                    .fontSize(18)
+                    .fontWeight(FontWeight.Bold)
+                    .fontColor('#333333')
+                  Text('就诊医生')
+                    .fontSize(13)
+                    .fontColor('#999999')
+                    .margin({ top: 4 })
+                }
+                .alignItems(HorizontalAlign.Start)
+              }
+              .width('100%')
+              .padding(16)
             }
             .width('100%')
-            .padding(16)
             .backgroundColor('#FFFFFF')
-            .margin({ bottom: 8 })
+            .borderRadius(16)
+            .margin({ bottom: 12 })
+            .alignItems(HorizontalAlign.Start)
 
-            // 排班列表
             Column() {
               Text('请选择就诊时间')
                 .fontSize(16)
@@ -306,16 +456,126 @@ export struct ScheduleSelectPage {
                 .margin({ bottom: 16 })
                 .alignSelf(ItemAlign.Start)
 
-              ForEach(this.schedules, (schedule: DoctorSchedule, index: number) => {
-                this.ScheduleItem(schedule)
-              }, (schedule: DoctorSchedule, index: number) => schedule.scheduleId)
+              if (this.dateGroups.length === 0) {
+                Column() {
+                  Text('📋')
+                    .fontSize(48)
+                    .margin({ bottom: 12 })
+                  Text('暂无可用排班')
+                    .fontSize(16)
+                    .fontColor('#999999')
+                  Text('请选择其他医生或稍后再试')
+                    .fontSize(12)
+                    .fontColor('#CCCCCC')
+                    .margin({ top: 4 })
+                }
+                .width('100%')
+                .padding(40)
+                .justifyContent(FlexAlign.Center)
+                .alignItems(HorizontalAlign.Center)
+              } else {
+                ForEach(this.dateGroups, (group: DateGroup) => {
+                  Column() {
+                    Text(this.formatDate(group.workDate))
+                      .fontSize(15)
+                      .fontWeight(FontWeight.Medium)
+                      .fontColor('#333333')
+                      .padding({ left: 4, bottom: 10 })
+                      .alignSelf(ItemAlign.Start)
+
+                    Grid() {
+                      ForEach(group.slots, (slot: TimeSlot) => {
+                        GridItem() {
+                          Column() {
+                            Text(slot.time)
+                              .height(36)
+                              .fontSize(13)
+                              .textAlign(TextAlign.Center)
+                              .backgroundColor(this.selectedSlotId === slot.id ? '#007AFF' : '#F5F5F5')
+                              .fontColor(this.selectedSlotId === slot.id ? '#FFFFFF' : '#333333')
+                              .borderRadius(18)
+                              .padding({ left: 16, right: 16 })
+                              .width('100%')
+
+                            if (slot.remainNum > 0 && slot.remainNum <= 5) {
+                              Text('仅剩' + slot.remainNum + '号')
+                                .fontSize(10)
+                                .fontColor('#FF6B6B')
+                                .margin({ top: 2 })
+                            }
+                          }
+                          .width('100%')
+                          .onClick((): void => {
+                            this.selectTimeSlot(slot);
+                          })
+                        }
+                      }, (slot: TimeSlot) => slot.id)
+                    }
+                    .columnsTemplate('1fr 1fr 1fr')
+                    .rowsGap(12)
+                    .columnsGap(12)
+                    .width('100%')
+                  }
+                  .width('100%')
+                  .margin({ bottom: 20 })
+                }, (group: DateGroup) => group.workDate)
+              }
+
+              if (this.selectedSlotId.length > 0) {
+                Divider()
+                  .color('#F0F0F0')
+                  .margin({ top: 8, bottom: 16 })
+
+                Row() {
+                  Column() {
+                    Text('就诊时段')
+                      .fontSize(12)
+                      .fontColor('#999999')
+                    Text(this.selectedTime)
+                      .fontSize(14)
+                      .fontColor('#007AFF')
+                      .fontWeight(FontWeight.Bold)
+                      .margin({ top: 4 })
+                  }
+                  .alignItems(HorizontalAlign.Start)
+                  .layoutWeight(1)
+
+                  Column() {
+                    Text('诊室')
+                      .fontSize(12)
+                      .fontColor('#999999')
+                    Text(this.getSelectedRoom())
+                      .fontSize(14)
+                      .fontColor('#333333')
+                      .fontWeight(FontWeight.Medium)
+                      .margin({ top: 4 })
+                  }
+                  .alignItems(HorizontalAlign.Center)
+                  .layoutWeight(1)
+
+                  Column() {
+                    Text('挂号费')
+                      .fontSize(12)
+                      .fontColor('#999999')
+                    Text('¥' + this.getSelectedPrice().toFixed(2))
+                      .fontSize(14)
+                      .fontColor('#FF6B6B')
+                      .fontWeight(FontWeight.Bold)
+                      .margin({ top: 4 })
+                  }
+                  .alignItems(HorizontalAlign.End)
+                  .layoutWeight(1)
+                }
+                .width('100%')
+              }
             }
             .width('100%')
             .padding(16)
             .backgroundColor('#FFFFFF')
+            .borderRadius(16)
             .margin({ bottom: 12 })
+            .alignItems(HorizontalAlign.Start)
 
-            // 主诉输入
             Column() {
               Text('主诉')
                 .fontSize(16)
@@ -328,39 +588,42 @@ export struct ScheduleSelectPage {
                 .width('100%')
                 .height(100)
                 .backgroundColor('#F8F9FA')
-                .borderRadius(8)
+                .borderRadius(12)
                 .padding(12)
                 .fontSize(14)
                 .placeholderColor('#BFBFBF')
-                .onChange((value: string) => {
+                .onChange((value: string): void => {
                   this.chiefComplaint = value;
                 })
             }
             .width('100%')
             .padding(16)
             .backgroundColor('#FFFFFF')
+            .borderRadius(16)
             .margin({ bottom: 80 })
+            .alignItems(HorizontalAlign.Start)
           }
           .width('100%')
           .padding(16)
+          .alignItems(HorizontalAlign.Start)
         }
         .scrollable(ScrollDirection.Vertical)
         .scrollBar(BarState.Off)
         .layoutWeight(1)
+        .align(Alignment.TopStart)
 
-        // 底部按钮
-        Button(this.isLoading ? '提交中...' : '确认预约')
+        Button(this.isSubmitting ? '提交中...' : '确认预约')
           .width('90%')
           .height(48)
           .fontSize(16)
           .fontWeight(FontWeight.Medium)
           .fontColor('#FFFFFF')
-          .backgroundColor(this.isLoading ? '#D9D9D9' : '#007AFF')
+          .backgroundColor(this.isSubmitting ? '#D9D9D9' : '#007AFF')
           .borderRadius(24)
           .margin({ bottom: 20 })
           .position({ x: '5%', y: '92%' })
-          .enabled(!this.isLoading)
-          .onClick(() => {
+          .enabled(!this.isSubmitting)
+          .onClick((): void => {
             this.submitRegister();
           })
       }
@@ -368,38 +631,5 @@ export struct ScheduleSelectPage {
     .width('100%')
     .height('100%')
     .backgroundColor('#F5F5F5')
-  }
-
-  @Builder
-  ScheduleItem(schedule: DoctorSchedule) {
-    Row() {
-      Radio({ value: schedule.scheduleId, group: 'scheduleGroup' })
-        .onChange((isChecked: boolean) => {
-          if (isChecked) {
-            this.selectedScheduleId = schedule.scheduleId;
-          }
-        })
-
-      Column() {
-        Text('时段：' + this.parseTimeJsonForDisplay(schedule.timeJson))
-          .fontSize(14)
-          .fontColor('#333333')
-        Text('诊室：' + schedule.room + ' | 剩余号源：' + schedule.remainNum)
-          .fontSize(12)
-          .fontColor('#999999')
-          .margin({ top: 4 })
-        Text('挂号费：¥' + schedule.price)
-          .fontSize(14)
-          .fontColor('#FF6B6B')
-          .fontWeight(FontWeight.Bold)
-          .margin({ top: 4 })
-      }
-      .alignItems(HorizontalAlign.Start)
-      .margin({ left: 12 })
-      .layoutWeight(1)
-    }
-    .width('100%')
-    .padding(12)
-    .border({ width: { bottom: 0.5 }, color: '#E5E5E5' })
   }
 }

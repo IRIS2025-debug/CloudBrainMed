@@ -4,13 +4,14 @@ import com.cloudbrainmed.common.result.Result;
 import com.cloudbrainmed.patient.dto.RegisterSubmitDto;
 import com.cloudbrainmed.patient.entity.Dept;
 import com.cloudbrainmed.patient.entity.Doctor;
-import com.cloudbrainmed.patient.entity.DoctorSchedule;
 import com.cloudbrainmed.patient.entity.Registration;
 import com.cloudbrainmed.patient.service.RegisterService;
 import com.cloudbrainmed.patient.vo.DoctorDetailVo;
+import com.cloudbrainmed.patient.vo.ScheduleVo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/patient-service/register")
@@ -35,7 +36,7 @@ public class RegisterController {
     }
 
     @GetMapping("/schedules/{doctorId}")
-    public Result<List<DoctorSchedule>> getDoctorSchedules(@PathVariable String doctorId) {
+    public Result<List<ScheduleVo>> getDoctorSchedules(@PathVariable String doctorId) {
         return Result.success(registerService.getDoctorSchedules(doctorId));
     }
 
@@ -53,4 +54,13 @@ public class RegisterController {
     public Result<Registration> getRegisterDetail(@PathVariable String registerId) {
         return Result.success(registerService.getRegisterDetail(registerId));
     }
+
+    /**
+     * 检查患者信息是否完整
+     */
+    @GetMapping("/check-patient/{patientId}")
+    public Result<Map<String, Object>> checkPatientInfo(@PathVariable String patientId) {
+        return Result.success(registerService.checkPatientInfo(patientId));
+    }
+
 }
