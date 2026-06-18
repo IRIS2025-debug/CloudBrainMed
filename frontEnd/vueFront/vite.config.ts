@@ -30,6 +30,10 @@ export default defineConfig({
         target: 'http://localhost:8000',
         changeOrigin: true,
       },
+      '/files/avatar': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
       '/api/ai': {
         target: 'http://localhost:8001',
         changeOrigin: true,

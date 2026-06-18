@@ -50,3 +50,7 @@ spring:
           uri: lb://service-api
           predicates:
           - Path=/service-api/**
+        - id: admin-files-route
+          uri: lb://admin-service
+          predicates:
+          - Path=/files/**
