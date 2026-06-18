@@ -20,9 +20,19 @@ public class Department {
     private String deptName;
 
     /**
-     * 父级科室ID
+     * 房间ID
      */
-    private String parentId;
+    private String roomId;
+
+    /**
+     * 最大容纳人数
+     */
+    private Integer maxCapacity;
+
+    /**
+     * 空闲容纳人数
+     */
+    private Integer freeCapacity;
 
     /**
      * 状态：0=停用，1=启用

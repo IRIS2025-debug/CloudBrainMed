@@ -1,7 +1,6 @@
 package com.cloudbrainmed.ai.service.impl;
 
-import com.alibaba.fastjson2.JSON;
-import com.alibaba.fastjson2.JSONObject;
+import com.cloudbrainmed.ai.dto.AiDepartmentRecommendationDto;  // 新导入
 import com.cloudbrainmed.ai.dto.ConsultRecommendDto;
 import com.cloudbrainmed.ai.entity.Doctor;
 import com.cloudbrainmed.ai.entity.Department;
@@ -10,19 +9,22 @@ import com.cloudbrainmed.ai.mapper.DepartmentMapper;
 import com.cloudbrainmed.ai.service.AiConsultService;
 import com.cloudbrainmed.ai.vo.AiRecommendResponseVo;
 import com.cloudbrainmed.ai.vo.RecommendDoctorVo;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -33,11 +35,16 @@ public class AiConsultServiceImpl implements AiConsultService {
     private final DoctorMapper doctorMapper;
     private final DepartmentMapper departmentMapper;
 
+    // 局部人设（问诊专用）
+    @Value("classpath:prompt/consultation_system.st")
+    private Resource consultationSystemResource;
+    private String consultationSystemPrompt;  // 缓存局部人设
+
     // 构造器注入
-    public AiConsultServiceImpl(ChatClient.Builder builder,
+    public AiConsultServiceImpl(ChatClient chatClient,
                                 DoctorMapper doctorMapper,
                                 DepartmentMapper departmentMapper) {
-        this.chatClient = builder.build();
+        this.chatClient = chatClient;
         this.doctorMapper = doctorMapper;
         this.departmentMapper = departmentMapper;
     }
@@ -64,6 +71,23 @@ public class AiConsultServiceImpl implements AiConsultService {
     // 所有科室名称缓存
     private List<String> allDepartmentNames;
 
+    @PostConstruct
+    public void init() {
+        try {
+            // 加载局部人设
+            this.consultationSystemPrompt = consultationSystemResource
+                    .getContentAsString(StandardCharsets.UTF_8);
+            log.info("✅ 加载问诊局部人设成功，长度: {} 字符", consultationSystemPrompt.length());
+        } catch (IOException e) {
+            log.error("❌ 加载问诊局部人设失败，使用默认人设", e);
+            this.consultationSystemPrompt = """
+                    你是一位三甲医院全科主治医师，拥有10年临床经验。
+                    你的任务是根据患者主诉，从科室列表中选择最匹配的科室。
+                    请严格按照JSON格式返回结果，不要包含任何其他文字。
+                    """;
+        }
+    }
+
     @Override
     public AiRecommendResponseVo recommendDoctor(ConsultRecommendDto consultRecommendDto) {
         String chiefComplaint = consultRecommendDto.getChiefComplaint();
@@ -71,8 +95,8 @@ public class AiConsultServiceImpl implements AiConsultService {
         // 1. 从数据库获取所有科室名称，构建提示词
         List<String> deptNames = getAllDepartmentNamesFromDB();
 
-        // 2. AI解析主诉，获取推荐科室（传入科室列表）
-        AiAnalysisResult aiResult = analyzeWithAI(chiefComplaint, deptNames);
+        // 2. AI解析主诉，获取推荐科室（结构化输出）
+        AiDepartmentRecommendationDto aiResult = analyzeWithAI(chiefComplaint, deptNames);
 
         // 3. 获取所有未删除、启用的医生
         List<Doctor> allDoctors = doctorMapper.selectActiveDoctors();
@@ -191,30 +215,57 @@ public class AiConsultServiceImpl implements AiConsultService {
     }
 
     /**
-     * AI分析主诉
+     * AI分析主诉（使用结构化输出）
      */
-    private AiAnalysisResult analyzeWithAI(String chiefComplaint, List<String> deptNames) {
-        String prompt = buildAnalysisPrompt(chiefComplaint, deptNames);
+    private AiDepartmentRecommendationDto analyzeWithAI(String chiefComplaint, List<String> deptNames) {
+        String userPrompt = buildUserPrompt(chiefComplaint, deptNames);
 
         try {
-            String aiResponse = chatClient.prompt(prompt)
+            // 使用结构化输出：直接映射为 AiDepartmentRecommendationDto 对象
+            AiDepartmentRecommendationDto result = chatClient.prompt()
+                    .system(consultationSystemPrompt)
+                    .user(userPrompt)
                     .options(OpenAiChatOptions.builder()
                             .temperature(0.3)
                             .maxTokens(500)
                             .build())
                     .call()
-                    .content();
+                    .entity(AiDepartmentRecommendationDto.class);  // 结构化输出
 
-            log.info("AI响应内容：{}", aiResponse);
+            log.info("AI结构化输出成功：parsedDiagnosis={}, recommendedDepartment={}, reason={}, emergency={}",
+                    result.getParsedDiagnosis(),
+                    result.getRecommendedDepartment(),
+                    result.getDepartmentReason(),
+                    result.getEmergency());
 
-            return parseAiResponse(aiResponse);
+            // 验证推荐科室是否在数据库中存在
+            List<String> validDepts = getAllDepartmentNamesFromDB();
+            String recommendedDept = result.getRecommendedDepartment();
+
+            if (StringUtils.hasText(recommendedDept) && !validDepts.contains(recommendedDept)) {
+                // 如果AI返回的科室不在数据库中，尝试模糊匹配
+                String matchedDept = fuzzyMatchDepartment(recommendedDept, validDepts);
+                if (matchedDept != null) {
+                    result.setRecommendedDepartment(matchedDept);
+                    log.info("科室模糊匹配成功：{} → {}", recommendedDept, matchedDept);
+                } else {
+                    // 匹配失败，使用默认科室
+                    String defaultDept = getDefaultDepartment();
+                    result.setRecommendedDepartment(defaultDept);
+                    log.warn("科室匹配失败，使用默认科室：{}", defaultDept);
+                }
+            }
+
+            return result;
+
         } catch (Exception e) {
-            log.error("AI调用失败", e);
+            log.error("AI结构化输出失败", e);
             // 降级处理：返回默认科室
-            return AiAnalysisResult.builder()
+            return AiDepartmentRecommendationDto.builder()
                     .parsedDiagnosis("根据您的描述，建议进一步就医检查")
                     .recommendedDepartment(getDefaultDepartment())
                     .departmentReason("AI分析异常，请重新描述症状或选择其他科室")
+                    .emergency(false)
                     .build();
         }
     }
@@ -228,68 +279,49 @@ public class AiConsultServiceImpl implements AiConsultService {
     }
 
     /**
-     * 构建AI提示词（包含数据库中的科室列表）
+     * 构建用户提示词
      */
-    private String buildAnalysisPrompt(String chiefComplaint, List<String> deptNames) {
-        // 构建科室列表字符串
+    private String buildUserPrompt(String chiefComplaint, List<String> deptNames) {
         String deptList = String.join("、", deptNames);
 
-        return String.format(
-                "你是一位专业的医疗AI助手，请分析以下患者主诉，并严格按照JSON格式返回结果。\n\n" +
-                        "患者主诉：%s\n\n" +
-                        "系统支持的科室列表（请从以下科室中选择推荐）：%s\n\n" +
-                        "请分析并返回以下JSON格式（不要返回其他内容）：\n" +
-                        "{\n" +
-                        "  \"parsed_diagnosis\": \"对症状的简要总结（20字以内）\",\n" +
-                        "  \"recommended_department\": \"从科室列表中选择最匹配的一个科室名称\",\n" +
-                        "  \"department_reason\": \"推荐该科室的原因（30字以内）\"\n" +
-                        "}\n\n" +
-                        "注意：推荐科室必须从上述科室列表中选择，只返回JSON格式。",
+        return String.format("""
+                【患者主诉】
+                %s
+                
+                【系统可用科室列表】
+                %s
+                
+                【任务要求】
+                1. 分析患者主诉，提取关键症状
+                2. 从科室列表中选择最匹配的科室（必须从上述列表中选择）
+                3. 给出推荐该科室的理由（30字以内）
+                4. 对症状进行简要总结（20字以内）
+                5. 如果主诉包含紧急症状（胸痛、呼吸困难、大出血等），设置 emergency 为 true
+                
+                【返回格式要求】
+                必须返回JSON格式，包含以下字段（字段名必须完全一致）：
+                {
+                    "parsed_diagnosis": "症状总结（20字以内）",
+                    "recommended_department": "科室名称（必须从科室列表中选择）",
+                    "department_reason": "推荐理由（30字以内）",
+                    "emergency": true或false
+                }
+                
+                只返回JSON，不要返回其他任何内容。
+                """,
                 chiefComplaint,
                 deptList
         );
     }
 
     /**
-     * 解析AI响应
-     */
-    private AiAnalysisResult parseAiResponse(String aiResponse) {
-        try {
-            // 提取JSON内容
-            String jsonStr = extractJson(aiResponse);
-            JSONObject json = JSON.parseObject(jsonStr);
-
-            String recommendedDept = json.getString("recommended_department");
-
-            // 验证推荐科室是否在数据库中存在
-            List<String> validDepts = getAllDepartmentNamesFromDB();
-            if (StringUtils.hasText(recommendedDept) && !validDepts.contains(recommendedDept)) {
-                // 如果AI返回的科室不在数据库中，尝试模糊匹配
-                recommendedDept = fuzzyMatchDepartment(recommendedDept, validDepts);
-                if (recommendedDept == null) {
-                    recommendedDept = getDefaultDepartment();
-                }
-            }
-
-            return AiAnalysisResult.builder()
-                    .parsedDiagnosis(json.getString("parsed_diagnosis"))
-                    .recommendedDepartment(recommendedDept)
-                    .departmentReason(json.getString("department_reason"))
-                    .build();
-        } catch (Exception e) {
-            log.error("解析AI响应失败", e);
-            return AiAnalysisResult.builder()
-                    .parsedDiagnosis("AI分析完成，建议咨询专业医生")
-                    .recommendedDepartment(getDefaultDepartment())
-                    .departmentReason("建议结合具体情况选择科室")
-                    .build();
-        }
-    }
-
-    /**
      * 模糊匹配科室名称
      */
     private String fuzzyMatchDepartment(String aiDept, List<String> validDepts) {
+        if (!StringUtils.hasText(aiDept) || validDepts == null || validDepts.isEmpty()) {
+            return null;
+        }
+
         // 精确匹配
         if (validDepts.contains(aiDept)) {
             return aiDept;
@@ -313,18 +345,6 @@ public class AiConsultServiceImpl implements AiConsultService {
         }
 
         return null;
-    }
-
-    /**
-     * 提取JSON字符串
-     */
-    private String extractJson(String text) {
-        Pattern pattern = Pattern.compile("\\{[^{}]*\\}");
-        Matcher matcher = pattern.matcher(text);
-        if (matcher.find()) {
-            return matcher.group();
-        }
-        return text;
     }
 
     /**
@@ -546,18 +566,5 @@ public class AiConsultServiceImpl implements AiConsultService {
         }
 
         return String.join("；", reasons);
-    }
-
-    /**
-     * AI分析结果内部类
-     */
-    @lombok.Builder
-    @lombok.Data
-    @lombok.NoArgsConstructor
-    @lombok.AllArgsConstructor
-    private static class AiAnalysisResult {
-        private String parsedDiagnosis;
-        private String recommendedDepartment;
-        private String departmentReason;
     }
 }
