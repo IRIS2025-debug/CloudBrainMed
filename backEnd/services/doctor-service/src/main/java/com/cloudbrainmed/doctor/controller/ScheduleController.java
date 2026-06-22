@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
  * 医生排班控制器（对应 API 4.4.4）
  */
 @RestController
-@RequestMapping("/api/doctor/schedule")
+@RequestMapping("/doctor-service/schedule")
 public class ScheduleController {
 
     private final ScheduleService scheduleService;

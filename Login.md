@@ -36,7 +36,7 @@
 ### 登录请求
 
 ```
-POST /api/auth/login
+POST /auth-service/login
 Content-Type: application/json
 ```
 
@@ -70,17 +70,17 @@ Content-Type: application/json
 
 ## 前端代理配置
 
-`vite.config.ts` 中将 `/api/auth` 请求代理到认证服务（端口8002）：
+`vite.config.ts` 中将 `/auth-service` 请求代理到认证服务（端口8000）：
 
 ```js
 export default defineConfig({
   server: {
     proxy: {
-      '/api/auth': {
-        target: 'http://localhost:8002',
+      '/auth-service': {
+        target: 'http://localhost:8000',
         changeOrigin: true,
       },
-      '/api/ai': {
+      '/ai-service': {
         target: 'http://localhost:8001',
         changeOrigin: true,
       }

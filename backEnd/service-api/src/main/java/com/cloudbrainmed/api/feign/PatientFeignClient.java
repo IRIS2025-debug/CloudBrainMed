@@ -15,10 +15,10 @@ import java.util.Map;
 public interface PatientFeignClient {
 
     /** 查询患者基本信息 */
-    @GetMapping("/api/patient/info/{patientId}")
+    @GetMapping("/patient-service/info/{patientId}")
     Map<String, Object> getPatientInfo(@PathVariable("patientId") String patientId);
 
     /** 查询患者挂号记录 */
-    @GetMapping("/api/patient/register/history/{patientId}")
+    @GetMapping("/patient-service/register/history/{patientId}")
     Map<String, Object> getRegisterHistory(@PathVariable("patientId") String patientId);
 }

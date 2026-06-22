@@ -12,7 +12,7 @@ import java.io.IOException;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/admin/profile")
+@RequestMapping("/admin-service/profile")
 public class AccountManageController {
 
     @Resource

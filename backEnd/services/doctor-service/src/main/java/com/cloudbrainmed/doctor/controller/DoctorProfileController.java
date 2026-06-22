@@ -11,7 +11,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/doctor/profile")
+@RequestMapping("/doctor-service/profile")
 public class DoctorProfileController {
 
     @Resource

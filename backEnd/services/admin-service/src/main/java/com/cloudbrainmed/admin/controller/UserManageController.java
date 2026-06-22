@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/admin/doctor-manage")
+@RequestMapping("/admin-service/doctor-manage")
 public class UserManageController {
 
     @Resource

@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
  * 患者信息控制器（内部 Feign 调用专用）
  */
 @RestController
-@RequestMapping("/api/patient")
+@RequestMapping("/patient-service")
 public class PatientProfileController {
 
     private final PatientProfileService profileService;

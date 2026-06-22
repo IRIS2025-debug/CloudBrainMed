@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
  * 检查申请单控制器
  */
 @RestController
-@RequestMapping("/api/doctor/exam-order")
+@RequestMapping("/doctor-service/exam-order")
 public class ExamOrderController {
 
     private final ExamOrderService examOrderService;

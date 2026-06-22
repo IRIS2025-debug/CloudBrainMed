@@ -116,7 +116,7 @@ const handleLogin = async (): Promise<void> => {
 
   loading.value = true
   try {
-    const res = await axios.post('/api/auth/login', {
+    const res = await axios.post('/auth-service/login', {
       phone: loginForm.value.phone,
       password: loginForm.value.password,
       roleType: loginForm.value.roleType

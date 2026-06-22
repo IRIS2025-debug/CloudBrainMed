@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.*;
  * 患者处方控制器（对应 API 4.3.3）
  */
 @RestController
-@RequestMapping("/api/patient/prescription")
+@RequestMapping("/patient-service/prescription")
 public class PrescriptionController {
 
     private final PrescriptionService prescriptionService;
