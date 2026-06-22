@@ -45,6 +45,22 @@ export default defineConfig({
             console.log('代理到AI服务:', req.method, req.url);
           });
         }
+      },
+      '/api/inspection-doctor': {
+        target: 'http://localhost:8003',
+        changeOrigin: true,
+      },
+      '/api/payment': {
+        target: 'http://localhost:8005',
+        changeOrigin: true,
+      },
+      '/auth-service': {
+        target: 'http://localhost:8002',
+        changeOrigin: true,
+      },
+      '/patient-service': {
+        target: 'http://localhost:8004',
+        changeOrigin: true,
       }
     }
   },
