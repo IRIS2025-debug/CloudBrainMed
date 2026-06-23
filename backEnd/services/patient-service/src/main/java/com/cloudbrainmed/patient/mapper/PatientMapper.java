@@ -3,6 +3,7 @@ package com.cloudbrainmed.patient.mapper;
 import com.cloudbrainmed.patient.entity.Patient;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
@@ -17,11 +18,18 @@ public interface PatientMapper {
     /**
      * 插入患者
      */
+    @Insert("INSERT INTO patient (patient_id, name, gender, birthday, phone, id_card, " +
+            "address, password, create_time, update_time) " +
+            "VALUES (#{patientId}, #{name}, #{gender}, #{birthday}, #{phone}, #{idCard}, " +
+            "#{address}, #{password}, NOW(), NOW())")
     int insert(Patient patient);
 
     /**
      * 更新患者信息
      */
+    @Update("UPDATE patient SET name = #{name}, gender = #{gender}, birthday = #{birthday}, " +
+            "address = #{address}, id_card = #{idCard}, " +
+            "phone = #{phone}, update_time = NOW() WHERE patient_id = #{patientId}")
     int update(Patient patient);
 
     /**
