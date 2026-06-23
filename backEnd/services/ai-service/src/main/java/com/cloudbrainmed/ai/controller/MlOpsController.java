@@ -11,7 +11,7 @@ import java.util.Map;
  * 对应前端: pages/admin/ml/ (Dashboard / Models / Samples / CTInference)
  */
 @RestController
-@RequestMapping("/api/admin/ml")
+@RequestMapping("/admin-service/ml")
 public class MlOpsController {
 
     private final MlOpsService mlOpsService;

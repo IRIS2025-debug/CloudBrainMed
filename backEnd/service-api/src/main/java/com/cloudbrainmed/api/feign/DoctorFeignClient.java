@@ -15,15 +15,15 @@ import java.util.Map;
 public interface DoctorFeignClient {
 
     /** 查询接诊患者列表（AI 辅助接诊用） */
-    @GetMapping("/api/doctor/consult/list")
+    @GetMapping("/doctor-service/consult/list")
     Map<String, Object> getConsultList(@RequestParam Map<String, String> params);
 
     /** 获取接诊详情（含患者信息+病历，AI 辅助接诊用） */
-    @GetMapping("/api/doctor/consult/detail")
+    @GetMapping("/doctor-service/consult/detail")
     Map<String, Object> getConsultDetail(@RequestParam("registerId") String registerId);
 
     /** 查询医生排班（AI 智能排班用） */
-    @GetMapping("/api/doctor/schedule/{doctorId}")
+    @GetMapping("/doctor-service/schedule/{doctorId}")
     Map<String, Object> getDoctorSchedules(@PathVariable("doctorId") String doctorId);
 
     /**

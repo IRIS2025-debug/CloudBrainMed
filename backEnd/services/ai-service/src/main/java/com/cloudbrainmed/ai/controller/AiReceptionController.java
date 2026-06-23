@@ -11,7 +11,7 @@ import java.util.Map;
  * 替代原先 doctor-service 中转 → /api/ai/consult/analyze 的旧链路。
  */
 @RestController
-@RequestMapping("/api/ai/assistant")
+@RequestMapping("/ai-service/assistant")
 public class AiReceptionController {
 
     @Autowired

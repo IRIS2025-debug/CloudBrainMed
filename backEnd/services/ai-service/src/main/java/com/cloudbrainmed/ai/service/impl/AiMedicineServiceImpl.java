@@ -5,12 +5,15 @@ import com.cloudbrainmed.ai.entity.Medicine;
 import com.cloudbrainmed.ai.mapper.MedicineMapper;
 import com.cloudbrainmed.ai.service.AiMedicineService;
 import com.cloudbrainmed.ai.vo.MedicineAnswerVo;
+import jakarta.annotation.Resource;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.document.Document;
+import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -21,6 +24,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 @Service
 public class AiMedicineServiceImpl implements AiMedicineService {
@@ -33,6 +37,9 @@ public class AiMedicineServiceImpl implements AiMedicineService {
 
     @Autowired
     private StringRedisTemplate redisTemplate;
+
+    @Resource
+    private VectorStore vectorStore;
 
     private static final String HISTORY_KEY = "ai:medicine:chat:";
     private static final int EXPIRE = 30;
@@ -47,6 +54,11 @@ public class AiMedicineServiceImpl implements AiMedicineService {
         } else {
             medicine = medicineMapper.findByKeyword(dto.getQuestion());
         }
+        List<Document> documents = vectorStore.similaritySearch(dto.getQuestion());
+        String context =
+                documents.stream()
+                        .map(Document::getText)
+                        .collect(Collectors.joining("\n"));
 
         String promptContent = buildPrompt(medicine, dto.getQuestion());
         messages.add(new SystemMessage(promptContent));

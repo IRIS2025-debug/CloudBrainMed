@@ -16,7 +16,7 @@ import java.util.HashMap;
 import java.util.Map;
 @Data
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/auth-service")
 @Validated
 public class DoctorAuthController {
     @Autowired

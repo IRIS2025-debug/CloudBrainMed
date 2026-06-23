@@ -17,7 +17,7 @@ import java.util.Map;
  * 对应鸿蒙端页面：患者个人信息 + 挂号记录 + 缴费记录
  */
 @RestController
-@RequestMapping("/api/patient/profile")
+@RequestMapping("/patient-service/profile")
 public class PatientMobileProfileController {
 
     private final PatientProfileService profileService;

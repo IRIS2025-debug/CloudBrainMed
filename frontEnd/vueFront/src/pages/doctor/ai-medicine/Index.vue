@@ -101,7 +101,7 @@ const sendQuestion = async (): Promise<void> => {
   await nextTick(() => scrollToBottom())
 
   try {
-    const response = await fetch('/api/ai/medicine/chat', {
+    const response = await fetch('/ai-service/medicine/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sessionId: sessionId.value, question: q })

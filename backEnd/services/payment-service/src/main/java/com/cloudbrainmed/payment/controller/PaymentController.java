@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.*;
  * 支付服务控制器
  */
 @RestController
-@RequestMapping("/api/payment")
+@RequestMapping("/payment-service")
 public class PaymentController {
 
     private final PaymentService paymentService;

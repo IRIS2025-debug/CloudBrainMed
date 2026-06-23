@@ -2,12 +2,12 @@ import request from '../request'
 
 /** 获取医生列表 */
 export function getDoctorList() {
-  return request.get('/api/admin/doctor-manage/list')
+  return request.get('/admin-service/doctor-manage/list')
 }
 
 /** 获取医生详情 */
 export function getDoctorDetail(doctorId: string) {
-  return request.get(`/api/admin/doctor-manage/detail/${doctorId}`)
+  return request.get(`/admin-service/doctor-manage/detail/${doctorId}`)
 }
 
 /** 新增医生 */
@@ -21,7 +21,7 @@ export function addDoctor(data: {
   introduction: string
   departmentId: string
 }) {
-  return request.post('/api/admin/doctor-manage/add', data)
+  return request.post('/admin-service/doctor-manage/add', data)
 }
 
 /** 修改医生 */
@@ -37,10 +37,10 @@ export function updateDoctor(data: {
   departmentId: string
   status: number
 }) {
-  return request.put('/api/admin/doctor-manage/update', data)
+  return request.put('/admin-service/doctor-manage/update', data)
 }
 
 /** 删除医生 */
 export function deleteDoctor(doctorId: string) {
-  return request.delete(`/api/admin/doctor-manage/delete/${doctorId}`)
+  return request.delete(`/admin-service/doctor-manage/delete/${doctorId}`)
 }

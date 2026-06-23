@@ -1,5 +1,5 @@
 import request from '../request'
 
 export function getDeptList() {
-  return request.get('/api/admin/dept/list')
+  return request.get('/admin-service/dept/list')
 }

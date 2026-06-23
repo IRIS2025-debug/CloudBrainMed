@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @RestController
-@RequestMapping("/api/ai/medicine")
+@RequestMapping("/ai-service/medicine")
 public class AiMedicineController {
     @Autowired
     private AiMedicineServiceImpl aiMedicineService;

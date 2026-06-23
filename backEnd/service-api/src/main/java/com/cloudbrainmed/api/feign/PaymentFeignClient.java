@@ -11,6 +11,6 @@ import java.util.Map;
 public interface PaymentFeignClient {
 
     /** 查询患者缴费记录 */
-    @GetMapping("/api/payment/history/{patientId}")
+    @GetMapping("/payment-service/history/{patientId}")
     Map<String, Object> getPaymentHistory(@PathVariable("patientId") String patientId);
 }

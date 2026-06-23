@@ -19,7 +19,7 @@ import java.util.List;
  */
 @Tag(name = "AI智能问诊助手", description = "提供AI智能科室推荐和医生推荐服务")
 @RestController
-@RequestMapping("/api/ai/consult")
+@RequestMapping("/ai-service/consult")
 @Validated
 @Slf4j
 public class AiConsultController {

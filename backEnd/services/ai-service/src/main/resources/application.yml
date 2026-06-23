@@ -21,6 +21,9 @@ spring:
       idle-timeout: 30000
       max-lifetime: 1800000
       connection-timeout: 20000
+  pgvector:
+    enabled: true
+    dimension: 1536 # 根据你的嵌入模型调整维度
   ai:
     openai:
       api-key: sk-86f5064268574a0ab487cb9a04fe5c5f

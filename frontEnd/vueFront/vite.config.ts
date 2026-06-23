@@ -13,20 +13,20 @@ export default defineConfig({
   server: {
     // 开发时将 /auth-service, /admin-service 等转发到后端网关，避免跨域问题
     proxy: {
-      '/api/auth': {
+      '/auth-service': {
         target: 'http://localhost:8002',
         changeOrigin: true,
         secure: false,
       },
-      '/api/doctor': {
+      '/doctor-service': {
         target: 'http://localhost:8003',
         changeOrigin: true,
       },
-      '/api/patient': {
+      '/patient-service': {
         target: 'http://localhost:8004',
         changeOrigin: true,
       },
-      '/api/admin': {
+      '/admin-service': {
         target: 'http://localhost:8000',
         changeOrigin: true,
       },
@@ -34,7 +34,7 @@ export default defineConfig({
         target: 'http://localhost:8000',
         changeOrigin: true,
       },
-      '/api/ai': {
+      '/ai-service': {
         target: 'http://localhost:8001',
         changeOrigin: true,
         configure: (proxy, options) => {
