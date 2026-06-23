@@ -1,11 +1,13 @@
 package com.cloudbrainmed.ai.service.impl;
 
+import ch.qos.logback.classic.Logger;
 import com.cloudbrainmed.ai.dto.MedicineQueryDto;
 import com.cloudbrainmed.ai.entity.Medicine;
 import com.cloudbrainmed.ai.mapper.MedicineMapper;
 import com.cloudbrainmed.ai.service.AiMedicineService;
 import com.cloudbrainmed.ai.vo.MedicineAnswerVo;
 import jakarta.annotation.Resource;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
@@ -59,8 +61,10 @@ public class AiMedicineServiceImpl implements AiMedicineService {
                 documents.stream()
                         .map(Document::getText)
                         .collect(Collectors.joining("\n"));
-
-        String promptContent = buildPrompt(medicine, dto.getQuestion());
+        Logger log = (Logger) LoggerFactory.getLogger(AiMedicineServiceImpl.class);
+        log.info("检索到 {} 条相关文档，内容预览：{}", documents.size(),
+                context.length() > 100 ? context.substring(0, 100) + "..." : context);
+        String promptContent = buildPrompt(medicine, dto.getQuestion(),context);
         messages.add(new SystemMessage(promptContent));
         messages.add(new UserMessage(dto.getQuestion()));
 
@@ -91,13 +95,19 @@ public class AiMedicineServiceImpl implements AiMedicineService {
         List<Message> messages = loadHistory(dto.getSessionId());
 
         Medicine medicine = null;
+        List<Document> documents = vectorStore.similaritySearch(dto.getQuestion());
+        String context =
+                documents.stream()
+                        .map(Document::getText)
+                        .collect(Collectors.joining("\n"));
+
         if (StringUtils.hasText(dto.getMedicineId())) {
             medicine = medicineMapper.selectById(dto.getMedicineId());
         } else {
             medicine = medicineMapper.findByKeyword(dto.getQuestion());
         }
 
-        String promptContent = buildPrompt(medicine, dto.getQuestion());
+        String promptContent = buildPrompt(medicine, dto.getQuestion(),context);
         messages.add(new SystemMessage(promptContent));
         messages.add(new UserMessage(dto.getQuestion()));
 
@@ -118,9 +128,10 @@ public class AiMedicineServiceImpl implements AiMedicineService {
         return vo;
     }
 
-    private String buildPrompt(Medicine med, String question) {
+    private String buildPrompt(Medicine med, String question,String context) {
         if (med == null) {
-            return """
+            if(context.isEmpty()){
+                return """
                 你是一位专业的临床药学顾问，正在为执业医生提供支持。
 
                 请严格按以下格式回答，各部分之间用空行分隔：
@@ -149,51 +160,135 @@ public class AiMedicineServiceImpl implements AiMedicineService {
                 - 基于循证医学回答
                 - 如超出知识范围，建议查阅最新指南
                 """;
+            }
+            else{
+                return String.format("""
+                你是一位专业的临床药学顾问，正在为执业医生提供支持。
+                【参考资料】：%s
+                请严格按以下格式回答，各部分之间用空行分隔：
+
+                【核心回答】
+                直接回答医生问题，2-3句话。
+
+                【详细分析】
+                • 要点一
+                • 要点二
+                • 要点三
+
+                【安全提醒】
+                ⚠️ 最重要警告
+                • 注意事项一
+                • 注意事项二
+
+                【临床建议】
+                • 建议一
+                • 建议二
+
+                > 总结提示
+
+                要求：
+                - 不要使用任何markdown语法
+                - 基于循证医学回答
+                - 如超出知识范围，建议查阅最新指南
+                """,
+                context
+                );
+            }
+
+        }
+        else{
+            if(context.isEmpty()){
+                return String.format("""
+                你是一位专业的临床药学顾问，正在为执业医生提供支持。
+    
+                当前药品信息：
+                药品名称：%s
+                用法用量：%s
+                适应症：%s
+                注意事项：%s
+    
+                医生提问：%s
+    
+                请严格按以下格式回答，各部分之间用空行分隔：
+    
+                【核心回答】
+                直接回答医生问题，2-3句话。
+    
+                【详细分析】
+                • 要点一
+                • 要点二
+                • 要点三
+    
+                【安全提醒】
+                ⚠️ 最重要警告
+                • 注意事项一
+                • 注意事项二
+    
+                【临床建议】
+                • 建议一
+                • 建议二
+    
+                > 总结提示
+    
+                要求：
+                - 不要使用任何markdown语法
+                - 基于药品说明书和临床指南回答
+                - 如超出知识范围，建议查阅最新指南
+                """,
+                        med.getName(),
+                        med.getUsage() != null ? med.getUsage() : "请参考药品说明书",
+                        med.getIndication() != null ? med.getIndication() : "请参考药品说明书",
+                        med.getAttention() != null ? med.getAttention() : "请参考药品说明书",
+                        question
+                );
+            }else{
+                return String.format("""
+                你是一位专业的临床药学顾问，正在为执业医生提供支持。
+                【参考资料】:%s
+                当前药品信息：
+                药品名称：%s
+                用法用量：%s
+                适应症：%s
+                注意事项：%s
+    
+                医生提问：%s
+    
+                请严格按以下格式回答，各部分之间用空行分隔：
+    
+                【核心回答】
+                直接回答医生问题，2-3句话。
+    
+                【详细分析】
+                • 要点一
+                • 要点二
+                • 要点三
+    
+                【安全提醒】
+                ⚠️ 最重要警告
+                • 注意事项一
+                • 注意事项二
+    
+                【临床建议】
+                • 建议一
+                • 建议二
+    
+                > 总结提示
+    
+                要求：
+                - 不要使用任何markdown语法
+                - 基于药品说明书和临床指南回答
+                - 如超出知识范围，建议查阅最新指南
+                """,
+                        context,
+                        med.getName(),
+                        med.getUsage() != null ? med.getUsage() : "请参考药品说明书",
+                        med.getIndication() != null ? med.getIndication() : "请参考药品说明书",
+                        med.getAttention() != null ? med.getAttention() : "请参考药品说明书",
+                        question
+                );
+            }
         }
 
-        return String.format("""
-            你是一位专业的临床药学顾问，正在为执业医生提供支持。
-
-            当前药品信息：
-            药品名称：%s
-            用法用量：%s
-            适应症：%s
-            注意事项：%s
-
-            医生提问：%s
-
-            请严格按以下格式回答，各部分之间用空行分隔：
-
-            【核心回答】
-            直接回答医生问题，2-3句话。
-
-            【详细分析】
-            • 要点一
-            • 要点二
-            • 要点三
-
-            【安全提醒】
-            ⚠️ 最重要警告
-            • 注意事项一
-            • 注意事项二
-
-            【临床建议】
-            • 建议一
-            • 建议二
-
-            > 总结提示
-
-            要求：
-            - 不要使用任何markdown语法
-            - 基于药品说明书和临床指南回答
-            - 如超出知识范围，建议查阅最新指南
-            """,
-                med.getName(),
-                med.getUsage() != null ? med.getUsage() : "请参考药品说明书",
-                med.getIndication() != null ? med.getIndication() : "请参考药品说明书",
-                med.getAttention() != null ? med.getAttention() : "请参考药品说明书",
-                question
-        );
     }
 
     private List<Message> loadHistory(String sessionId) {

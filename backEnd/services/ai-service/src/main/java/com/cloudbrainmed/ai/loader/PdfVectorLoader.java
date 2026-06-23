@@ -1,0 +1,66 @@
+package com.cloudbrainmed.ai.loader;
+
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.ai.document.Document;
+import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
+import org.springframework.stereotype.Component;
+import org.springframework.core.io.Resource;
+
+
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+@Component
+public class PdfVectorLoader implements CommandLineRunner {
+    private static final Logger log = LoggerFactory.getLogger(PdfVectorLoader.class);
+    private static final int CHUNK_SIZE = 500; // 每块 500 字
+
+    @Autowired
+    private VectorStore vectorStore;
+
+    @Override
+    public void run(String... args) throws Exception {
+        List<Document> existing=new ArrayList<>();
+        existing=vectorStore.similaritySearch("药品说明书");
+        if(!existing.isEmpty()){
+            log.info("已存在药品说明书向量");
+            return;
+        }
+        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        Resource[] pdfs = resolver.getResources("classpath:pdf/*.pdf");
+        List<Document> allDocs=new ArrayList<>();
+        for(Resource pdf:pdfs){
+            InputStream is=pdf.getInputStream();
+            PDDocument pdDoc=Loader.loadPDF(is.readAllBytes());
+            PDFTextStripper stripper = new PDFTextStripper();
+            String text = stripper.getText(pdDoc);
+            pdDoc.close();
+            is.close();
+            log.info("解析 PDF [{}]，共 {} 字", pdf.getFilename(), text.length());
+            for (int i = 0; i < text.length(); i += CHUNK_SIZE) {
+                int end = Math.min(i + CHUNK_SIZE, text.length());
+                String chunk = text.substring(i, end);
+
+                // 包装成 Document，带上来源信息
+                Document doc = new Document(
+                        chunk,
+                        Map.of("source", pdf.getFilename(), "type", "pdf")
+                );
+                allDocs.add(doc);
+            }
+        }
+
+        vectorStore.add(allDocs);
+        log.info("PDF 向量库导入完成，共导入 {} 个文档块", allDocs.size());
+    }
+
+}
