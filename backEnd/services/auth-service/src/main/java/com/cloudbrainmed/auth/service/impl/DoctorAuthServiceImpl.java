@@ -27,6 +27,7 @@ public class DoctorAuthServiceImpl implements DoctorAuthService {
         String password = dto.getPassword();
         Integer role = dto.getRoleType();
 
+        if (role == null) throw new BusinessException("请选择登录角色");
         if (role == 2) {
             Doctor d = doctorMapper.selectOne(new LambdaQueryWrapper<Doctor>()
                     .eq(Doctor::getPhone, phone)

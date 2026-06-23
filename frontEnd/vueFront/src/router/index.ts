@@ -100,6 +100,12 @@ const router = createRouter({
       component: () => import('@/pages/admin/AdminHome.vue'),
       meta: { requiresAuth: true, role: 3 }
     },
+    {
+      path: '/inspection-doctor/order-list',
+      name: 'inspectionOrderList',
+      component: () => import('@/pages/inspection-doctor/InspectionOrderList.vue'),
+      meta: { requiresAuth: true }
+    },
   ],
 })
 
