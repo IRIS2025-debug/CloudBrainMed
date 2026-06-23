@@ -1,6 +1,9 @@
 package com.cloudbrainmed.ai.service.impl;
 
 import ch.qos.logback.classic.Logger;
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
+import com.alibaba.fastjson.serializer.SerializerFeature;
 import com.cloudbrainmed.ai.dto.MedicineQueryDto;
 import com.cloudbrainmed.ai.entity.Medicine;
 import com.cloudbrainmed.ai.mapper.MedicineMapper;
@@ -292,11 +295,16 @@ public class AiMedicineServiceImpl implements AiMedicineService {
     }
 
     private List<Message> loadHistory(String sessionId) {
-        return new ArrayList<>();
+        String json = redisTemplate.opsForValue().get(HISTORY_KEY + sessionId);
+        if (json == null) {
+            return new ArrayList<>();
+        }
+        return JSON.parseArray(json, Message.class);
     }
+
 
     private void saveHistory(String sessionId, List<Message> msgs) {
         redisTemplate.opsForValue()
-                .set(HISTORY_KEY + sessionId, msgs.toString(), EXPIRE, TimeUnit.MINUTES);
+                .set(HISTORY_KEY + sessionId, JSON.toJSONString(msgs, SerializerFeature.WriteClassName), EXPIRE, TimeUnit.MINUTES);
     }
 }

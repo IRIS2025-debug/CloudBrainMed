@@ -24,10 +24,7 @@ public class DoctorAuthController {
 
     @PostMapping("/login")
     public Result login(@RequestBody LoginDto dto) {
-        String token = doctorAuthService.login(dto);
-        Map<String, Object> map = new HashMap<>();
-        map.put("token", token);
-        map.put("roleType", dto.getRoleType());
-        return Result.success(map);
+        Map<String, Object> result = doctorAuthService.login(dto);
+        return Result.success(result);
     }
 }

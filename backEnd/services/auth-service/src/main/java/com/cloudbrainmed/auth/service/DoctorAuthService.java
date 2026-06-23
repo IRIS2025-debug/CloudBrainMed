@@ -2,6 +2,8 @@ package com.cloudbrainmed.auth.service;
 
 import com.cloudbrainmed.auth.dto.LoginDto;
 
+import java.util.Map;
+
 public interface DoctorAuthService {
-     String login(LoginDto dto);
+     Map<String, Object> login(LoginDto dto);
 }

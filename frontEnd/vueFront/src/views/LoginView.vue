@@ -124,17 +124,38 @@ const handleLogin = async (): Promise<void> => {
 
     const result = res.data
     if (result.code === 200 && result.data && result.data.token) {
-      // result.data 是 { token: "xxx", roleType: N }，取 token 字段
+      // result.data 是 { token: "xxx", roleType: N, doctorType: N }，取 token 字段
       sessionStorage.setItem('token', result.data.token)
       // roleType 优先用后端返回值，兜底取表单里的
       sessionStorage.setItem('roleType', String(result.data.roleType ?? loginForm.value.roleType))
+      // 存储 doctorType（医生类型：1看诊 2检查 3检验），后端没返回则默认1
+      sessionStorage.setItem('doctorType', String(result.data.doctorType ?? 1))
       // 同时设置 userRole 供 App.vue 侧边栏角色判断使用
       const role = result.data.roleType ?? loginForm.value.roleType
       sessionStorage.setItem('userRole', role === 3 ? 'admin' : 'doctor')
 
       ElMessage.success('登录成功')
-      if(loginForm.value.roleType==2){await router.push({ name: 'DoctorHome' })}
-      else{await router.push({ name: 'AdminHome' })}
+
+      // 根据角色类型和医生类型跳转不同页面
+      if (loginForm.value.roleType === 2) {
+        // 医生：根据 doctorType 跳转
+        const doctorType = result.data.doctorType || 1
+        if (doctorType === 1) {
+          // 看诊医生 → 医生首页
+          await router.push({ name: 'DoctorHome' })
+        } else if (doctorType === 2) {
+          // 检查医生 → 检查医生首页
+          await router.push({ name: 'ExaminationHome' })
+        } else if (doctorType === 3) {
+          // 检验医生 → 检验申请列表
+          await router.push({ name: 'inspectionOrderList' })
+        } else {
+          await router.push({ name: 'DoctorHome' })
+        }
+      } else {
+        // 管理员 → 管理首页
+        await router.push({ name: 'AdminHome' })
+      }
 
     } else {
       ElMessage.error(result.msg || '登录失败')

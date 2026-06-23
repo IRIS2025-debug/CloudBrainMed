@@ -15,6 +15,9 @@ import jakarta.annotation.Resource;
 import lombok.Data;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
+import java.util.Map;
+
 @Data
 @Service
 public class DoctorAuthServiceImpl implements DoctorAuthService {
@@ -22,7 +25,8 @@ public class DoctorAuthServiceImpl implements DoctorAuthService {
     private DoctorMapper doctorMapper;
     @Resource
     private AdminMapper adminMapper;
-    public String login(LoginDto dto) {
+
+    public Map<String, Object> login(LoginDto dto) {
         String phone = dto.getPhone();
         String password = dto.getPassword();
         Integer role = dto.getRoleType();
@@ -33,13 +37,23 @@ public class DoctorAuthServiceImpl implements DoctorAuthService {
                     .eq(Doctor::getPhone, phone)
                     .eq(Doctor::getPassword, password));
             if (d == null) throw new BusinessException("医生账号或密码错误");
-            return DoctorJwtUtil.createToken(d.getDoctorId().toString(), phone, role);}
-        else if (role == 3) {
+            String token = DoctorJwtUtil.createToken(d.getDoctorId().toString(), phone, role);
+            Map<String, Object> result = new HashMap<>();
+            result.put("token", token);
+            result.put("roleType", role);
+            result.put("doctorType", d.getDoctorType() != null ? d.getDoctorType() : 1);
+            return result;
+        } else if (role == 3) {
             Admin a = adminMapper.selectOne(new LambdaQueryWrapper<Admin>()
                     .eq(Admin::getPhone, phone)
                     .eq(Admin::getPassword, password));
             if (a == null) throw new BusinessException("管理员账号或密码错误");
-            return DoctorJwtUtil.createToken(a.getAdminId().toString(), phone, role);
-        }throw new BusinessException("角色类型错误");
+            String token = DoctorJwtUtil.createToken(a.getAdminId().toString(), phone, role);
+            Map<String, Object> result = new HashMap<>();
+            result.put("token", token);
+            result.put("roleType", role);
+            return result;
+        }
+        throw new BusinessException("角色类型错误");
     }
 }
