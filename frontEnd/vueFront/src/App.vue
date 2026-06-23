@@ -93,6 +93,7 @@ const doctorMenus = [
   { path: '/doctor/consult', title: '接诊工作台', icon: 'List', group: '医生端' },
   { path: '/doctor/ai-medicine', title: 'AI 药物推荐', icon: 'DataAnalysis', group: '医生端' },
   { path: '/doctor/schedule', title: '值班查询', icon: 'List', group: '医生端' },
+  { path: '/inspection-doctor/order-list', title: '查看检验申请', icon: 'List', group: '检验医生' },
 ]
 
 const adminMenus = [
