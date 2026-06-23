@@ -4,6 +4,7 @@ import preferences from '@ohos.data.preferences';
 import promptAction from '@ohos.promptAction';
 import { HttpUtil } from '../common/HttpUtil';
 import { LogoIcon } from '../common/LogoIcon';
+import { APIConfig } from '../common/APIConfig';
 
 // 定义请求参数接口
 interface SendCodeParams {
@@ -60,7 +61,7 @@ struct LoginPage {
   @State passwordFocused: boolean = false;
   @State codeFocused: boolean = false;
 
-  private baseUrl: string = 'http://192.168.25.143:8002/auth-service';
+  private baseUrl: string = APIConfig.AUTH_SERVICE_URL;
   private countdownTimer: number = -1;
 
 

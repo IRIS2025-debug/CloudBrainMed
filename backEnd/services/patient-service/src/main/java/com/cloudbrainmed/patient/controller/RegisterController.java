@@ -45,19 +45,16 @@ public class RegisterController {
         return Result.success(registerService.submitRegister(dto));
     }
 
-    @GetMapping("/history/{patientId}")
-    public Result<List<Registration>> getRegisterHistory(@PathVariable String patientId) {
-        return Result.success(registerService.getRegisterHistory(patientId));
-    }
+//    @GetMapping("/history/{patientId}")
+//    public Result<List<Registration>> getRegisterHistory(@PathVariable String patientId) {
+//        return Result.success(registerService.getRegisterHistory(patientId));
+//    }
 
     @GetMapping("/detail/{registerId}")
     public Result<Registration> getRegisterDetail(@PathVariable String registerId) {
         return Result.success(registerService.getRegisterDetail(registerId));
     }
 
-    /**
-     * 检查患者信息是否完整
-     */
     @GetMapping("/check-patient/{patientId}")
     public Result<Map<String, Object>> checkPatientInfo(@PathVariable String patientId) {
         return Result.success(registerService.checkPatientInfo(patientId));

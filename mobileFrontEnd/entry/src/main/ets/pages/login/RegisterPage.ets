@@ -3,6 +3,7 @@ import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
 import { HttpUtil } from '../common/HttpUtil';
 import { LogoIcon } from '../common/LogoIcon';
+import { APIConfig } from '../common/APIConfig';
 
 interface RegisterParams {
   name: string;
@@ -51,7 +52,7 @@ struct RegisterPage {
   @State showPassword: boolean = false;
   @State showConfirmPassword: boolean = false;
 
-  private baseUrl: string = 'http://192.168.25.143:8002/auth-service';
+  private baseUrl: string = APIConfig.AUTH_SERVICE_URL;
 
   private validateForm(): boolean {
     let isValid = true;

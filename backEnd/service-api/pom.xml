@@ -29,5 +29,11 @@
             <groupId>com.cloudbrainmed</groupId>
             <artifactId>common</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.cloudbrainmed</groupId>
+            <artifactId>admin-service</artifactId>
+            <version>0.0.1-SNAPSHOT</version>
+            <scope>compile</scope>
+        </dependency>
     </dependencies>
 </project>

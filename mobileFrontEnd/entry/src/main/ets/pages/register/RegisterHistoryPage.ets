@@ -2,6 +2,7 @@
 import router from '@ohos.router';
 import { HttpUtil } from '../common/HttpUtil';
 import promptAction from '@ohos.promptAction';
+import { APIConfig } from '../common/APIConfig';
 
 interface Registration {
   registerId: string;
@@ -33,7 +34,7 @@ export struct RegisterHistoryPage {
   @State isLoading: boolean = true;
   @State selectedTab: number = 0;
   private patientId: string = '';
-  private baseUrl: string = 'http://192.168.25.143:8004/patient-service';
+  private baseUrl: string = APIConfig.PATIENT_SERVICE_URL;
 
   aboutToAppear() {
     const params = router.getParams() as Record<string, string>;
