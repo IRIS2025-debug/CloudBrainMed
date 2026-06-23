@@ -59,11 +59,13 @@ public class PatientAuthController {
 
     /**
      * 发送验证码 - 支持JSON请求体
+     * skipRegisterCheck=true 时跳过注册检查（改手机号场景，新号码可能未注册）
      */
     @PostMapping("/patient/send-code")
     public Result<Map<String, String>> sendVerifyCode(@RequestBody Map<String, String> request) {
         // 从请求体中获取手机号
         String phone = request.get("phone");
+        boolean skipRegisterCheck = "true".equals(request.get("skipRegisterCheck"));
 
         // 1. 检查手机号是否为空
         if (phone == null || phone.trim().isEmpty()) {
@@ -75,8 +77,8 @@ public class PatientAuthController {
             return Result.error(400, "手机号格式不正确");
         }
 
-        // 3. 检查手机号是否已注册
-        if (!authService.checkPhoneExists(phone)) {
+        // 3. 检查手机号是否已注册（改手机号场景可跳过）
+        if (!skipRegisterCheck && !authService.checkPhoneExists(phone)) {
             return Result.error(400, "该手机号未注册");
         }
 
