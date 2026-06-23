@@ -4,15 +4,20 @@ import com.cloudbrainmed.common.exception.BusinessException;
 import com.cloudbrainmed.patient.entity.Patient;
 import com.cloudbrainmed.patient.mapper.PatientMapper;
 import com.cloudbrainmed.patient.module5.service.PatientProfileService;
+import org.springframework.http.HttpEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
+import org.springframework.web.client.RestTemplate;
 
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
 
 @Service
 public class PatientProfileServiceImpl implements PatientProfileService {
 
     private final PatientMapper patientMapper;
+    private final RestTemplate restTemplate = new RestTemplate();
 
     public PatientProfileServiceImpl(PatientMapper patientMapper) {
         this.patientMapper = patientMapper;
@@ -49,6 +54,37 @@ public class PatientProfileServiceImpl implements PatientProfileService {
 
     @Override
     public void changePhone(String patientId, String oldPhone, String newPhone, String smsCode) {
+        // 1. 校验验证码
+        if (smsCode == null || smsCode.isBlank()) {
+            throw new BusinessException("验证码不能为空");
+        }
+        try {
+            Map<String, String> verifyReq = new HashMap<>();
+            verifyReq.put("phone", newPhone);
+            verifyReq.put("code", smsCode);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> resp = restTemplate.postForObject(
+                    "http://localhost:8002/auth-service/patient/verify-code",
+                    new HttpEntity<>(verifyReq), Map.class);
+            if (resp == null || !Integer.valueOf(200).equals(resp.get("code"))) {
+                throw new BusinessException("验证码校验失败");
+            }
+            Object dataObj = resp.get("data");
+            if (!(dataObj instanceof Map)) {
+                throw new BusinessException("验证码校验失败");
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, Object> dataMap = (Map<String, Object>) dataObj;
+            if (!Boolean.TRUE.equals(dataMap.get("valid"))) {
+                throw new BusinessException("验证码错误或已过期");
+            }
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new BusinessException("验证码校验失败，请稍后重试");
+        }
+
+        // 2. 校验手机号
         Patient p = patientMapper.selectById(patientId);
         if (p == null) throw new BusinessException("患者不存在");
         if (!p.getPhone().equals(oldPhone)) throw new BusinessException("原手机号不正确");

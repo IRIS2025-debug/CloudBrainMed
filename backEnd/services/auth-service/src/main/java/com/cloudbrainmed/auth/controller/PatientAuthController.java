@@ -92,4 +92,25 @@ public class PatientAuthController {
 
         return Result.success("验证码发送成功", data);
     }
+
+    /**
+     * 校验验证码（供其他微服务调用）
+     */
+    @PostMapping("/patient/verify-code")
+    public Result<Map<String, Object>> verifyCode(@RequestBody Map<String, String> request) {
+        String phone = request.get("phone");
+        String code = request.get("code");
+
+        if (phone == null || phone.trim().isEmpty()) {
+            return Result.error(400, "手机号不能为空");
+        }
+        if (code == null || code.trim().isEmpty()) {
+            return Result.error(400, "验证码不能为空");
+        }
+
+        boolean valid = authService.verifyCode(phone, code);
+        Map<String, Object> data = new HashMap<>();
+        data.put("valid", valid);
+        return Result.success(data);
+    }
 }
