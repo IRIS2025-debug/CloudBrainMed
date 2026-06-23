@@ -19,16 +19,16 @@ public interface PatientMapper {
      * 插入患者
      */
     @Insert("INSERT INTO patient (patient_id, name, gender, birthday, phone, id_card, " +
-            "address, avatar_url, password, create_time, update_time) " +
+            "address, password, create_time, update_time) " +
             "VALUES (#{patientId}, #{name}, #{gender}, #{birthday}, #{phone}, #{idCard}, " +
-            "#{address}, #{avatarUrl}, #{password}, NOW(), NOW())")
+            "#{address}, #{password}, NOW(), NOW())")
     int insert(Patient patient);
 
     /**
      * 更新患者信息
      */
     @Update("UPDATE patient SET name = #{name}, gender = #{gender}, birthday = #{birthday}, " +
-            "address = #{address}, avatar_url = #{avatarUrl}, id_card = #{idCard}, " +
+            "address = #{address}, id_card = #{idCard}, " +
             "phone = #{phone}, update_time = NOW() WHERE patient_id = #{patientId}")
     int update(Patient patient);
 
