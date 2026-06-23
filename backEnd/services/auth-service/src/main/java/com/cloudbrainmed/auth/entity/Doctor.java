@@ -28,6 +28,8 @@ public class Doctor {
     private String password;
     // 科室ID
     private String departmentId;
+    // 医生类型：1看诊医生 2检查医生 3检验医生
+    private Integer doctorType;
     // 0停用 1正常
     private Integer status;
     // 创建时间

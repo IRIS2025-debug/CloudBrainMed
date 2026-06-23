@@ -69,6 +69,7 @@ const handleLogout = () => {
   sessionStorage.removeItem('token')
   sessionStorage.removeItem('roleType')
   sessionStorage.removeItem('userRole')
+  sessionStorage.removeItem('doctorType')
   ElMessage.success('已退出登录')
   router.push('/login')
 }
@@ -88,7 +89,7 @@ const iconMap: Record<string, any> = {
 
 // ==================== 菜单配置（包含首页概览）====================
 const doctorMenus = [
-  { path: '/', title: '首页概览', icon: 'HomeFilled', group: '医生端' },      // 新增
+  { path: '/', title: '首页概览', icon: 'HomeFilled', group: '医生端' },
   { path: '/doctor/profile', title: '医生个人信息', icon: 'UserFilled', group: '医生端' },
   { path: '/doctor/consult', title: '接诊工作台', icon: 'List', group: '医生端' },
   { path: '/doctor/ai-medicine', title: 'AI 药物推荐', icon: 'DataAnalysis', group: '医生端' },
@@ -135,9 +136,30 @@ watch(() => route.path, () => {
   updateRoleFromPath()
 }, { immediate: true })
 
-// 根据角色动态计算菜单项
+// 根据角色动态计算菜单项，并根据医生类型过滤
 const menuItems = computed(() => {
-  return currentRole.value === 'doctor' ? doctorMenus : adminMenus
+  if (currentRole.value === 'doctor') {
+    const doctorType = Number(sessionStorage.getItem('doctorType'))
+
+    // 根据医生类型确定首页路径
+    let homePath = '/'
+    if (doctorType === 2) homePath = '/examination-doctor/home'
+    else if (doctorType === 3) homePath = '/inspection-doctor/order-list'
+
+    return doctorMenus.filter(item => {
+      // 接诊工作台：仅看诊医生（1）可见
+      if (item.path === '/doctor/consult') return doctorType === 1
+      // 查看检验申请：仅检验医生（3）可见
+      if (item.path === '/inspection-doctor/order-list') return doctorType === 3
+      // 其他菜单所有医生都可访问
+      return true
+    }).map(item => {
+      // 将首页概览路径替换为对应医生类型的首页
+      if (item.path === '/') return { ...item, path: homePath }
+      return item
+    })
+  }
+  return adminMenus
 })
 
 // 判断是否显示分组标签

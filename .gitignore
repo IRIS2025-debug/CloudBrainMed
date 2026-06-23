@@ -3,7 +3,9 @@
 nacos/
 sentinel-dashboard-*.jar
 
-# ===================== Java/后端 =====================
+# ===================== AI 本地资源 =====================
+# PDF 药品说明书（仅本地使用，不提交 Git）
+**/src/main/resources/pdf/
 # 编译产物
 *.class
 *.jar

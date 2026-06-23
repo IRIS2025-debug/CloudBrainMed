@@ -106,6 +106,12 @@ const router = createRouter({
       component: () => import('@/pages/inspection-doctor/InspectionOrderList.vue'),
       meta: { requiresAuth: true }
     },
+    {
+      path: '/examination-doctor/home',
+      name: 'ExaminationHome',
+      component: () => import('@/pages/examination/ExaminationHome.vue'),
+      meta: { requiresAuth: true }
+    },
   ],
 })
 
