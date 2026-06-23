@@ -2,7 +2,10 @@ package com.cloudbrainmed.doctor.controller;
 
 import com.cloudbrainmed.common.result.Result;
 import com.cloudbrainmed.common.utils.DoctorJwtUtil;
+import com.cloudbrainmed.doctor.dto.PrescriptionCreateDto;
 import com.cloudbrainmed.doctor.service.ConsultService;
+import com.cloudbrainmed.doctor.service.PrescriptionService;
+import com.cloudbrainmed.doctor.entity.Prescription;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -12,9 +15,11 @@ import java.util.Map;
 public class ConsultController {
 
     private final ConsultService service;
+    private final PrescriptionService prescriptionService;
 
-    public ConsultController(ConsultService service) {
+    public ConsultController(ConsultService service, PrescriptionService prescriptionService) {
         this.service = service;
+        this.prescriptionService = prescriptionService;
     }
 
     /** 4.4.2.1 查询接诊患者列表 */
@@ -59,6 +64,22 @@ public class ConsultController {
         service.createExamOrder(body.get("registerId"),
                 body.get("checkItemList"), body.get("urgencyLevel"));
         return Result.ok();
+    }
+
+    /** 开具处方 */
+    @PostMapping("/create-prescription")
+    public Result<?> createPrescription(@RequestHeader(value = "token", required = false) String token,
+                                        @RequestBody PrescriptionCreateDto dto) {
+        String doctorId = extractDoctorId(token);
+        // 从前端的扩展获取 doctorName，此处暂时用 doctorId 作为 fallback
+        Prescription p = prescriptionService.create(dto, doctorId, doctorId);
+        return Result.ok(p);
+    }
+
+    /** 按挂号ID查询已开处方 */
+    @GetMapping("/prescription-list")
+    public Result<?> prescriptionList(@RequestParam String registerId) {
+        return Result.ok(prescriptionService.getByRegisterId(registerId));
     }
 
     /** 4.4.2.6 完成本次接诊 */

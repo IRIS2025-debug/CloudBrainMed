@@ -30,6 +30,7 @@
           <el-button @click="handleSaveDraft" :loading="saving" size="large">暂存草稿</el-button>
           <el-button type="success" @click="handleConfirm" :loading="confirming" size="large">确认病历</el-button>
           <el-button type="warning" @click="handleCreateExam" size="large">开具检查单</el-button>
+          <el-button type="success" @click="handleCreatePrescription" size="large">开具处方</el-button>
           <el-button type="primary" @click="handleAiAnalyze" :loading="aiLoading" size="large">
             <el-icon><MagicStick /></el-icon> AI 分析
           </el-button>
@@ -99,6 +100,32 @@
           </el-row>
         </el-form>
       </div>
+
+      <div class="card" v-if="showPrescriptionDialog">
+        <div class="card-head">开具处方</div>
+        <el-form label-position="top">
+          <el-row :gutter="16">
+            <el-col :span="12">
+              <el-form-item label="药品名称"><el-input v-model="rxForm.medicineName" placeholder="如：布洛芬缓释胶囊" /></el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="规格"><el-input v-model="rxForm.spec" placeholder="如：0.3g×20粒" /></el-form-item>
+            </el-col>
+          </el-row>
+          <el-row :gutter="16">
+            <el-col :span="12">
+              <el-form-item label="用法用量"><el-input v-model="rxForm.usage" placeholder="如：口服，每次1粒，每日2次" /></el-form-item>
+            </el-col>
+            <el-col :span="6">
+              <el-form-item label="数量"><el-input-number v-model="rxForm.num" :min="1" style="width:100%" /></el-form-item>
+            </el-col>
+            <el-col :span="6">
+              <el-form-item label="单价"><el-input-number v-model="rxForm.price" :min="0" :precision="2" style="width:100%" /></el-form-item>
+            </el-col>
+          </el-row>
+          <el-button type="primary" @click="submitPrescription" :loading="rxLoading" style="margin-top:8px">提交处方</el-button>
+        </el-form>
+      </div>
     </div>
   </div>
 </template>
@@ -108,7 +135,7 @@ import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { MagicStick } from '@element-plus/icons-vue'
-import { getConsultDetail, saveDraft, confirmRecord, createExamOrder, completeConsult, aiAnalyze } from '@/api/doctor/consult'
+import { getConsultDetail, saveDraft, confirmRecord, createExamOrder, completeConsult, aiAnalyze, createPrescription } from '@/api/doctor/consult'
 
 const route = useRoute()
 const registerId = route.params.registerId as string
@@ -118,6 +145,9 @@ const saving = ref(false); const confirming = ref(false); const completing = ref
 const examLoading = ref(false); const showExamDialog = ref(false)
 const checkItemList = ref(''); const urgencyLevel = ref('NORMAL')
 const aiLoading = ref(false); const aiResult = ref<any>(null)
+// 处方
+const showPrescriptionDialog = ref(false); const rxLoading = ref(false)
+const rxForm = ref({ medicineName: '', spec: '', usage: '', num: 1, price: 0 })
 
 onMounted(async () => {
   try { const res = await getConsultDetail(registerId); detail.value = res.data; recordDesc.value = res.data.description || '' } catch {}
@@ -131,7 +161,18 @@ async function handleConfirm() {
   confirming.value = true
   try { await confirmRecord({ registerId, recordDesc: recordDesc.value }); ElMessage.success('病历已确认'); detail.value.consultStatus = 'RECORD_CONFIRMED' } catch {} finally { confirming.value = false }
 }
-function handleCreateExam() { showExamDialog.value = true }
+function handleCreateExam() { showExamDialog.value = true; showPrescriptionDialog.value = false }
+function handleCreatePrescription() { showPrescriptionDialog.value = true; showExamDialog.value = false }
+async function submitPrescription() {
+  if (!rxForm.value.medicineName.trim()) { ElMessage.warning('请输入药品名称'); return }
+  rxLoading.value = true
+  try {
+    await createPrescription({ ...rxForm.value, registerId })
+    ElMessage.success('处方已开具')
+    showPrescriptionDialog.value = false
+    rxForm.value = { medicineName: '', spec: '', usage: '', num: 1, price: 0 }
+  } catch {} finally { rxLoading.value = false }
+}
 async function submitExamOrder() {
   examLoading.value = true
   try { await createExamOrder({ registerId, checkItemList: checkItemList.value, urgencyLevel: urgencyLevel.value }); ElMessage.success('检查申请已生成'); showExamDialog.value = false } catch {} finally { examLoading.value = false }

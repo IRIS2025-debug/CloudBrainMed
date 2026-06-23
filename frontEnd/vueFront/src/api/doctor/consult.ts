@@ -33,3 +33,18 @@ export function aiAnalyze(data: {
 }) {
   return request.post('/api/doctor/consult/ai-analyze', data)
 }
+
+export function createPrescription(data: {
+  registerId: string
+  medicineName: string
+  spec: string
+  usage: string
+  num: number
+  price: number
+}) {
+  return request.post('/api/doctor/consult/create-prescription', data)
+}
+
+export function getPrescriptionList(registerId: string) {
+  return request.get('/api/doctor/consult/prescription-list', { params: { registerId } })
+}
