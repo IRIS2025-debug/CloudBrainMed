@@ -25,12 +25,18 @@ public class PatientProfileServiceImpl implements PatientProfileService {
 
     @Override
     public Patient getInfo(String patientId) {
-        Patient p = patientMapper.selectById(patientId);
-        if (p == null) throw new BusinessException("患者不存在");
+        Patient p = getPatientRaw(patientId);
         p.setPhone(desensitizePhone(p.getPhone()));
         p.setIdCard(desensitizeIdCard(p.getIdCard()));
-        p.setPassword(null);
         return p;
+    }
+
+    /**
+     * 查询个人完整信息（不脱敏），仅用于改手机号等需要原始手机号的场景
+     */
+    @Override
+    public Patient getInfoRaw(String patientId) {
+        return getPatientRaw(patientId);
     }
 
     @Override
@@ -115,6 +121,17 @@ public class PatientProfileServiceImpl implements PatientProfileService {
         if ("男".equals(gender) || "1".equals(gender)) return 1;
         if ("女".equals(gender) || "2".equals(gender)) return 2;
         throw new BusinessException("性别参数错误");
+    }
+
+    /**
+     * 查库返回患者完整信息（仅去密码，不脱敏）。
+     * 警告：返回值是数据库实体，新增 Patient 敏感字段时需确认本方法及调用方是否需跳过该字段
+     */
+    private Patient getPatientRaw(String patientId) {
+        Patient p = patientMapper.selectById(patientId);
+        if (p == null) throw new BusinessException("患者不存在");
+        p.setPassword(null);
+        return p;
     }
 
     private String desensitizePhone(String phone) {
