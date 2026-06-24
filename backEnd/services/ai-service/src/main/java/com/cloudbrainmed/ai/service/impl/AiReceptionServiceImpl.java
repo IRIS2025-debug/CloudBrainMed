@@ -1,130 +1,184 @@
 package com.cloudbrainmed.ai.service.impl;
 
+import com.cloudbrainmed.ai.dto.AiFeedbackRequest;
+import com.cloudbrainmed.ai.mapper.AiFeedbackSampleMapper;
+import com.cloudbrainmed.ai.mapper.AiInferenceLogMapper;
 import com.cloudbrainmed.ai.service.AiReceptionService;
 import com.cloudbrainmed.api.dto.ReportContextDto;
 import com.cloudbrainmed.api.feign.DoctorFeignClient;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.messages.Message;
-import org.springframework.ai.chat.messages.SystemMessage;
-import org.springframework.ai.chat.messages.UserMessage;
-import org.springframework.ai.chat.prompt.Prompt;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.*;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDateTime;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
-/**
- * AI 智能接诊分析实现
- *
- * 新架构：前端直调 → Feign 反调 doctor-service 拿病历 → DeepSeek
- * 替代旧 AiConsultServiceImpl.analyze() 的 doctor-service 中转模式。
- */
 @Service
 public class AiReceptionServiceImpl implements AiReceptionService {
 
-    @Autowired
-    private ChatClient.Builder chatClientBuilder;
+    private static final Set<String> ADOPTION_TYPES =
+            Set.of("FULL", "PARTIAL", "REJECTED");
 
-    @Autowired
-    private DoctorFeignClient doctorFeignClient;
+    private final ObjectMapper objectMapper;
+    private final AiInferenceLogMapper inferenceLogMapper;
+    private final AiFeedbackSampleMapper feedbackSampleMapper;
+    private final DoctorFeignClient doctorFeignClient;
+    private final String internalServiceKey;
 
-    @Value("${internal.service-key:}")
-    private String internalServiceKey;
-
-    @Override
-    public Map<String, Object> analyze(String registerId, String doctorId) {
-        // 1. 通过 Feign 反调 doctor-service 获取完整病历上下文
-        ReportContextDto context = doctorFeignClient.getConsultContext(
-                registerId, doctorId, requireInternalServiceKey());
-
-        String chiefComplaint = Objects.toString(context.getChiefComplaint(), "");
-        String recordDesc = Objects.toString(context.getCurrentRecordDesc(), "");
-        String patientAge = Objects.toString(context.getPatientAge(), "未知");
-        String patientGender = Objects.toString(context.getPatientGender(), "未知");
-
-        // 2. 构建 DeepSeek prompt
-        ChatClient chatClient = chatClientBuilder.build();
-
-        String systemPrompt = """
-            你是一位经验丰富的临床辅助诊断专家，正在协助执业医生进行接诊分析。
-
-            请严格按以下 JSON 格式返回分析结果（不要包含任何其他文字）：
-
-            {
-              "diagnosis": [
-                {"name": "疑似诊断名称", "probability": "高/中/低", "basis": "诊断依据一句话"}
-              ],
-              "advice": "临床处理建议，2-3句话",
-              "risk": "需要紧急关注的风险点，如无则填'暂无特殊风险'"
-            }
-
-            要求：
-            - 基于循证医学
-            - 诊断按概率从高到低排列
-            - 最多给出 3 个疑似诊断
-            - 如信息不足以判断，请在 advice 中说明需要补充哪些信息
-            """;
-
-        String userPrompt = String.format("""
-            患者信息：
-            - 年龄：%s
-            - 性别：%s
-
-            主诉：%s
-
-            病历描述：%s
-
-            请给出分析结果。
-            """, patientAge, patientGender, chiefComplaint, recordDesc);
-
-        List<Message> messages = new ArrayList<>();
-        messages.add(new SystemMessage(systemPrompt));
-        messages.add(new UserMessage(userPrompt));
-
-        Prompt prompt = new Prompt(messages);
-        String reply = chatClient.prompt(prompt).call().content();
-
-        // 3. 解析 AI 返回的 JSON
-        return parseAiReply(reply);
+    public AiReceptionServiceImpl(
+            ObjectMapper objectMapper,
+            AiInferenceLogMapper inferenceLogMapper,
+            AiFeedbackSampleMapper feedbackSampleMapper,
+            DoctorFeignClient doctorFeignClient,
+            @Value("${internal.service-key:}") String internalServiceKey) {
+        this.objectMapper = objectMapper;
+        this.inferenceLogMapper = inferenceLogMapper;
+        this.feedbackSampleMapper = feedbackSampleMapper;
+        this.doctorFeignClient = doctorFeignClient;
+        this.internalServiceKey = internalServiceKey;
     }
 
-    /**
-     * 解析 AI 返回的 JSON 字符串，兜底处理格式异常
-     */
-    private Map<String, Object> parseAiReply(String reply) {
-        try {
-            String json = reply;
-            if (reply.contains("```json")) {
-                json = reply.substring(reply.indexOf("```json") + 7);
-                if (json.contains("```")) {
-                    json = json.substring(0, json.indexOf("```"));
-                }
-            } else if (reply.contains("```")) {
-                json = reply.substring(reply.indexOf("```") + 3);
-                if (json.contains("```")) {
-                    json = json.substring(0, json.indexOf("```"));
-                }
-            }
-            json = json.trim();
-
-            ObjectMapper mapper = new ObjectMapper();
-            return mapper.readValue(json, Map.class);
-        } catch (Exception e) {
-            Map<String, Object> fallback = new HashMap<>();
-            fallback.put("diagnosis", Collections.emptyList());
-            fallback.put("advice", "AI 分析结果解析异常，原始回复："
-                    + (reply != null ? reply.substring(0, Math.min(200, reply.length())) : "空"));
-            fallback.put("risk", "无法解析风险评估");
-            return fallback;
+    @Override
+    @Transactional
+    public boolean saveFeedback(
+            AiFeedbackRequest request, String doctorId) {
+        if (request.getTraceId() == null || request.getTraceId().isBlank()) {
+            return false;
         }
+        if (!ADOPTION_TYPES.contains(request.getAdoptionType())) {
+            throw new IllegalArgumentException(
+                    "adoptionType must be FULL, PARTIAL or REJECTED");
+        }
+
+        String inputSummary = inferenceLogMapper.findInputByTraceId(
+                request.getTraceId());
+        String registerId = extractRegisterId(inputSummary);
+        if (!hasText(registerId)) {
+            return false;
+        }
+        ReportContextDto context = doctorFeignClient.getConsultContext(
+                registerId, doctorId, requireInternalServiceKey());
+        if (context == null || !context.isAvailable()) {
+            return false;
+        }
+        if (feedbackSampleMapper.countByTraceIdAndDoctorId(
+                request.getTraceId(), doctorId) > 0) {
+            return true;
+        }
+
+        String aiOutputJson = inferenceLogMapper.findOutputByTraceId(
+                request.getTraceId());
+        if (!hasText(aiOutputJson)) {
+            return false;
+        }
+
+        String finalOutputJson = toJson(Map.of(
+                "finalRecordDesc", request.getFinalRecordDesc(),
+                "adoptionType", request.getAdoptionType()));
+        String aiRecordDesc = extractSuggestedRecordDesc(aiOutputJson);
+        BigDecimal diffScore = calculateDiffScore(
+                aiRecordDesc, request.getFinalRecordDesc());
+
+        feedbackSampleMapper.insert(
+                "SMP" + compactUuid().substring(0, 29),
+                request.getTraceId(),
+                aiOutputJson,
+                finalOutputJson,
+                (short) ("REJECTED".equals(request.getAdoptionType()) ? 0 : 1),
+                diffScore,
+                LocalDateTime.now(),
+                doctorId);
+        return true;
+    }
+
+    private String extractRegisterId(String inputSummary) {
+        if (!hasText(inputSummary)) {
+            return "";
+        }
+        try {
+            JsonNode root = objectMapper.readTree(inputSummary);
+            JsonNode node = root.get("registerId");
+            return node == null ? "" : node.asText("");
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private String extractSuggestedRecordDesc(String aiOutputJson) {
+        try {
+            JsonNode root = objectMapper.readTree(aiOutputJson);
+            JsonNode node = root.get("suggestedRecordDesc");
+            if (node == null || node.asText("").isBlank()) {
+                node = root.get("draftRecordDesc");
+            }
+            if (node == null || node.asText("").isBlank()) {
+                node = root.path("moduleResult").get("draftRecordDesc");
+            }
+            return node == null ? "" : node.asText("");
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private BigDecimal calculateDiffScore(String source, String target) {
+        String left = source == null ? "" : source;
+        String right = target == null ? "" : target;
+        int maxLength = Math.max(left.length(), right.length());
+        if (maxLength == 0) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        return BigDecimal.valueOf((double) levenshtein(left, right) / maxLength)
+                .setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private int levenshtein(String left, String right) {
+        int[] previous = new int[right.length() + 1];
+        int[] current = new int[right.length() + 1];
+        for (int j = 0; j <= right.length(); j++) {
+            previous[j] = j;
+        }
+        for (int i = 1; i <= left.length(); i++) {
+            current[0] = i;
+            for (int j = 1; j <= right.length(); j++) {
+                int cost = left.charAt(i - 1) == right.charAt(j - 1) ? 0 : 1;
+                current[j] = Math.min(
+                        Math.min(current[j - 1] + 1, previous[j] + 1),
+                        previous[j - 1] + cost);
+            }
+            int[] swap = previous;
+            previous = current;
+            current = swap;
+        }
+        return previous[right.length()];
     }
 
     private String requireInternalServiceKey() {
-        if (internalServiceKey == null || internalServiceKey.isBlank()) {
-            throw new IllegalStateException("INTERNAL_SERVICE_KEY is not configured");
+        if (!hasText(internalServiceKey)) {
+            throw new IllegalStateException(
+                    "INTERNAL_SERVICE_KEY is not configured");
         }
         return internalServiceKey;
+    }
+
+    private String toJson(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (Exception exception) {
+            return "{}";
+        }
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private String compactUuid() {
+        return UUID.randomUUID().toString().replace("-", "");
     }
 }

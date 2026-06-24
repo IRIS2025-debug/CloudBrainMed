@@ -3558,7 +3558,7 @@ GET /api/inspection-doctor/order/detail/MO202606160001
 |接口名称|请求方式|接口地址|
 |---|---|---|
 |生成AI接诊分析|`POST`|`/api/ai/assistant/analyze`|
-|提交AI采纳反馈|`POST`|`/api/ai/assistant/feedback`|
+|提交AI采纳反馈|`POST`|`/api/ai/reception/feedback`|
 |药品问答流式输出|`POST`|`/api/ai/medicine/chat`|
 |AI智能问诊<br>（给患者推荐科室和医生）|`POST`<br>|`/api/ai/consult/recommend`|
 
@@ -3715,7 +3715,7 @@ GET /api/inspection-doctor/order/detail/MO202606160001
 
 |项目|内容|
 |---|---|
-|接口地址|`/api/ai/assistant/feedback`|
+|接口地址|`/api/ai/reception/feedback`|
 |请求方式|`POST`|
 |请求头|token: 医生JWT（必填；当前代码兼容直接传doctorId，仅限开发）|
 |权限说明|医生本人|
@@ -4923,4 +4923,3 @@ GET /internal/doctor/consult/context
 6. 完成头像文件持久化、短信验证码验证和医生资料相关 TODO 后，再补充对应正式接口。
 
 7. 统一 BusinessException 的业务 code 与 HTTP 状态，避免所有业务错误都表现为 code=500。
-

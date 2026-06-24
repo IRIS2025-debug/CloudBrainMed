@@ -113,10 +113,32 @@ class AiAssistantChatServiceImplTest {
         assertThat(response.isHandledByAssistant()).isFalse();
         assertThat(response.getIntent()).isEqualTo("MEDICAL_RECORD_DRAFT");
         assertThat(response.getHandledModule()).isEqualTo("AI_MEDICAL_RECORD");
+        assertThat(response.getStatus()).isEqualTo("DELEGATED");
         assertThat(response.getModuleResult()).isSameAs(generated);
         verify(medicalRecordService).generate(
                 any(AiRecordGenerateRequest.class), any());
         verify(chatClient, never()).prompt(any(Prompt.class));
+    }
+
+    @Test
+    void actionTypeCanDelegateWithoutFreeTextMessage() {
+        prepareContext();
+        AiRecordGenerateResponse generated = new AiRecordGenerateResponse();
+        generated.setStatus("SUCCESS");
+        generated.setDraftRecordDesc("主诉：头痛2天。");
+        when(medicalRecordService.generate(
+                any(AiRecordGenerateRequest.class), any()))
+                .thenReturn(generated);
+        AiAssistantChatRequest request = request(null);
+        request.setActionType("MEDICAL_RECORD_DRAFT");
+        request.setConversationText("患者诉头痛2天");
+
+        AiAssistantChatResponse response = service.chat(request, "D001");
+
+        assertThat(response.getIntent()).isEqualTo("MEDICAL_RECORD_DRAFT");
+        assertThat(response.getStatus()).isEqualTo("DELEGATED");
+        verify(medicalRecordService).generate(
+                any(AiRecordGenerateRequest.class), any());
     }
 
     @Test
@@ -143,10 +165,31 @@ class AiAssistantChatServiceImplTest {
         assertThat(response.getIntent()).isEqualTo("PRESCRIPTION_REVIEW");
         assertThat(response.getHandledModule())
                 .isEqualTo("AI_PRESCRIPTION_REVIEW");
+        assertThat(response.getStatus()).isEqualTo("DELEGATED");
         assertThat(response.getModuleResult()).isSameAs(review);
         verify(prescriptionReviewService).review(
                 any(PrescriptionReviewRequest.class), any());
         verify(chatClient, never()).prompt(any(Prompt.class));
+    }
+
+    @Test
+    void prescriptionReviewNeedsMedicineListBeforeDelegation() {
+        prepareContext();
+
+        AiAssistantChatResponse response = service.chat(
+                request("帮我审核这张处方有没有用药风险"), "D001");
+
+        assertThat(response.isHandledByAssistant()).isFalse();
+        assertThat(response.getIntent()).isEqualTo("PRESCRIPTION_REVIEW");
+        assertThat(response.getStatus()).isEqualTo("NEEDS_INPUT");
+        assertThat(response.getModuleResult()).isNull();
+        assertThat(response.getAnswer()).contains("待审核药品列表");
+        verify(prescriptionReviewService, never()).review(any(), any());
+
+        ArgumentCaptor<AiInferenceLog> captor =
+                ArgumentCaptor.forClass(AiInferenceLog.class);
+        verify(logMapper).insert(captor.capture());
+        assertThat(captor.getValue().getStatus()).isEqualTo("NEEDS_INPUT");
     }
 
     private AiAssistantChatRequest request(String message) {

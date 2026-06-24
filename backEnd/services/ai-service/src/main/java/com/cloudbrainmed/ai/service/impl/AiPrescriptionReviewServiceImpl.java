@@ -7,6 +7,7 @@ import com.cloudbrainmed.ai.dto.PrescriptionReviewRequest;
 import com.cloudbrainmed.ai.dto.PrescriptionReviewResponse;
 import com.cloudbrainmed.ai.entity.AiInferenceLog;
 import com.cloudbrainmed.ai.entity.Medicine;
+import com.cloudbrainmed.ai.enums.AiCallSourceEnum;
 import com.cloudbrainmed.ai.mapper.AiInferenceLogMapper;
 import com.cloudbrainmed.ai.mapper.MedicineMapper;
 import com.cloudbrainmed.ai.service.AiPrescriptionReviewService;
@@ -40,7 +41,8 @@ public class AiPrescriptionReviewServiceImpl
 
     private static final Logger log = LoggerFactory.getLogger(
             AiPrescriptionReviewServiceImpl.class);
-    private static final String CALL_SOURCE = "AI_PRESCRIPTION_REVIEW";
+    private static final String CALL_SOURCE =
+            AiCallSourceEnum.PRESCRIPTION_REVIEW.code();
     private static final Set<String> RISK_LEVELS =
             Set.of("LOW", "MEDIUM", "HIGH", "CRITICAL", "UNKNOWN");
 

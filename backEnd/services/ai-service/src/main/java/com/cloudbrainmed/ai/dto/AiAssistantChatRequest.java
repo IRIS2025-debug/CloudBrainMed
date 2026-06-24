@@ -1,6 +1,7 @@
 package com.cloudbrainmed.ai.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Size;
 import jakarta.validation.Valid;
 import lombok.Data;
@@ -26,7 +27,6 @@ public class AiAssistantChatRequest {
     private String registerId;
 
     /** 医生在AI对话框中输入的自然语言问题。 */
-    @NotBlank
     @Size(max = 2000)
     private String message;
 
@@ -65,4 +65,13 @@ public class AiAssistantChatRequest {
     @Size(max = 10)
     private List<PrescriptionReviewMedicineRequest> medicines =
             new ArrayList<>();
+
+    @AssertTrue(message = "message和actionType至少提供一项")
+    public boolean isIntentInputProvided() {
+        return hasText(message) || hasText(actionType);
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
 }

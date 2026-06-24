@@ -48,10 +48,11 @@ public interface AiInferenceLogMapper {
         FROM ai_inference_log
         WHERE trace_id = #{traceId}
           AND call_source IN (
+              'AI_ASSISTANT_CHAT',
               'AI_ASSISTED_CONSULT',
               'AI_MEDICAL_RECORD_GENERATE'
           )
-          AND status = 'SUCCESS'
+          AND status IN ('SUCCESS', 'DELEGATED')
         ORDER BY created_at DESC
         LIMIT 1
         """)
@@ -62,10 +63,11 @@ public interface AiInferenceLogMapper {
         FROM ai_inference_log
         WHERE trace_id = #{traceId}
           AND call_source IN (
+              'AI_ASSISTANT_CHAT',
               'AI_ASSISTED_CONSULT',
               'AI_MEDICAL_RECORD_GENERATE'
           )
-          AND status = 'SUCCESS'
+          AND status IN ('SUCCESS', 'DELEGATED')
         ORDER BY created_at DESC
         LIMIT 1
         """)

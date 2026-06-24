@@ -3,8 +3,8 @@ package com.cloudbrainmed.ai.controller;
 import com.cloudbrainmed.ai.dto.PrescriptionReviewRequest;
 import com.cloudbrainmed.ai.dto.PrescriptionReviewResponse;
 import com.cloudbrainmed.ai.service.AiPrescriptionReviewService;
+import com.cloudbrainmed.ai.support.DoctorAuthHelper;
 import com.cloudbrainmed.common.result.Result;
-import com.cloudbrainmed.common.utils.DoctorJwtUtil;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -32,21 +32,6 @@ public class AiPrescriptionController {
     }
 
     private String extractDoctorId(String token) {
-        if (token == null || token.isBlank()) {
-            throw new IllegalArgumentException("未登录，请先登录");
-        }
-        try {
-            if (!Integer.valueOf(2).equals(
-                    DoctorJwtUtil.getRoleType(token))) {
-                throw new IllegalArgumentException(
-                        "仅医生可以使用AI处方审核");
-            }
-            return DoctorJwtUtil.getUserId(token);
-        } catch (Exception exception) {
-            if (exception instanceof IllegalArgumentException argumentException) {
-                throw argumentException;
-            }
-            throw new IllegalArgumentException("医生登录凭证无效");
-        }
+        return DoctorAuthHelper.requireDoctorId(token, "AI处方审核");
     }
 }

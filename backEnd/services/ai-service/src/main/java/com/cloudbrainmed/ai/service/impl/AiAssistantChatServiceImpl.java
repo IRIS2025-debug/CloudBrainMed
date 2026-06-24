@@ -5,7 +5,10 @@ import com.cloudbrainmed.ai.dto.AiAssistantChatResponse;
 import com.cloudbrainmed.ai.dto.AiRecordGenerateRequest;
 import com.cloudbrainmed.ai.dto.PrescriptionReviewRequest;
 import com.cloudbrainmed.ai.entity.AiInferenceLog;
+import com.cloudbrainmed.ai.enums.AiAssistantResponseStatusEnum;
 import com.cloudbrainmed.ai.enums.AiAssistantIntentEnum;
+import com.cloudbrainmed.ai.enums.AiCallSourceEnum;
+import com.cloudbrainmed.ai.enums.AiHandledModuleEnum;
 import com.cloudbrainmed.ai.mapper.AiInferenceLogMapper;
 import com.cloudbrainmed.ai.service.AiAssistantChatService;
 import com.cloudbrainmed.ai.service.AiMedicalRecordService;
@@ -43,7 +46,8 @@ public class AiAssistantChatServiceImpl implements AiAssistantChatService {
 
     private static final Logger log = LoggerFactory.getLogger(
             AiAssistantChatServiceImpl.class);
-    private static final String CALL_SOURCE = "AI_ASSISTANT_CHAT";
+    private static final String CALL_SOURCE =
+            AiCallSourceEnum.ASSISTANT_CHAT.code();
 
     private final ChatClient chatClient;
     private final ObjectMapper objectMapper;
@@ -92,8 +96,9 @@ public class AiAssistantChatServiceImpl implements AiAssistantChatService {
                     context.getPatientId(),
                     summarizeInput(request, intent),
                     toJson(delegated),
-                    delegated.getModuleResult() == null
-                            ? "UNSUPPORTED" : "DELEGATED",
+                    valueOrDefault(
+                            delegated.getStatus(),
+                            AiAssistantResponseStatusEnum.UNSUPPORTED.name()),
                     elapsed(startedAt));
             return delegated;
         }
@@ -106,6 +111,7 @@ public class AiAssistantChatServiceImpl implements AiAssistantChatService {
             response.setTraceId(traceId);
             response.setIntent(intent.name());
             response.setAnswer(normalizeAnswer(answer));
+            response.setStatus(AiAssistantResponseStatusEnum.SUCCESS.name());
             response.setModelVersion(modelName);
             response.setHandledByAssistant(true);
             response.setFallback(false);
@@ -123,6 +129,7 @@ public class AiAssistantChatServiceImpl implements AiAssistantChatService {
             fallback.setTraceId(traceId);
             fallback.setIntent(intent.name());
             fallback.setAnswer("AI辅助接诊暂不可用，请继续根据患者主诉、现病史和既往资料手工完成问诊。");
+            fallback.setStatus(AiAssistantResponseStatusEnum.FAILED.name());
             fallback.setModelVersion(modelName);
             fallback.setHandledByAssistant(true);
             fallback.setFallback(true);
@@ -216,29 +223,45 @@ public class AiAssistantChatServiceImpl implements AiAssistantChatService {
         try {
             switch (intent) {
                 case MEDICAL_RECORD_DRAFT -> {
-                    response.setHandledModule("AI_MEDICAL_RECORD");
-                    response.setModuleResult(aiMedicalRecordService.generate(
-                            toRecordGenerateRequest(request), doctorId));
+                    response.setHandledModule(
+                            AiHandledModuleEnum.MEDICAL_RECORD.code());
+                    var generated = aiMedicalRecordService.generate(
+                            toRecordGenerateRequest(request), doctorId);
+                    response.setModuleResult(generated);
+                    response.setStatus(generated.isFallback()
+                            ? AiAssistantResponseStatusEnum.FAILED.name()
+                            : AiAssistantResponseStatusEnum.DELEGATED.name());
                     response.setAnswer("已调用AI病历自动生成模块生成病历草稿。");
                 }
                 case PRESCRIPTION_REVIEW -> {
-                    response.setHandledModule("AI_PRESCRIPTION_REVIEW");
+                    response.setHandledModule(
+                            AiHandledModuleEnum.PRESCRIPTION_REVIEW.code());
                     if (request.getMedicines() == null
                             || request.getMedicines().isEmpty()) {
                         response.setAnswer("调用AI处方审核模块需要提供待审核药品列表。");
+                        response.setStatus(
+                                AiAssistantResponseStatusEnum.NEEDS_INPUT.name());
                     } else {
-                        response.setModuleResult(
-                                aiPrescriptionReviewService.review(
-                                        toPrescriptionReviewRequest(request),
-                                        doctorId));
+                        var review = aiPrescriptionReviewService.review(
+                                toPrescriptionReviewRequest(request),
+                                doctorId);
+                        response.setModuleResult(review);
+                        response.setStatus(review.isFallback()
+                                ? AiAssistantResponseStatusEnum.FAILED.name()
+                                : AiAssistantResponseStatusEnum.DELEGATED.name());
                         response.setAnswer("已调用AI处方审核模块完成用药风险审核。");
                     }
                 }
-                default -> response.setAnswer(unsupportedMessage(
-                        intent, request.getMessage()));
+                default -> {
+                    response.setAnswer(unsupportedMessage(
+                            intent, request.getMessage()));
+                    response.setStatus(
+                            AiAssistantResponseStatusEnum.UNSUPPORTED.name());
+                }
             }
         } catch (Exception exception) {
             response.setFallback(true);
+            response.setStatus(AiAssistantResponseStatusEnum.FAILED.name());
             response.setAnswer("调用对应AI专业模块失败，请直接使用专业功能入口重试。");
             response.setModuleResult(Map.of(
                     "errorType", exception.getClass().getSimpleName()));
@@ -253,7 +276,7 @@ public class AiAssistantChatServiceImpl implements AiAssistantChatService {
             AiAssistantIntentEnum intent, String message) {
         return switch (intent) {
             case MEDICAL_RECORD_DRAFT ->
-                    "该请求不由AI辅助接诊模块处理。请直接调用AI病历自动生成接口 /api/ai/report/generate。";
+                    "该请求不由AI辅助接诊模块处理。请直接调用AI病历自动生成接口 /api/ai/reception/record/generate。";
             case PRESCRIPTION_REVIEW ->
                     "该请求不由AI辅助接诊模块处理。请直接调用AI处方审核接口 /api/ai/prescription/review。";
             default ->
@@ -512,6 +535,10 @@ public class AiAssistantChatServiceImpl implements AiAssistantChatService {
 
     private String valueOrEmpty(String value) {
         return value == null ? "" : value;
+    }
+
+    private String valueOrDefault(String value, String fallback) {
+        return hasText(value) ? value : fallback;
     }
 
     private boolean hasText(String value) {

@@ -20,6 +20,9 @@ public class AiAssistantChatResponse {
     /** 可直接展示在医生AI对话框中的文本回复。 */
     private String answer;
 
+    /** 本次请求处理状态：SUCCESS/DELEGATED/NEEDS_INPUT/FAILED/UNSUPPORTED。 */
+    private String status;
+
     /** 实际处理该请求的模块；为空表示由辅助接诊模块直接处理。 */
     private String handledModule;
 

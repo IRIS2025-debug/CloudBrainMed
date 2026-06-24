@@ -4,6 +4,7 @@ import com.cloudbrainmed.ai.dto.AiRecordGenerateRequest;
 import com.cloudbrainmed.ai.dto.AiRecordGenerateResponse;
 import com.cloudbrainmed.ai.dto.AiStructuredMedicalRecord;
 import com.cloudbrainmed.ai.entity.AiInferenceLog;
+import com.cloudbrainmed.ai.enums.AiCallSourceEnum;
 import com.cloudbrainmed.ai.mapper.AiInferenceLogMapper;
 import com.cloudbrainmed.ai.service.AiMedicalRecordService;
 import com.cloudbrainmed.api.dto.ReportContextDto;
@@ -33,7 +34,7 @@ public class AiMedicalRecordServiceImpl implements AiMedicalRecordService {
     private static final Logger log = LoggerFactory.getLogger(
             AiMedicalRecordServiceImpl.class);
     private static final String CALL_SOURCE =
-            "AI_MEDICAL_RECORD_GENERATE";
+            AiCallSourceEnum.MEDICAL_RECORD_GENERATE.code();
     private static final Set<String> COMPLETENESS_VALUES =
             Set.of("SUFFICIENT", "INCOMPLETE");
     private static final Set<String> RISK_LEVELS =
