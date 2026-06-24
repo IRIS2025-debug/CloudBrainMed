@@ -161,11 +161,13 @@ public class AuthServiceImpl implements AuthService {
      * @return 验证码（前端模拟使用）
      */
     @Override
-    public boolean sendVerifyCode(String phone) {
-        // 1. 检查手机号是否存在
-        Patient patient = patientUserMapper.selectByPhone(phone);
-        if (patient == null) {
-            return false; // 手机号未注册
+    public boolean sendVerifyCode(String phone, boolean skipRegisterCheck) {
+        // 1. 检查手机号是否存在（改手机号场景跳过此检查，因为新号码尚未注册）
+        if (!skipRegisterCheck) {
+            Patient patient = patientUserMapper.selectByPhone(phone);
+            if (patient == null) {
+                return false; // 手机号未注册
+            }
         }
 
         // 2. 检查发送频率限制（防止恶意刷验证码）

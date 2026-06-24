@@ -81,9 +81,13 @@ public class PatientAuthController {
         if (!skipRegisterCheck && !authService.checkPhoneExists(phone)) {
             return Result.error(400, "该手机号未注册");
         }
+        // 改手机号场景：新手机号必须未被注册
+        if (skipRegisterCheck && authService.checkPhoneExists(phone)) {
+            return Result.error(400, "该手机号已被注册，无法使用");
+        }
 
         // 4. 发送验证码
-        boolean success = authService.sendVerifyCode(phone);
+        boolean success = authService.sendVerifyCode(phone, skipRegisterCheck);
         if (!success) {
             return Result.error(429, "发送过于频繁，请稍后再试");
         }
