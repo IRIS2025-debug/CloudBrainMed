@@ -111,12 +111,18 @@ const adminMenus = [
 
 // ==================== 角色判断（从 sessionStorage 获取）====================
 const currentRole = ref<'doctor' | 'admin'>('doctor')
+const doctorType = ref<number>(0)
 
 // 从 sessionStorage 读取角色
 const getRoleFromSession = (): 'doctor' | 'admin' => {
   const role = sessionStorage.getItem('userRole')
   if (role === 'admin') return 'admin'
   return 'doctor'
+}
+
+// 同步 sessionStorage 中的 doctorType 到响应式 ref
+const syncDoctorType = () => {
+  doctorType.value = Number(sessionStorage.getItem('doctorType'))
 }
 
 // 根据当前路由路径自动更新角色
@@ -129,6 +135,8 @@ const updateRoleFromPath = () => {
     // 首页等通用路径，保持已有角色或从 sessionStorage 读取
     currentRole.value = getRoleFromSession()
   }
+  // 每次路由变化时同步 doctorType，确保 computed 重新计算
+  syncDoctorType()
 }
 
 // 监听路由变化，自动切换角色
@@ -139,18 +147,18 @@ watch(() => route.path, () => {
 // 根据角色动态计算菜单项，并根据医生类型过滤
 const menuItems = computed(() => {
   if (currentRole.value === 'doctor') {
-    const doctorType = Number(sessionStorage.getItem('doctorType'))
+    const dt = doctorType.value
 
     // 根据医生类型确定首页路径
     let homePath = '/'
-    if (doctorType === 2) homePath = '/examination-doctor/home'
-    else if (doctorType === 3) homePath = '/inspection-doctor/order-list'
+    if (dt === 2) homePath = '/examination-doctor/home'
+    else if (dt === 3) homePath = '/inspection-doctor/order-list'
 
     return doctorMenus.filter(item => {
       // 接诊工作台：仅看诊医生（1）可见
-      if (item.path === '/doctor/consult') return doctorType === 1
+      if (item.path === '/doctor/consult') return dt === 1
       // 查看检验申请：仅检验医生（3）可见
-      if (item.path === '/inspection-doctor/order-list') return doctorType === 3
+      if (item.path === '/inspection-doctor/order-list') return dt === 3
       // 其他菜单所有医生都可访问
       return true
     }).map(item => {
