@@ -89,6 +89,7 @@ public class PatientAuthController {
         // 4. 发送验证码
         boolean success = authService.sendVerifyCode(phone, skipRegisterCheck);
         if (!success) {
+            // 能走到这里，false 只可能是频率限制（未注册/已注册已在前面被控制器层挡掉）
             return Result.error(429, "发送过于频繁，请稍后再试");
         }
 

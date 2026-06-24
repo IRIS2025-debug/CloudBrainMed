@@ -44,6 +44,13 @@ public class PatientMobileProfileController {
         return Result.ok(profileService.getInfo(patientId));
     }
 
+    /** 4.3.1.1+ 查询个人完整信息（不脱敏，仅用于改手机号等场景）。警告：新增 Patient 敏感字段时需确认本接口是否需要跳过该字段 */
+    @GetMapping("/info-raw")
+    public Result<?> infoRaw(@RequestHeader(value = "token", required = false) String token) {
+        String patientId = extractPatientId(token);
+        return Result.ok(profileService.getInfoRaw(patientId));
+    }
+
     /** 4.3.1.2 更新基础信息 */
     @PutMapping("/update")
     public Result<?> update(@RequestHeader(value = "token", required = false) String token,
