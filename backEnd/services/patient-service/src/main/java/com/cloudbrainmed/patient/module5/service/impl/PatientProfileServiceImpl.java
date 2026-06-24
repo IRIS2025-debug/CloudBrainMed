@@ -94,6 +94,7 @@ public class PatientProfileServiceImpl implements PatientProfileService {
         Patient p = patientMapper.selectById(patientId);
         if (p == null) throw new BusinessException("患者不存在");
         if (!p.getPhone().equals(oldPhone)) throw new BusinessException("原手机号不正确");
+        if (newPhone.equals(p.getPhone())) return; // 新旧相同，无需更新
         if (patientMapper.selectByPhone(newPhone) != null) throw new BusinessException("新手机号已被使用");
         p.setPhone(newPhone);
         patientMapper.update(p);
@@ -115,6 +116,33 @@ public class PatientProfileServiceImpl implements PatientProfileService {
         if (p == null) throw new BusinessException("患者不存在");
         String encrypted = DigestUtils.md5DigestAsHex(password.getBytes(StandardCharsets.UTF_8));
         if (!p.getPassword().equals(encrypted)) throw new BusinessException("密码验证失败");
+    }
+
+    @Override
+    public void changeIdCard(String patientId, String newIdCard, String password) {
+        // 1. 校验密码不为空
+        if (password == null || password.isBlank()) {
+            throw new BusinessException("密码不能为空");
+        }
+        // 2. 校验新身份证格式
+        if (newIdCard == null || !newIdCard.matches("^\\d{17}[\\dXx]$")) {
+            throw new BusinessException("身份证号格式不正确");
+        }
+        // 3. 查患者并验证密码
+        Patient p = patientMapper.selectById(patientId);
+        if (p == null) throw new BusinessException("患者不存在");
+        String encrypted = DigestUtils.md5DigestAsHex(password.getBytes(StandardCharsets.UTF_8));
+        if (!p.getPassword().equals(encrypted)) throw new BusinessException("密码错误");
+        // 4. 新旧相同则跳过，无需更新
+        if (newIdCard.equals(p.getIdCard())) {
+            return;
+        }
+        // 5. 查新身份证是否已被其他账号使用
+        if (patientMapper.selectByIdCard(newIdCard) != null) {
+            throw new BusinessException("该身份证号已被使用");
+        }
+        p.setIdCard(newIdCard);
+        patientMapper.update(p);
     }
 
     private Integer parseGender(String gender) {

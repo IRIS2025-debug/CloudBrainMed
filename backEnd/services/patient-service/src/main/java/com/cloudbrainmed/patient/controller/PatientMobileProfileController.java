@@ -100,6 +100,15 @@ public class PatientMobileProfileController {
         return Result.ok();
     }
 
+    /** 4.3.1.7 修改身份证号（内置密码校验，无需先调 /verify-idcard） */
+    @PostMapping("/change-idcard")
+    public Result<?> changeIdCard(@RequestHeader(value = "token", required = false) String token,
+                                  @RequestBody Map<String, String> body) {
+        String patientId = extractPatientId(token);
+        profileService.changeIdCard(patientId, body.get("idCard"), body.get("password"));
+        return Result.ok();
+    }
+
     // ==================== 4.3.2 挂号记录 ====================
 
     /** 查询患者挂号记录列表 */
