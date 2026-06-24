@@ -1,6 +1,7 @@
 package com.cloudbrainmed.ai.service.impl;
 
 import com.cloudbrainmed.ai.service.AiReceptionService;
+import com.cloudbrainmed.api.dto.ReportContextDto;
 import com.cloudbrainmed.api.feign.DoctorFeignClient;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.ai.chat.client.ChatClient;
@@ -9,6 +10,7 @@ import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -28,15 +30,19 @@ public class AiReceptionServiceImpl implements AiReceptionService {
     @Autowired
     private DoctorFeignClient doctorFeignClient;
 
-    @Override
-    public Map<String, Object> analyze(String registerId) {
-        // 1. 通过 Feign 反调 doctor-service 获取完整病历上下文
-        Map<String, Object> context = doctorFeignClient.getConsultContext(registerId);
+    @Value("${internal.service-key:}")
+    private String internalServiceKey;
 
-        String chiefComplaint = Objects.toString(context.getOrDefault("chiefComplaint", ""), "");
-        String recordDesc = Objects.toString(context.getOrDefault("recordDesc", ""), "");
-        String patientAge = Objects.toString(context.getOrDefault("patientAge", "未知"), "未知");
-        String patientGender = Objects.toString(context.getOrDefault("patientGender", "未知"), "未知");
+    @Override
+    public Map<String, Object> analyze(String registerId, String doctorId) {
+        // 1. 通过 Feign 反调 doctor-service 获取完整病历上下文
+        ReportContextDto context = doctorFeignClient.getConsultContext(
+                registerId, doctorId, requireInternalServiceKey());
+
+        String chiefComplaint = Objects.toString(context.getChiefComplaint(), "");
+        String recordDesc = Objects.toString(context.getCurrentRecordDesc(), "");
+        String patientAge = Objects.toString(context.getPatientAge(), "未知");
+        String patientGender = Objects.toString(context.getPatientGender(), "未知");
 
         // 2. 构建 DeepSeek prompt
         ChatClient chatClient = chatClientBuilder.build();
@@ -50,9 +56,6 @@ public class AiReceptionServiceImpl implements AiReceptionService {
               "diagnosis": [
                 {"name": "疑似诊断名称", "probability": "高/中/低", "basis": "诊断依据一句话"}
               ],
-              "exams": [
-                {"name": "建议检查项目", "purpose": "检查目的", "urgency": "紧急/常规"}
-              ],
               "advice": "临床处理建议，2-3句话",
               "risk": "需要紧急关注的风险点，如无则填'暂无特殊风险'"
             }
@@ -61,7 +64,6 @@ public class AiReceptionServiceImpl implements AiReceptionService {
             - 基于循证医学
             - 诊断按概率从高到低排列
             - 最多给出 3 个疑似诊断
-            - 最多推荐 3 个检查项目
             - 如信息不足以判断，请在 advice 中说明需要补充哪些信息
             """;
 
@@ -112,11 +114,17 @@ public class AiReceptionServiceImpl implements AiReceptionService {
         } catch (Exception e) {
             Map<String, Object> fallback = new HashMap<>();
             fallback.put("diagnosis", Collections.emptyList());
-            fallback.put("exams", Collections.emptyList());
             fallback.put("advice", "AI 分析结果解析异常，原始回复："
                     + (reply != null ? reply.substring(0, Math.min(200, reply.length())) : "空"));
             fallback.put("risk", "无法解析风险评估");
             return fallback;
         }
+    }
+
+    private String requireInternalServiceKey() {
+        if (internalServiceKey == null || internalServiceKey.isBlank()) {
+            throw new IllegalStateException("INTERNAL_SERVICE_KEY is not configured");
+        }
+        return internalServiceKey;
     }
 }

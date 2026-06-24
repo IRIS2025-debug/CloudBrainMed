@@ -8,7 +8,7 @@ import java.util.List;
 @Mapper
 public interface ExamOrderMapper {
 
-    @Select("SELECT * FROM check_report WHERE register_id = #{registerId}")
+    @Select("SELECT * FROM check_report WHERE register_id = #{registerId} AND doctor_id = #{doctorId}")
     @Results({
         @Result(column = "report_id", property = "reportId"),
         @Result(column = "patient_id", property = "patientId"),
@@ -21,7 +21,9 @@ public interface ExamOrderMapper {
         @Result(column = "urgency_level", property = "urgencyLevel"),
         @Result(column = "create_time", property = "createTime")
     })
-    List<ExamOrder> selectByRegisterId(@Param("registerId") String registerId);
+    List<ExamOrder> selectByRegisterId(
+            @Param("registerId") String registerId,
+            @Param("doctorId") String doctorId);
 
     @Select("SELECT * FROM check_report WHERE patient_id = #{patientId} ORDER BY create_time DESC")
     @Results({

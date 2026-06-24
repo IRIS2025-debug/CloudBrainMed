@@ -1,6 +1,7 @@
 package com.cloudbrainmed.ai.controller;
 
 import com.cloudbrainmed.ai.service.AiReceptionService;
+import com.cloudbrainmed.common.utils.DoctorJwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -27,8 +28,27 @@ public class AiReceptionController {
      * @return { diagnosis, exams, advice, risk }
      */
     @PostMapping("/analyze")
-    public Map<String, Object> analyze(@RequestBody Map<String, String> request) {
+    public Map<String, Object> analyze(
+            @RequestHeader(value = "token", required = false) String token,
+            @RequestBody Map<String, String> request) {
         String registerId = request.get("registerId");
-        return aiReceptionService.analyze(registerId);
+        return aiReceptionService.analyze(registerId, extractDoctorId(token));
+    }
+
+    private String extractDoctorId(String token) {
+        if (token == null || token.isBlank()) {
+            throw new IllegalArgumentException("未登录，请先登录");
+        }
+        try {
+            if (!Integer.valueOf(2).equals(DoctorJwtUtil.getRoleType(token))) {
+                throw new IllegalArgumentException("仅医生可以使用AI辅助接诊");
+            }
+            return DoctorJwtUtil.getUserId(token);
+        } catch (Exception exception) {
+            if (exception instanceof IllegalArgumentException argumentException) {
+                throw argumentException;
+            }
+            throw new IllegalArgumentException("医生登录凭证无效");
+        }
     }
 }

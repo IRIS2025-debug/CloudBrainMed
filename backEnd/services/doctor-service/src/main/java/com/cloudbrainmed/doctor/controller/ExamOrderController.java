@@ -20,8 +20,11 @@ public class ExamOrderController {
 
     /** 按挂号ID查询检查单 */
     @GetMapping("/list")
-    public Result<?> listByRegisterId(@RequestParam String registerId) {
-        return Result.ok(examOrderService.getByRegisterId(registerId));
+    public Result<?> listByRegisterId(
+            @RequestHeader(value = "token", required = false) String token,
+            @RequestParam String registerId) {
+        return Result.ok(examOrderService.getByRegisterId(
+                registerId, extractDoctorId(token)));
     }
 
     /** 查询我开出的所有检查单 */
@@ -35,10 +38,17 @@ public class ExamOrderController {
         if (token == null || token.isBlank()) {
             throw new RuntimeException("未登录，请先登录");
         }
+        Integer roleType;
+        String doctorId;
         try {
-            return DoctorJwtUtil.getUserId(token);
-        } catch (Exception e) {
-            return token;
+            roleType = DoctorJwtUtil.getRoleType(token);
+            doctorId = DoctorJwtUtil.getUserId(token);
+        } catch (Exception exception) {
+            throw new RuntimeException("医生登录凭证无效");
         }
+        if (!Integer.valueOf(2).equals(roleType)) {
+            throw new RuntimeException("仅医生可以查看检查检验申请");
+        }
+        return doctorId;
     }
 }
