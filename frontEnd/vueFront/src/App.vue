@@ -95,6 +95,11 @@ const doctorMenus = [
   { path: '/doctor/ai-medicine', title: 'AI 药物推荐', icon: 'DataAnalysis', group: '医生端' },
   { path: '/doctor/schedule', title: '值班查询', icon: 'List', group: '医生端' },
   { path: '/inspection-doctor/order-list', title: '查看检验申请', icon: 'List', group: '检验医生' },
+  // ====== 检查医生专属（type=2） ======
+  { path: '/examination-doctor/home', title: '检查工作台', icon: 'List', group: '检查医生' },
+  { path: '/examination-doctor/upload', title: '影像上传', icon: 'Camera', group: '检查医生' },
+  { path: '/examination-doctor/analysis', title: '影像分析', icon: 'DataAnalysis', group: '检查医生' },
+  { path: '/examination-doctor/report', title: 'AI生成报告', icon: 'CollectionTag', group: '检查医生' },
 ]
 
 const adminMenus = [
@@ -157,8 +162,16 @@ const menuItems = computed(() => {
     return doctorMenus.filter(item => {
       // 接诊工作台：仅看诊医生（1）可见
       if (item.path === '/doctor/consult') return dt === 1
+
+      // 检查医生专属（type=2）
+      if (item.group === '检查医生') return dt === 2
+      
       // 查看检验申请：仅检验医生（3）可见
       if (item.path === '/inspection-doctor/order-list') return dt === 3
+
+      // Ai药物查询，仅看诊医生（1）可见与检验医生（3）可见
+      if (item.path === '/doctor/ai-medicine') return dt === 1 || dt === 3
+      
       // 其他菜单所有医生都可访问
       return true
     }).map(item => {
