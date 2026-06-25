@@ -43,33 +43,4 @@ public interface AiInferenceLogMapper {
     @Select("SELECT COALESCE(AVG(duration_ms), 0) FROM ai_inference_log WHERE status = 'SUCCESS'")
     double avgLatency();
 
-    @Select("""
-        SELECT output_summary
-        FROM ai_inference_log
-        WHERE trace_id = #{traceId}
-          AND call_source IN (
-              'AI_ASSISTANT_CHAT',
-              'AI_ASSISTED_CONSULT',
-              'AI_MEDICAL_RECORD_GENERATE'
-          )
-          AND status IN ('SUCCESS', 'DELEGATED')
-        ORDER BY created_at DESC
-        LIMIT 1
-        """)
-    String findOutputByTraceId(@Param("traceId") String traceId);
-
-    @Select("""
-        SELECT input_summary
-        FROM ai_inference_log
-        WHERE trace_id = #{traceId}
-          AND call_source IN (
-              'AI_ASSISTANT_CHAT',
-              'AI_ASSISTED_CONSULT',
-              'AI_MEDICAL_RECORD_GENERATE'
-          )
-          AND status IN ('SUCCESS', 'DELEGATED')
-        ORDER BY created_at DESC
-        LIMIT 1
-        """)
-    String findInputByTraceId(@Param("traceId") String traceId);
 }

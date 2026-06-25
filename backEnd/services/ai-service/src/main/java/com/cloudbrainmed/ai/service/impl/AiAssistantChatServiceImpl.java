@@ -4,12 +4,9 @@ import com.cloudbrainmed.ai.dto.AiAssistantChatRequest;
 import com.cloudbrainmed.ai.dto.AiAssistantChatResponse;
 import com.cloudbrainmed.ai.dto.AiRecordGenerateRequest;
 import com.cloudbrainmed.ai.dto.PrescriptionReviewRequest;
-import com.cloudbrainmed.ai.entity.AiInferenceLog;
 import com.cloudbrainmed.ai.enums.AiAssistantResponseStatusEnum;
 import com.cloudbrainmed.ai.enums.AiAssistantIntentEnum;
-import com.cloudbrainmed.ai.enums.AiCallSourceEnum;
 import com.cloudbrainmed.ai.enums.AiHandledModuleEnum;
-import com.cloudbrainmed.ai.mapper.AiInferenceLogMapper;
 import com.cloudbrainmed.ai.service.AiAssistantChatService;
 import com.cloudbrainmed.ai.service.AiMedicalRecordService;
 import com.cloudbrainmed.ai.service.AiPrescriptionReviewService;
@@ -26,12 +23,10 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 /**
  * AI辅助接诊聊天服务实现。
@@ -46,13 +41,10 @@ public class AiAssistantChatServiceImpl implements AiAssistantChatService {
 
     private static final Logger log = LoggerFactory.getLogger(
             AiAssistantChatServiceImpl.class);
-    private static final String CALL_SOURCE =
-            AiCallSourceEnum.ASSISTANT_CHAT.code();
 
     private final ChatClient chatClient;
     private final ObjectMapper objectMapper;
     private final DoctorFeignClient doctorFeignClient;
-    private final AiInferenceLogMapper inferenceLogMapper;
     private final AiMedicalRecordService aiMedicalRecordService;
     private final AiPrescriptionReviewService aiPrescriptionReviewService;
     private final String modelName;
@@ -62,7 +54,6 @@ public class AiAssistantChatServiceImpl implements AiAssistantChatService {
             ChatClient.Builder chatClientBuilder,
             ObjectMapper objectMapper,
             DoctorFeignClient doctorFeignClient,
-            AiInferenceLogMapper inferenceLogMapper,
             AiMedicalRecordService aiMedicalRecordService,
             AiPrescriptionReviewService aiPrescriptionReviewService,
             @Value("${spring.ai.openai.chat.options.model:deepseek-v4-flash}")
@@ -71,7 +62,6 @@ public class AiAssistantChatServiceImpl implements AiAssistantChatService {
         this.chatClient = chatClientBuilder.build();
         this.objectMapper = objectMapper;
         this.doctorFeignClient = doctorFeignClient;
-        this.inferenceLogMapper = inferenceLogMapper;
         this.aiMedicalRecordService = aiMedicalRecordService;
         this.aiPrescriptionReviewService = aiPrescriptionReviewService;
         this.modelName = modelName;
@@ -81,26 +71,12 @@ public class AiAssistantChatServiceImpl implements AiAssistantChatService {
     @Override
     public AiAssistantChatResponse chat(
             AiAssistantChatRequest request, String doctorId) {
-        // traceId贯穿本次聊天请求、专业模块调用结果和推理日志。
-        String traceId = "AI" + compactUuid();
-        long startedAt = System.currentTimeMillis();
         ReportContextDto context = getContext(request, doctorId);
         AiAssistantIntentEnum intent = resolveIntent(request);
 
         // 不属于辅助接诊自身处理的意图，转交给已有专业AI模块。
         if (!intent.isAssistantHandled()) {
-            AiAssistantChatResponse delegated = delegateToSpecializedModule(
-                    traceId, intent, request, doctorId);
-            saveInferenceLog(
-                    traceId,
-                    context.getPatientId(),
-                    summarizeInput(request, intent),
-                    toJson(delegated),
-                    valueOrDefault(
-                            delegated.getStatus(),
-                            AiAssistantResponseStatusEnum.UNSUPPORTED.name()),
-                    elapsed(startedAt));
-            return delegated;
+            return delegateToSpecializedModule(intent, request, doctorId);
         }
 
         try {
@@ -108,40 +84,23 @@ public class AiAssistantChatServiceImpl implements AiAssistantChatService {
             String answer = chatClient.prompt(new Prompt(buildMessages(
                     request, context, intent))).call().content();
             AiAssistantChatResponse response = new AiAssistantChatResponse();
-            response.setTraceId(traceId);
             response.setIntent(intent.name());
             response.setAnswer(normalizeAnswer(answer));
             response.setStatus(AiAssistantResponseStatusEnum.SUCCESS.name());
             response.setModelVersion(modelName);
             response.setHandledByAssistant(true);
             response.setFallback(false);
-            saveInferenceLog(
-                    traceId,
-                    context.getPatientId(),
-                    summarizeInput(request, intent),
-                    toJson(response),
-                    "SUCCESS",
-                    elapsed(startedAt));
             return response;
         } catch (Exception exception) {
-            // 模型异常不能阻断医生接诊，返回可展示的降级提示并写失败日志。
+            // 模型异常不能阻断医生接诊，返回可展示的降级提示。
             AiAssistantChatResponse fallback = new AiAssistantChatResponse();
-            fallback.setTraceId(traceId);
             fallback.setIntent(intent.name());
             fallback.setAnswer("AI辅助接诊暂不可用，请继续根据患者主诉、现病史和既往资料手工完成问诊。");
             fallback.setStatus(AiAssistantResponseStatusEnum.FAILED.name());
             fallback.setModelVersion(modelName);
             fallback.setHandledByAssistant(true);
             fallback.setFallback(true);
-            saveInferenceLog(
-                    traceId,
-                    context.getPatientId(),
-                    summarizeInput(request, intent),
-                    toJson(Map.of(
-                            "errorType",
-                            exception.getClass().getSimpleName())),
-                    "FAILED",
-                    elapsed(startedAt));
+            log.warn("AI辅助接诊聊天失败", exception);
             return fallback;
         }
     }
@@ -210,12 +169,10 @@ public class AiAssistantChatServiceImpl implements AiAssistantChatService {
      * <p>该方法只做参数转换和结果包装，不在辅助接诊模块中重新实现专业逻辑。</p>
      */
     private AiAssistantChatResponse delegateToSpecializedModule(
-            String traceId,
             AiAssistantIntentEnum intent,
             AiAssistantChatRequest request,
             String doctorId) {
         AiAssistantChatResponse response = new AiAssistantChatResponse();
-        response.setTraceId(traceId);
         response.setIntent(intent.name());
         response.setModelVersion(modelName);
         response.setHandledByAssistant(false);
@@ -392,50 +349,6 @@ public class AiAssistantChatServiceImpl implements AiAssistantChatService {
             """;
     }
 
-    private String summarizeInput(
-            AiAssistantChatRequest request,
-            AiAssistantIntentEnum intent) {
-        return toJson(Map.of(
-                "registerId", valueOrEmpty(request.getRegisterId()),
-                "intent", intent.name(),
-                "messageLength", lengthOf(request.getMessage()),
-                "currentRecordLength", lengthOf(request.getCurrentRecordDesc()),
-                "followUpAnswerCount", sizeOf(request.getFollowUpAnswers())));
-    }
-
-    /**
-     * 保存AI聊天审计日志。
-     *
-     * <p>日志失败不影响医生接诊主流程；inputSummary只保存摘要，避免完整病历文本进入日志。</p>
-     */
-    private void saveInferenceLog(
-            String traceId,
-            String patientId,
-            String inputSummary,
-            String outputSummary,
-            String status,
-            int durationMs) {
-        try {
-            AiInferenceLog inferenceLog = new AiInferenceLog();
-            inferenceLog.setLogId(
-                    "LOG" + compactUuid().substring(0, 29));
-            inferenceLog.setTraceId(traceId);
-            inferenceLog.setCallSource(CALL_SOURCE);
-            inferenceLog.setModelKey(modelName);
-            inferenceLog.setModelVersion(modelName);
-            inferenceLog.setInputSummary(inputSummary);
-            inferenceLog.setOutputSummary(outputSummary);
-            inferenceLog.setStatus(status);
-            inferenceLog.setDurationMs(durationMs);
-            inferenceLog.setCreatedAt(LocalDateTime.now());
-            inferenceLog.setPatientId(patientId);
-            inferenceLogMapper.insert(inferenceLog);
-        } catch (Exception exception) {
-            log.warn("保存AI辅助接诊聊天日志失败, traceId={}",
-                    traceId, exception);
-        }
-    }
-
     private Map<String, String> sanitizeFollowUpAnswers(
             Map<String, String> answers) {
         Map<String, String> sanitized = new LinkedHashMap<>();
@@ -533,24 +446,8 @@ public class AiAssistantChatServiceImpl implements AiAssistantChatService {
         return value == null || value.toString().isBlank() ? "未知" : value;
     }
 
-    private String valueOrEmpty(String value) {
-        return value == null ? "" : value;
-    }
-
-    private String valueOrDefault(String value, String fallback) {
-        return hasText(value) ? value : fallback;
-    }
-
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
-    }
-
-    private int lengthOf(String value) {
-        return value == null ? 0 : value.length();
-    }
-
-    private int sizeOf(Map<?, ?> values) {
-        return values == null ? 0 : values.size();
     }
 
     private String truncate(String value, int maxLength) {
@@ -558,13 +455,4 @@ public class AiAssistantChatServiceImpl implements AiAssistantChatService {
                 ? value : value.substring(0, maxLength);
     }
 
-    private int elapsed(long startedAt) {
-        return (int) Math.min(
-                System.currentTimeMillis() - startedAt,
-                Integer.MAX_VALUE);
-    }
-
-    private String compactUuid() {
-        return UUID.randomUUID().toString().replace("-", "");
-    }
 }

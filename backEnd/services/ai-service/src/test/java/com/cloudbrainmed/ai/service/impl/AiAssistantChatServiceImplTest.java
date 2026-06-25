@@ -7,8 +7,6 @@ import com.cloudbrainmed.ai.dto.AiRecordGenerateResponse;
 import com.cloudbrainmed.ai.dto.PrescriptionReviewMedicineRequest;
 import com.cloudbrainmed.ai.dto.PrescriptionReviewRequest;
 import com.cloudbrainmed.ai.dto.PrescriptionReviewResponse;
-import com.cloudbrainmed.ai.entity.AiInferenceLog;
-import com.cloudbrainmed.ai.mapper.AiInferenceLogMapper;
 import com.cloudbrainmed.ai.service.AiMedicalRecordService;
 import com.cloudbrainmed.ai.service.AiPrescriptionReviewService;
 import com.cloudbrainmed.api.dto.ReportContextDto;
@@ -16,7 +14,6 @@ import com.cloudbrainmed.api.feign.DoctorFeignClient;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.prompt.Prompt;
 
@@ -33,7 +30,6 @@ import static org.mockito.Mockito.when;
 class AiAssistantChatServiceImplTest {
 
     private DoctorFeignClient doctorClient;
-    private AiInferenceLogMapper logMapper;
     private AiMedicalRecordService medicalRecordService;
     private AiPrescriptionReviewService prescriptionReviewService;
     private ChatClient chatClient;
@@ -45,14 +41,12 @@ class AiAssistantChatServiceImplTest {
         chatClient = mock(ChatClient.class, RETURNS_DEEP_STUBS);
         when(builder.build()).thenReturn(chatClient);
         doctorClient = mock(DoctorFeignClient.class);
-        logMapper = mock(AiInferenceLogMapper.class);
         medicalRecordService = mock(AiMedicalRecordService.class);
         prescriptionReviewService = mock(AiPrescriptionReviewService.class);
         service = new AiAssistantChatServiceImpl(
                 builder,
                 new ObjectMapper(),
                 doctorClient,
-                logMapper,
                 medicalRecordService,
                 prescriptionReviewService,
                 "test-model",
@@ -70,15 +64,7 @@ class AiAssistantChatServiceImplTest {
 
         assertThat(response.isHandledByAssistant()).isTrue();
         assertThat(response.getIntent()).isEqualTo("FOLLOW_UP_QUESTION");
-        assertThat(response.getAnswer()).contains("发病时间");
-
-        ArgumentCaptor<AiInferenceLog> captor =
-                ArgumentCaptor.forClass(AiInferenceLog.class);
-        verify(logMapper).insert(captor.capture());
-        assertThat(captor.getValue().getCallSource())
-                .isEqualTo("AI_ASSISTANT_CHAT");
-        assertThat(captor.getValue().getStatus()).isEqualTo("SUCCESS");
-    }
+        assertThat(response.getAnswer()).contains("发病时间");}
 
     @Test
     void chatAnswersDiagnosisAssistantInsideAssistantBoundary() {
@@ -184,13 +170,7 @@ class AiAssistantChatServiceImplTest {
         assertThat(response.getStatus()).isEqualTo("NEEDS_INPUT");
         assertThat(response.getModuleResult()).isNull();
         assertThat(response.getAnswer()).contains("待审核药品列表");
-        verify(prescriptionReviewService, never()).review(any(), any());
-
-        ArgumentCaptor<AiInferenceLog> captor =
-                ArgumentCaptor.forClass(AiInferenceLog.class);
-        verify(logMapper).insert(captor.capture());
-        assertThat(captor.getValue().getStatus()).isEqualTo("NEEDS_INPUT");
-    }
+        verify(prescriptionReviewService, never()).review(any(), any());}
 
     private AiAssistantChatRequest request(String message) {
         AiAssistantChatRequest request = new AiAssistantChatRequest();

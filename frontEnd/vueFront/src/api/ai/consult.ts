@@ -39,11 +39,3 @@ export function reviewPrescription(data: {
 }) {
   return request.post('/api/ai/prescription/review', data, { timeout: 120000 })
 }
-
-export function submitAiFeedback(data: {
-  traceId: string
-  finalRecordDesc: string
-  adoptionType: 'FULL' | 'PARTIAL' | 'REJECTED'
-}) {
-  return request.post('/api/ai/reception/feedback', data)
-}

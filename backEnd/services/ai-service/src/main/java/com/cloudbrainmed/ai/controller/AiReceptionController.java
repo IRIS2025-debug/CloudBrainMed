@@ -2,12 +2,10 @@ package com.cloudbrainmed.ai.controller;
 
 import com.cloudbrainmed.ai.dto.AiAssistantChatRequest;
 import com.cloudbrainmed.ai.dto.AiAssistantChatResponse;
-import com.cloudbrainmed.ai.dto.AiFeedbackRequest;
 import com.cloudbrainmed.ai.dto.AiRecordGenerateRequest;
 import com.cloudbrainmed.ai.dto.AiRecordGenerateResponse;
 import com.cloudbrainmed.ai.service.AiAssistantChatService;
 import com.cloudbrainmed.ai.service.AiMedicalRecordService;
-import com.cloudbrainmed.ai.service.AiReceptionService;
 import com.cloudbrainmed.ai.support.DoctorAuthHelper;
 import com.cloudbrainmed.common.result.Result;
 import jakarta.validation.Valid;
@@ -26,15 +24,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class AiReceptionController {
 
-    private final AiReceptionService aiReceptionService;
     private final AiMedicalRecordService aiMedicalRecordService;
     private final AiAssistantChatService aiAssistantChatService;
 
     public AiReceptionController(
-            AiReceptionService aiReceptionService,
             AiMedicalRecordService aiMedicalRecordService,
             AiAssistantChatService aiAssistantChatService) {
-        this.aiReceptionService = aiReceptionService;
         this.aiMedicalRecordService = aiMedicalRecordService;
         this.aiAssistantChatService = aiAssistantChatService;
     }
@@ -47,18 +42,6 @@ public class AiReceptionController {
                 request, extractDoctorId(token)));
     }
 
-    /**
-     * 保存医生对AI结果的采纳反馈。
-     *
-     * <p>目前主要用于病历草稿类AI输出的采纳、部分采纳或拒绝样本沉淀。</p>
-     */
-    @PostMapping("/api/ai/reception/feedback")
-    public Result<Boolean> feedback(
-            @RequestHeader(value = "token", required = false) String token,
-            @Valid @RequestBody AiFeedbackRequest request) {
-        return Result.ok(aiReceptionService.saveFeedback(
-                request, extractDoctorId(token)));
-    }
 
     /**
      * 独立的AI病历自动生成接口。

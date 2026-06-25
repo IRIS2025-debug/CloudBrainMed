@@ -5,10 +5,7 @@ import com.cloudbrainmed.ai.dto.PrescriptionMedicineRisk;
 import com.cloudbrainmed.ai.dto.PrescriptionReviewMedicineRequest;
 import com.cloudbrainmed.ai.dto.PrescriptionReviewRequest;
 import com.cloudbrainmed.ai.dto.PrescriptionReviewResponse;
-import com.cloudbrainmed.ai.entity.AiInferenceLog;
 import com.cloudbrainmed.ai.entity.Medicine;
-import com.cloudbrainmed.ai.enums.AiCallSourceEnum;
-import com.cloudbrainmed.ai.mapper.AiInferenceLogMapper;
 import com.cloudbrainmed.ai.mapper.MedicineMapper;
 import com.cloudbrainmed.ai.service.AiPrescriptionReviewService;
 import com.cloudbrainmed.api.dto.ReportContextDto;
@@ -24,7 +21,6 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -33,7 +29,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 
 @Service
 public class AiPrescriptionReviewServiceImpl
@@ -41,8 +36,6 @@ public class AiPrescriptionReviewServiceImpl
 
     private static final Logger log = LoggerFactory.getLogger(
             AiPrescriptionReviewServiceImpl.class);
-    private static final String CALL_SOURCE =
-            AiCallSourceEnum.PRESCRIPTION_REVIEW.code();
     private static final Set<String> RISK_LEVELS =
             Set.of("LOW", "MEDIUM", "HIGH", "CRITICAL", "UNKNOWN");
 
@@ -50,7 +43,6 @@ public class AiPrescriptionReviewServiceImpl
     private final ObjectMapper objectMapper;
     private final DoctorFeignClient doctorFeignClient;
     private final MedicineMapper medicineMapper;
-    private final AiInferenceLogMapper inferenceLogMapper;
     private final String modelName;
     private final String internalServiceKey;
 
@@ -59,7 +51,6 @@ public class AiPrescriptionReviewServiceImpl
             ObjectMapper objectMapper,
             DoctorFeignClient doctorFeignClient,
             MedicineMapper medicineMapper,
-            AiInferenceLogMapper inferenceLogMapper,
             @Value("${spring.ai.openai.chat.options.model:deepseek-v4-flash}")
             String modelName,
             @Value("${internal.service-key:}") String internalServiceKey) {
@@ -67,7 +58,6 @@ public class AiPrescriptionReviewServiceImpl
         this.objectMapper = objectMapper;
         this.doctorFeignClient = doctorFeignClient;
         this.medicineMapper = medicineMapper;
-        this.inferenceLogMapper = inferenceLogMapper;
         this.modelName = modelName;
         this.internalServiceKey = internalServiceKey;
     }
@@ -80,11 +70,6 @@ public class AiPrescriptionReviewServiceImpl
                 request.getMedicines());
         Map<String, String> patientInformation = sanitizePatientInformation(
                 request.getPatientInformation());
-        String traceId = "AI" + compactUuid();
-        long startedAt = System.currentTimeMillis();
-        String inputSummary = summarizeInput(
-                request, context, medicines.size(), patientInformation.size());
-
         try {
             String reply = chatClient.prompt(new Prompt(buildMessages(
                     request, context, patientInformation, medicines)))
@@ -92,22 +77,13 @@ public class AiPrescriptionReviewServiceImpl
             PrescriptionReviewResponse response = parseReply(reply);
             normalizeResponse(response, medicines);
             applyDeterministicChecks(response, medicines);
-            response.setTraceId(traceId);
             response.setStatus("SUCCESS");
             response.setModelVersion(modelName);
             response.setFallback(false);
-            saveInferenceLog(
-                    traceId,
-                    context.getPatientId(),
-                    inputSummary,
-                    toJson(response),
-                    "SUCCESS",
-                    elapsed(startedAt));
             return response;
         } catch (Exception exception) {
             PrescriptionReviewResponse fallback =
                     new PrescriptionReviewResponse();
-            fallback.setTraceId(traceId);
             fallback.setStatus("FAILED");
             fallback.setModelVersion(modelName);
             fallback.setPassed(false);
@@ -116,15 +92,7 @@ public class AiPrescriptionReviewServiceImpl
             fallback.setRecommendations(List.of(
                     "请由医生或药师人工完成处方审核后再提交"));
             fallback.setFallback(true);
-            saveInferenceLog(
-                    traceId,
-                    context.getPatientId(),
-                    inputSummary,
-                    toJson(Map.of(
-                            "errorType",
-                            exception.getClass().getSimpleName())),
-                    "FAILED",
-                    elapsed(startedAt));
+            log.warn("AI处方审核失败", exception);
             return fallback;
         }
     }
@@ -412,51 +380,6 @@ public class AiPrescriptionReviewServiceImpl
         return result;
     }
 
-    private String summarizeInput(
-            PrescriptionReviewRequest request,
-            ReportContextDto context,
-            int medicineCount,
-            int patientInformationCount) {
-        return toJson(Map.of(
-                "registerId", request.getRegisterId(),
-                "medicineCount", medicineCount,
-                "patientInformationCount", patientInformationCount,
-                "currentRecordLength", lengthOf(
-                        context.getCurrentRecordDesc()),
-                "medicalHistoryCount", sizeOf(
-                        context.getMedicalHistory()),
-                "previousReportCount", sizeOf(
-                        context.getPreviousReports())));
-    }
-
-    private void saveInferenceLog(
-            String traceId,
-            String patientId,
-            String inputSummary,
-            String outputSummary,
-            String status,
-            int durationMs) {
-        try {
-            AiInferenceLog inferenceLog = new AiInferenceLog();
-            inferenceLog.setLogId(
-                    "LOG" + compactUuid().substring(0, 29));
-            inferenceLog.setTraceId(traceId);
-            inferenceLog.setCallSource(CALL_SOURCE);
-            inferenceLog.setModelKey(modelName);
-            inferenceLog.setModelVersion(modelName);
-            inferenceLog.setInputSummary(inputSummary);
-            inferenceLog.setOutputSummary(outputSummary);
-            inferenceLog.setStatus(status);
-            inferenceLog.setDurationMs(durationMs);
-            inferenceLog.setCreatedAt(LocalDateTime.now());
-            inferenceLog.setPatientId(patientId);
-            inferenceLogMapper.insert(inferenceLog);
-        } catch (Exception exception) {
-            log.warn("保存AI处方审核日志失败, traceId={}",
-                    traceId, exception);
-        }
-    }
-
     private List<String> limitStrings(
             List<String> values, int maxCount, int maxLength) {
         List<String> result = new ArrayList<>();
@@ -527,14 +450,6 @@ public class AiPrescriptionReviewServiceImpl
         return value != null && !value.isBlank();
     }
 
-    private int lengthOf(String value) {
-        return value == null ? 0 : value.length();
-    }
-
-    private int sizeOf(List<?> values) {
-        return values == null ? 0 : values.size();
-    }
-
     private String truncate(String value, int maxLength) {
         return value.length() <= maxLength
                 ? value : value.substring(0, maxLength);
@@ -546,16 +461,6 @@ public class AiPrescriptionReviewServiceImpl
 
     private String valueOrEmpty(String value) {
         return value == null ? "" : value;
-    }
-
-    private int elapsed(long startedAt) {
-        return (int) Math.min(
-                System.currentTimeMillis() - startedAt,
-                Integer.MAX_VALUE);
-    }
-
-    private String compactUuid() {
-        return UUID.randomUUID().toString().replace("-", "");
     }
 
     private record ResolvedMedicine(

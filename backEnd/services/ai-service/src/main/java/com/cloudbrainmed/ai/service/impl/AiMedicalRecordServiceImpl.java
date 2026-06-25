@@ -3,9 +3,6 @@ package com.cloudbrainmed.ai.service.impl;
 import com.cloudbrainmed.ai.dto.AiRecordGenerateRequest;
 import com.cloudbrainmed.ai.dto.AiRecordGenerateResponse;
 import com.cloudbrainmed.ai.dto.AiStructuredMedicalRecord;
-import com.cloudbrainmed.ai.entity.AiInferenceLog;
-import com.cloudbrainmed.ai.enums.AiCallSourceEnum;
-import com.cloudbrainmed.ai.mapper.AiInferenceLogMapper;
 import com.cloudbrainmed.ai.service.AiMedicalRecordService;
 import com.cloudbrainmed.api.dto.ReportContextDto;
 import com.cloudbrainmed.api.feign.DoctorFeignClient;
@@ -20,21 +17,17 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 
 @Service
 public class AiMedicalRecordServiceImpl implements AiMedicalRecordService {
 
     private static final Logger log = LoggerFactory.getLogger(
             AiMedicalRecordServiceImpl.class);
-    private static final String CALL_SOURCE =
-            AiCallSourceEnum.MEDICAL_RECORD_GENERATE.code();
     private static final Set<String> COMPLETENESS_VALUES =
             Set.of("SUFFICIENT", "INCOMPLETE");
     private static final Set<String> RISK_LEVELS =
@@ -43,7 +36,6 @@ public class AiMedicalRecordServiceImpl implements AiMedicalRecordService {
     private final ChatClient chatClient;
     private final ObjectMapper objectMapper;
     private final DoctorFeignClient doctorFeignClient;
-    private final AiInferenceLogMapper inferenceLogMapper;
     private final String modelName;
     private final String internalServiceKey;
 
@@ -51,14 +43,12 @@ public class AiMedicalRecordServiceImpl implements AiMedicalRecordService {
             ChatClient.Builder chatClientBuilder,
             ObjectMapper objectMapper,
             DoctorFeignClient doctorFeignClient,
-            AiInferenceLogMapper inferenceLogMapper,
             @Value("${spring.ai.openai.chat.options.model:deepseek-v4-flash}")
             String modelName,
             @Value("${internal.service-key:}") String internalServiceKey) {
         this.chatClient = chatClientBuilder.build();
         this.objectMapper = objectMapper;
         this.doctorFeignClient = doctorFeignClient;
-        this.inferenceLogMapper = inferenceLogMapper;
         this.modelName = modelName;
         this.internalServiceKey = internalServiceKey;
     }
@@ -69,32 +59,19 @@ public class AiMedicalRecordServiceImpl implements AiMedicalRecordService {
         ReportContextDto context = getContext(request, doctorId);
         Map<String, String> parameters = sanitizeParameters(
                 request.getStructuredParameters());
-        String traceId = "AI" + compactUuid();
-        long startedAt = System.currentTimeMillis();
-        String inputSummary = summarizeInput(
-                request, context, parameters.size());
 
         try {
             String reply = chatClient.prompt(new Prompt(buildMessages(
                     request, context, parameters))).call().content();
             AiRecordGenerateResponse response = parseReply(reply);
             normalizeResponse(response);
-            response.setTraceId(traceId);
             response.setStatus("SUCCESS");
             response.setModelVersion(modelName);
             response.setFallback(false);
-            saveInferenceLog(
-                    traceId,
-                    context.getPatientId(),
-                    inputSummary,
-                    toJson(response),
-                    "SUCCESS",
-                    elapsed(startedAt));
             return response;
         } catch (Exception exception) {
             AiRecordGenerateResponse fallback =
                     new AiRecordGenerateResponse();
-            fallback.setTraceId(traceId);
             fallback.setStatus("FAILED");
             fallback.setModelVersion(modelName);
             fallback.setInformationCompleteness("INCOMPLETE");
@@ -104,15 +81,7 @@ public class AiMedicalRecordServiceImpl implements AiMedicalRecordService {
             fallback.setRiskWarnings(List.of(
                     "AI病历生成暂不可用，请由医生手工完成病历"));
             fallback.setFallback(true);
-            saveInferenceLog(
-                    traceId,
-                    context.getPatientId(),
-                    inputSummary,
-                    toJson(Map.of(
-                            "errorType",
-                            exception.getClass().getSimpleName())),
-                    "FAILED",
-                    elapsed(startedAt));
+            log.warn("AI病历生成失败", exception);
             return fallback;
         }
     }
@@ -312,51 +281,6 @@ public class AiMedicalRecordServiceImpl implements AiMedicalRecordService {
         return result.isEmpty() ? "无" : String.join("\n", result);
     }
 
-    private String summarizeInput(
-            AiRecordGenerateRequest request,
-            ReportContextDto context,
-            int parameterCount) {
-        return toJson(Map.of(
-                "registerId", request.getRegisterId(),
-                "conversationLength", lengthOf(
-                        request.getConversationText()),
-                "structuredParameterCount", parameterCount,
-                "currentRecordLength", lengthOf(
-                        context.getCurrentRecordDesc()),
-                "medicalHistoryCount", sizeOf(
-                        context.getMedicalHistory()),
-                "previousReportCount", sizeOf(
-                        context.getPreviousReports())));
-    }
-
-    private void saveInferenceLog(
-            String traceId,
-            String patientId,
-            String inputSummary,
-            String outputSummary,
-            String status,
-            int durationMs) {
-        try {
-            AiInferenceLog inferenceLog = new AiInferenceLog();
-            inferenceLog.setLogId(
-                    "LOG" + compactUuid().substring(0, 29));
-            inferenceLog.setTraceId(traceId);
-            inferenceLog.setCallSource(CALL_SOURCE);
-            inferenceLog.setModelKey(modelName);
-            inferenceLog.setModelVersion(modelName);
-            inferenceLog.setInputSummary(inputSummary);
-            inferenceLog.setOutputSummary(outputSummary);
-            inferenceLog.setStatus(status);
-            inferenceLog.setDurationMs(durationMs);
-            inferenceLog.setCreatedAt(LocalDateTime.now());
-            inferenceLog.setPatientId(patientId);
-            inferenceLogMapper.insert(inferenceLog);
-        } catch (Exception exception) {
-            log.warn("保存AI病历生成日志失败, traceId={}",
-                    traceId, exception);
-        }
-    }
-
     private String requireInternalServiceKey() {
         if (!hasText(internalServiceKey)) {
             throw new IllegalStateException(
@@ -390,14 +314,6 @@ public class AiMedicalRecordServiceImpl implements AiMedicalRecordService {
         return value != null && !value.isBlank();
     }
 
-    private int lengthOf(String value) {
-        return value == null ? 0 : value.length();
-    }
-
-    private int sizeOf(List<?> values) {
-        return values == null ? 0 : values.size();
-    }
-
     private String truncate(String value, int maxLength) {
         return value.length() <= maxLength
                 ? value : value.substring(0, maxLength);
@@ -411,13 +327,4 @@ public class AiMedicalRecordServiceImpl implements AiMedicalRecordService {
         return value == null ? "" : value;
     }
 
-    private int elapsed(long startedAt) {
-        return (int) Math.min(
-                System.currentTimeMillis() - startedAt,
-                Integer.MAX_VALUE);
-    }
-
-    private String compactUuid() {
-        return UUID.randomUUID().toString().replace("-", "");
-    }
 }

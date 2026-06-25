@@ -2,14 +2,11 @@ package com.cloudbrainmed.ai.service.impl;
 
 import com.cloudbrainmed.ai.dto.AiRecordGenerateRequest;
 import com.cloudbrainmed.ai.dto.AiRecordGenerateResponse;
-import com.cloudbrainmed.ai.entity.AiInferenceLog;
-import com.cloudbrainmed.ai.mapper.AiInferenceLogMapper;
 import com.cloudbrainmed.api.dto.ReportContextDto;
 import com.cloudbrainmed.api.feign.DoctorFeignClient;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.prompt.Prompt;
 
@@ -20,13 +17,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class AiMedicalRecordServiceImplTest {
 
     private DoctorFeignClient doctorClient;
-    private AiInferenceLogMapper logMapper;
     private ChatClient chatClient;
     private AiMedicalRecordServiceImpl service;
 
@@ -36,12 +31,10 @@ class AiMedicalRecordServiceImplTest {
         chatClient = mock(ChatClient.class, RETURNS_DEEP_STUBS);
         when(builder.build()).thenReturn(chatClient);
         doctorClient = mock(DoctorFeignClient.class);
-        logMapper = mock(AiInferenceLogMapper.class);
         service = new AiMedicalRecordServiceImpl(
                 builder,
                 new ObjectMapper(),
                 doctorClient,
-                logMapper,
                 "test-model",
                 "internal-key");
     }
@@ -81,14 +74,7 @@ class AiMedicalRecordServiceImplTest {
         assertThat(response.isFallback()).isFalse();
         assertThat(response.getStructuredRecord().getChiefComplaint())
                 .isEqualTo("反复头痛伴眩晕3天");
-        assertThat(response.getDraftRecordDesc()).contains("主诉");
-
-        ArgumentCaptor<AiInferenceLog> captor =
-                ArgumentCaptor.forClass(AiInferenceLog.class);
-        verify(logMapper).insert(captor.capture());
-        assertThat(captor.getValue().getCallSource())
-                .isEqualTo("AI_MEDICAL_RECORD_GENERATE");
-    }
+        assertThat(response.getDraftRecordDesc()).contains("主诉");}
 
     @Test
     void generateFallsBackWhenModelReturnsInvalidContent() {

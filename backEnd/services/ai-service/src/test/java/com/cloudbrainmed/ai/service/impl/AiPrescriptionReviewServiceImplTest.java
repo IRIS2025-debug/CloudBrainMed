@@ -3,16 +3,13 @@ package com.cloudbrainmed.ai.service.impl;
 import com.cloudbrainmed.ai.dto.PrescriptionReviewMedicineRequest;
 import com.cloudbrainmed.ai.dto.PrescriptionReviewRequest;
 import com.cloudbrainmed.ai.dto.PrescriptionReviewResponse;
-import com.cloudbrainmed.ai.entity.AiInferenceLog;
 import com.cloudbrainmed.ai.entity.Medicine;
-import com.cloudbrainmed.ai.mapper.AiInferenceLogMapper;
 import com.cloudbrainmed.ai.mapper.MedicineMapper;
 import com.cloudbrainmed.api.dto.ReportContextDto;
 import com.cloudbrainmed.api.feign.DoctorFeignClient;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.prompt.Prompt;
 
@@ -31,7 +28,6 @@ class AiPrescriptionReviewServiceImplTest {
 
     private DoctorFeignClient doctorClient;
     private MedicineMapper medicineMapper;
-    private AiInferenceLogMapper logMapper;
     private ChatClient chatClient;
     private AiPrescriptionReviewServiceImpl service;
 
@@ -42,13 +38,11 @@ class AiPrescriptionReviewServiceImplTest {
         when(builder.build()).thenReturn(chatClient);
         doctorClient = mock(DoctorFeignClient.class);
         medicineMapper = mock(MedicineMapper.class);
-        logMapper = mock(AiInferenceLogMapper.class);
         service = new AiPrescriptionReviewServiceImpl(
                 builder,
                 new ObjectMapper(),
                 doctorClient,
                 medicineMapper,
-                logMapper,
                 "test-model",
                 "internal-key");
     }
@@ -95,14 +89,7 @@ class AiPrescriptionReviewServiceImplTest {
         assertThat(response.isPassed()).isFalse();
         assertThat(response.getInteractions()).hasSize(1);
         assertThat(response.getMedicineRisks().get(0).getMedicineName())
-                .isEqualTo("药品A");
-
-        ArgumentCaptor<AiInferenceLog> captor =
-                ArgumentCaptor.forClass(AiInferenceLog.class);
-        verify(logMapper).insert(captor.capture());
-        assertThat(captor.getValue().getCallSource())
-                .isEqualTo("AI_PRESCRIPTION_REVIEW");
-    }
+                .isEqualTo("药品A");}
 
     @Test
     void reviewForcesHighRiskWhenStockIsInsufficient() {
