@@ -19,7 +19,7 @@ public interface InspectionOrderMapper {
             "FROM medical_order mo " +
             "JOIN patient p ON mo.patient_id = p.patient_id " +
             "JOIN medical_order_item moi ON mo.order_id = moi.order_id " +
-            "JOIN medical_item mi ON moi.item_id = mi.item_id " +
+            "LEFT JOIN medical_item mi ON moi.item_id = mi.item_id " +
             "WHERE moi.item_category = 'LAB' " +
             "ORDER BY mo.create_time DESC")
     @Results({
