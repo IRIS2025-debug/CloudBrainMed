@@ -5,11 +5,13 @@ import com.cloudbrainmed.common.result.Result;
 import com.cloudbrainmed.common.utils.JwtUtil;
 import com.cloudbrainmed.patient.module5.service.PatientProfileService;
 import com.cloudbrainmed.patient.service.RegisterService;
+import com.cloudbrainmed.payment.vo.PayResultVo;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -124,7 +126,7 @@ public class PatientMobileProfileController {
     @GetMapping("/payments")
     public Result<?> payments(@RequestHeader(value = "token", required = false) String token) {
         String patientId = extractPatientId(token);
-        Map<String, Object> result = paymentFeignClient.getPaymentHistory(patientId);
+        Result<List<PayResultVo>> result = paymentFeignClient.getPayHistory(patientId);
         return Result.ok(result);
     }
 
@@ -144,7 +146,8 @@ public class PatientMobileProfileController {
         // 板块2: 挂号记录
         data.put("registers", registerService.getRegisterHistory(patientId));
         // 板块3: 缴费记录
-        data.put("payments", paymentFeignClient.getPaymentHistory(patientId));
+        Result<List<PayResultVo>> paymentResult = paymentFeignClient.getPayHistory(patientId);
+        data.put("payments", paymentResult.getData());
 
         return Result.ok(data);
     }
