@@ -1,13 +1,13 @@
-package com.cloudbrainmed.doctor.mapper;
+﻿package com.cloudbrainmed.doctor.mapper;
 
-import com.cloudbrainmed.doctor.entity.InspectionOrder;
+import com.cloudbrainmed.doctor.entity.MedicalOrder;
 import com.cloudbrainmed.doctor.vo.InspectionOrderVo;
 import org.apache.ibatis.annotations.*;
 
 import java.util.List;
 
 @Mapper
-public interface InspectionOrderMapper {
+public interface MedicalOrderMapper {
 
     /** 检验医生视角：查看所有检验类（LAB）医技申请 */
     @Select("SELECT mo.order_id, mo.patient_id, p.name AS patient_name, p.gender, " +
@@ -60,5 +60,5 @@ public interface InspectionOrderMapper {
         @Result(column = "create_time", property = "createTime"),
         @Result(column = "update_time", property = "updateTime")
     })
-    InspectionOrder selectByOrderId(@Param("orderId") String orderId);
+    MedicalOrder selectByOrderId(@Param("orderId") String orderId);
 }
