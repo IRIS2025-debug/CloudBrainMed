@@ -1,10 +1,12 @@
-package com.cloudbrainmed.doctor.entity;
+﻿package com.cloudbrainmed.doctor.entity;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * 医技申请实体 — 映射 medical_order 表
+ * 医技申请联表查询结果视图 —— 非表实体，仅用于接收 ExamOrderMapper 的
+ * medical_order + patient + medical_order_item + medical_item JOIN 查询结果。
+ * 单表实体见 InspectionOrder（映射 medical_order 表）。
  * 统含检查(EXAM)和检验(LAB)两类申请
  */
 public class ExamOrder {
