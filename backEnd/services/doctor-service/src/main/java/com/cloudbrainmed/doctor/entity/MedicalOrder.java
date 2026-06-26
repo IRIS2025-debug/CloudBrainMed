@@ -1,4 +1,4 @@
-package com.cloudbrainmed.doctor.entity;
+﻿package com.cloudbrainmed.doctor.entity;
 
 import java.time.LocalDateTime;
 
@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
  * 医技申请主表实体（映射 medical_order 表）
  * 统含检查(EXAM)和检验(LAB)两类申请
  */
-public class InspectionOrder {
+public class MedicalOrder {
     private String orderId;
     private String patientId;
     private String registerId;

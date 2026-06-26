@@ -1,4 +1,4 @@
-package com.cloudbrainmed.patient.entity;
+﻿package com.cloudbrainmed.patient.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
@@ -23,6 +23,7 @@ public class Registration {
     private String consultTime;
     private BigDecimal price;
     private String payStatus;
+    private String consultStatus;
     @TableField(fill = FieldFill.INSERT)
     private OffsetDateTime createTime;
 }
