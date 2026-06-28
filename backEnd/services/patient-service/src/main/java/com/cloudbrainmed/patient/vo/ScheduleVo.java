@@ -2,6 +2,7 @@ package com.cloudbrainmed.patient.vo;
 
 import lombok.Data;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalTime;
 
 @Data
@@ -9,7 +10,7 @@ public class ScheduleVo {
     private String scheduleId;
     private String doctorId;
     private String doctorName;
-    private String workDate;
+    private LocalDate workDate;
     private LocalTime startTime;
     private LocalTime endTime;
     private Integer maxNum;

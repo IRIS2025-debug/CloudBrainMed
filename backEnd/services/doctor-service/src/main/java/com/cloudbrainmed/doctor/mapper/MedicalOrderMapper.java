@@ -1,4 +1,4 @@
-﻿package com.cloudbrainmed.doctor.mapper;
+package com.cloudbrainmed.doctor.mapper;
 
 import com.cloudbrainmed.doctor.entity.MedicalOrder;
 import com.cloudbrainmed.doctor.vo.InspectionOrderVo;

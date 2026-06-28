@@ -1,4 +1,4 @@
-﻿package com.cloudbrainmed.doctor.entity;
+package com.cloudbrainmed.doctor.entity;
 
 import java.time.LocalDateTime;
 

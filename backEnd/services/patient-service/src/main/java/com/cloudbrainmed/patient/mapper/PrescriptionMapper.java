@@ -1,4 +1,4 @@
-﻿package com.cloudbrainmed.patient.mapper;
+package com.cloudbrainmed.patient.mapper;
 
 import com.cloudbrainmed.patient.entity.Prescription;
 import org.apache.ibatis.annotations.*;

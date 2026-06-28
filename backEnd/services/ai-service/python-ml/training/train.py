@@ -97,14 +97,18 @@ def create_experiment_dir(config):
     return exp_dir
 
 
-
 def setup_logging(exp_dir):
     """配置日志：同时输出到控制台和实验目录下的 train.log"""
-    import logging
     log_path = os.path.join(exp_dir, "train.log")
+
+    # 清除已有的 handlers
+    root_logger = logging.getLogger()
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s | %(message)s",
+        format="%(asctime)s | %(name)s | %(message)s",
         datefmt="%H:%M:%S",
         handlers=[
             logging.StreamHandler(sys.stdout),
@@ -124,6 +128,13 @@ def set_seed(seed):
 
 
 def main():
+    # 检查 GPU
+    if torch.cuda.is_available():
+        logger.info(f"✅ GPU 可用: {torch.cuda.get_device_name(0)}")
+        logger.info(f"   显存: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
+    else:
+        logger.warning("⚠️  GPU 不可用，使用 CPU 训练")
+
     args = parse_args()
     config = load_config(args)
 

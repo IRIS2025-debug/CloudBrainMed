@@ -1,4 +1,4 @@
-﻿package com.cloudbrainmed.doctor.controller;
+package com.cloudbrainmed.doctor.controller;
 
 import com.cloudbrainmed.common.result.Result;
 import com.cloudbrainmed.doctor.service.MedicalOrderService;

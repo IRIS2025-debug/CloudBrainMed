@@ -3,8 +3,8 @@
 
 data:
   # 2D DCM 切片路径（相对于 python-ml/）
-  ct_dir: "../../../../BrainCT/BrainCT/Datasets/CT"
-  mask_dir: "../../../../BrainCT/BrainCT/Datasets/MASK"
+  ct_dir: "D:/code/CloudBrainMed/BrainCT/BrainCT/Datasets/CT"
+  mask_dir: "D:/code/CloudBrainMed/BrainCT/BrainCT/Datasets/MASK"
   # 训练/验证划分比例
   val_split: 0.2
   # 随机种子（保证划分可复现）

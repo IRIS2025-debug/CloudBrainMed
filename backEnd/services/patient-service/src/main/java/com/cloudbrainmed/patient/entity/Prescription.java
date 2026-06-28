@@ -1,4 +1,4 @@
-﻿package com.cloudbrainmed.patient.entity;
+package com.cloudbrainmed.patient.entity;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;

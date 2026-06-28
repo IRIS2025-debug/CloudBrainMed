@@ -17,6 +17,9 @@ from training.visualize import (
     plot_confusion_matrix, plot_pr_curve, plot_prediction_sample
 )
 
+import logging
+logger = logging.getLogger(__name__)
+
 
 class Trainer:
     """模型训练器"""

@@ -1,4 +1,4 @@
-﻿package com.cloudbrainmed.doctor.service;
+package com.cloudbrainmed.doctor.service;
 
 import com.cloudbrainmed.doctor.entity.MedicalOrder;
 import com.cloudbrainmed.doctor.vo.InspectionOrderVo;
