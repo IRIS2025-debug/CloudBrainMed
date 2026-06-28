@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.*;
  * 检验医生控制器 — 查看所有检验申请（medical_order 表，item_category=LAB）
  */
 @RestController
-@RequestMapping("/api/inspection-doctor")
+@RequestMapping("/doctor-service/inspection-doctor")
 public class InspectionDoctorController {
 
     private final InspectionOrderService inspectionOrderService;

@@ -233,9 +233,9 @@ public class AiAssistantChatServiceImpl implements AiAssistantChatService {
             AiAssistantIntentEnum intent, String message) {
         return switch (intent) {
             case MEDICAL_RECORD_DRAFT ->
-                    "该请求不由AI辅助接诊模块处理。请直接调用AI病历自动生成接口 /api/ai/reception/record/generate。";
+                    "该请求不由AI辅助接诊模块处理。请直接调用AI病历自动生成接口 /ai-service/reception/record/generate。";
             case PRESCRIPTION_REVIEW ->
-                    "该请求不由AI辅助接诊模块处理。请直接调用AI处方审核接口 /api/ai/prescription/review。";
+                    "该请求不由AI辅助接诊模块处理。请直接调用AI处方审核接口 /ai-service/prescription/review。";
             default ->
                     "当前问题不属于AI辅助接诊模块可直接处理的范围：" + message;
         };

@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/ai/prescription")
+@RequestMapping("/ai-service/prescription")
 public class AiPrescriptionController {
 
     private final AiPrescriptionReviewService reviewService;

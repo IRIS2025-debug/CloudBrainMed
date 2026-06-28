@@ -26,7 +26,7 @@ public class AiScheduleController {
         this.aiScheduleService = aiScheduleService;
     }
 
-    @PostMapping("/api/ai/schedule/preview")
+    @PostMapping("/ai-service/schedule/preview")
     public Result<AiScheduleGenerateResponse> preview(
             @RequestHeader Map<String, String> headers,
             @Valid @RequestBody AiScheduleGenerateRequest request) {
@@ -34,7 +34,7 @@ public class AiScheduleController {
                 request, extractAdminId(headers)));
     }
 
-    @PostMapping("/api/ai/schedule/conflict-check")
+    @PostMapping("/ai-service/schedule/conflict-check")
     public Result<AiScheduleGenerateResponse> checkConflicts(
             @RequestHeader Map<String, String> headers,
             @Valid @RequestBody AiScheduleConflictCheckRequest request) {
@@ -42,7 +42,7 @@ public class AiScheduleController {
         return Result.ok(aiScheduleService.checkConflicts(request));
     }
 
-    @PostMapping("/api/ai/schedule/publish")
+    @PostMapping("/ai-service/schedule/publish")
     public Result<AiSchedulePublishResponse> publish(
             @RequestHeader Map<String, String> headers,
             @Valid @RequestBody AiSchedulePublishRequest request) {

@@ -34,7 +34,7 @@ public class AiReceptionController {
         this.aiAssistantChatService = aiAssistantChatService;
     }
 
-    @PostMapping("/api/ai/reception/chat")
+    @PostMapping("/ai-service/reception/chat")
     public Result<AiAssistantChatResponse> chat(
             @RequestHeader(value = "token", required = false) String token,
             @Valid @RequestBody AiAssistantChatRequest request) {
@@ -48,7 +48,7 @@ public class AiReceptionController {
      *
      * <p>聊天入口识别到病历生成意图时也会在服务层复用同一个业务服务。</p>
      */
-    @PostMapping("/api/ai/reception/record/generate")
+    @PostMapping("/ai-service/reception/record/generate")
     public Result<AiRecordGenerateResponse> generateRecord(
             @RequestHeader(value = "token", required = false) String token,
             @Valid @RequestBody AiRecordGenerateRequest request) {
