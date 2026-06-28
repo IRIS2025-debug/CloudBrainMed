@@ -1,6 +1,7 @@
 package com.cloudbrainmed.api.fallback;
 
 import com.cloudbrainmed.api.feign.DoctorFeignClient;
+import com.cloudbrainmed.api.dto.ReportContextDto;
 import org.springframework.stereotype.Component;
 
 import java.util.Collections;
@@ -25,7 +26,12 @@ public class DoctorFeignFallback implements DoctorFeignClient {
     }
 
     @Override
-    public Map<String, Object> getConsultContext(String registerId) {
-        return Map.of("error", "医生服务暂不可用，无法获取病历上下文");
+    public ReportContextDto getConsultContext(
+            String registerId, String doctorId, String serviceKey) {
+        ReportContextDto context = new ReportContextDto();
+        context.setAvailable(false);
+        context.setErrorMessage("医生服务暂不可用，无法获取患者接诊信息");
+        context.setRegisterId(registerId);
+        return context;
     }
 }

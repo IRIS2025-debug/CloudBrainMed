@@ -11,7 +11,7 @@ spring:
   config:
     import: optional:nacos:doctor-service.yml
   datasource:
-    url: jdbc:postgresql://pgm-bp101mh91d37956ybo.pg.rds.aliyuncs.com:5432/CloudBrainMed?ssl=false
+    url: jdbc:postgresql://cloudbrainmed.rwlb.rds.aliyuncs.com:5432/cloudbrainmed?ssl=false
     username: iris
     password: Abc39173551
     driver-class-name: org.postgresql.Driver
@@ -32,3 +32,6 @@ spring:
 
 server:
   port: 8003
+
+internal:
+  service-key: ${INTERNAL_SERVICE_KEY:}

@@ -1,9 +1,11 @@
 package com.cloudbrainmed.api.feign;
 
 import com.cloudbrainmed.api.fallback.DoctorFeignFallback;
+import com.cloudbrainmed.api.dto.ReportContextDto;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.Map;
@@ -26,11 +28,10 @@ public interface DoctorFeignClient {
     @GetMapping("/doctor-service/schedule/{doctorId}")
     Map<String, Object> getDoctorSchedules(@PathVariable("doctorId") String doctorId);
 
-    /**
-     * 获取接诊上下文（供 AI 接诊分析反查病历数据）
-     * 返回: { chiefComplaint, recordDesc, patientAge, patientGender,
-     *         historyRecords: [...], examReports: [...] }
-     */
+    /** AI服务获取可信接诊上下文，只供服务间调用。 */
     @GetMapping("/internal/doctor/consult/context")
-    Map<String, Object> getConsultContext(@RequestParam("registerId") String registerId);
+    ReportContextDto getConsultContext(
+            @RequestParam("registerId") String registerId,
+            @RequestHeader("X-Doctor-Id") String doctorId,
+            @RequestHeader("X-Internal-Service-Key") String serviceKey);
 }
