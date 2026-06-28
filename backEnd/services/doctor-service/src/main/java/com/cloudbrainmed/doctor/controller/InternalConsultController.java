@@ -17,7 +17,7 @@ import java.util.Map;
  * 路径 /internal/** 由 Gateway 屏蔽外部访问，仅服务间可调。
  */
 @RestController
-@RequestMapping("/internal/doctor/consult")
+@RequestMapping("/doctor-service/consult")
 public class InternalConsultController {
 
     private final ConsultMapper consultMapper;

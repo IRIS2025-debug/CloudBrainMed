@@ -2,6 +2,8 @@
 import router from '@ohos.router';
 import { HttpUtil } from '../common/HttpUtil';
 import promptAction from '@ohos.promptAction';
+import { APIConfig } from '../common/APIConfig';
+import { PatientInfo, PatientManager } from '../common/PatientManager';
 
 interface Registration {
   registerId: string;
@@ -20,18 +22,46 @@ interface Registration {
   createTime: string;
 }
 
+// 统一支付请求DTO
+interface UnifiedPayDto {
+  patientId: string;
+  patientName: string;
+  orderType: string;
+  businessId: string;
+  description?: string;
+  amount: number;
+  payMethod?: string;
+}
+
+// 支付结果VO
+interface PayResultVo {
+  payId: string;
+  orderType: string;
+  businessId: string;
+  patientId: string;
+  patientName: string;
+  totalAmount: number;
+  payStatus: string;
+  payStatusText: string;
+  payTime: string;
+  description: string;
+}
+
 interface ApiResponse<T> {
   code: number;
   message: string;
   data: T;
 }
+
 @Entry
 @Component
 export struct OrderSuccessPage {
   @State registerId: string = '';
   @State orderInfo: Registration | null = null;
   @State isLoading: boolean = true;
-  private baseUrl: string = 'http://192.168.25.143:8004/patient-service';
+  @State isPaying: boolean = false;
+  private baseUrl: string = APIConfig.PATIENT_SERVICE_URL;
+  private payBaseUrl: string = APIConfig.PAYMENT_SERVICE_URL;
 
   aboutToAppear() {
     const params = router.getParams() as Record<string, string>;
@@ -49,6 +79,7 @@ export struct OrderSuccessPage {
       );
       if (result.code === 200) {
         this.orderInfo = result.data;
+        this.ensurePatientInfo();
       } else {
         promptAction.showToast({
           message: result.message || '加载订单详情失败',
@@ -59,6 +90,122 @@ export struct OrderSuccessPage {
       console.error('加载订单详情失败：' + JSON.stringify(error));
     } finally {
       this.isLoading = false;
+    }
+  }
+
+  ensurePatientInfo() {
+    let patientInfo: PatientInfo | null = PatientManager.getPatientInfo();
+
+    if (!patientInfo && this.orderInfo) {
+      const info: PatientInfo = {
+        patientId: this.orderInfo.patientId,
+        name: this.orderInfo.name,
+        phone: '',
+        gender: this.orderInfo.gender ?? 0,
+        genderText: this.orderInfo.gender === 1 ? '男' : this.orderInfo.gender === 2 ? '女' : '未知',
+        age: 0
+      };
+      PatientManager.savePatientInfo(info);
+      console.info('OrderSuccessPage: 从订单信息恢复患者数据');
+    } else if (patientInfo) {
+      console.info('OrderSuccessPage: 患者信息已存在');
+    }
+  }
+
+  /**
+   * 创建支付订单并跳转到支付页面
+   */
+  async handlePay() {
+    if (this.isPaying) return;
+    if (!this.orderInfo) return;
+
+    this.isPaying = true;
+    const context = getContext(this);
+
+    try {
+      // 获取患者信息
+      const patientInfo = PatientManager.getPatientInfo();
+      if (!patientInfo) {
+        promptAction.showToast({
+          message: '请先登录',
+          duration: 2000
+        });
+        return;
+      }
+
+      // 构建支付请求
+      const payDto: UnifiedPayDto = {
+        patientId: patientInfo.patientId,
+        patientName: patientInfo.name,
+        orderType: 'REGISTER',
+        businessId: this.registerId,
+        description: '挂号费 - ' + this.orderInfo.department,
+        amount: this.orderInfo.price,
+        payMethod: 'WECHAT'
+      };
+
+      console.info('创建支付订单请求:', JSON.stringify(payDto));
+
+      // 调用后端创建支付订单
+      const result = await HttpUtil.post<ApiResponse<PayResultVo>>(
+        this.payBaseUrl + '/pay/create',
+        payDto,
+        context
+      );
+
+      console.info('创建支付订单返回：', JSON.stringify(result));
+
+      if (result.code === 200 && result.data) {
+        const payResult = result.data;
+        console.info('支付订单创建成功:', JSON.stringify(payResult));
+
+        // OrderSuccessPage.handlePay() 中跳转部分
+        console.info('准备跳转到支付页面，参数：', JSON.stringify({
+          payId: payResult.payId,
+          businessId: this.registerId,
+          orderType: 'REGISTER',
+          amount: this.orderInfo.price,
+          description: '挂号费 - ' + this.orderInfo.department,
+          patientId: patientInfo.patientId,
+          patientName: patientInfo.name
+        }));
+
+        // 跳转到支付页面
+        router.pushUrl({
+          url: 'pages/pay/PayPage',
+          params: {
+            payId: payResult.payId,
+            businessId: this.registerId,
+            orderType: 'REGISTER',
+            amount: this.orderInfo.price,
+            description: '挂号费 - ' + this.orderInfo.department,
+            patientId: patientInfo.patientId,
+            patientName: patientInfo.name
+          }
+        }).then(() => {
+          console.info('跳转支付页面成功');
+        }).catch((err : Error) => {
+          console.error('跳转支付页面失败：' + JSON.stringify(err));
+          promptAction.showToast({
+            message: '页面跳转失败：' + err.message,
+            duration: 3000
+          });
+        });
+      } else {
+        console.error('创建支付订单失败，code:', result.code, 'message:', result.message);
+        promptAction.showToast({
+          message: result.message || '创建支付订单失败',
+          duration: 2000
+        });
+      }
+    } catch (error) {
+      console.error('创建支付订单失败：' + JSON.stringify(error));
+      promptAction.showToast({
+        message: '网络请求失败，请稍后重试',
+        duration: 2000
+      });
+    } finally {
+      this.isPaying = false;
     }
   }
 
@@ -152,20 +299,28 @@ export struct OrderSuccessPage {
 
             // 按钮组
             Column() {
-              Button('查看订单详情')
-                .width('100%')
-                .height(48)
-                .fontSize(16)
-                .fontWeight(FontWeight.Medium)
-                .fontColor('#FFFFFF')
-                .backgroundColor('#007AFF')
-                .borderRadius(24)
-                .onClick(() => {
-                  router.pushUrl({
-                    url: 'pages/profile/OrderDetailPage',
-                    params: { registerId: this.registerId }
-                  });
-                })
+              // 如果支付状态是待支付，显示"去支付"按钮
+              if (this.orderInfo.payStatus === 'WAITING') {
+                Button(this.isPaying ? '创建订单中...' : '去支付 ¥' + this.orderInfo.price.toFixed(2))
+                  .width('100%')
+                  .height(48)
+                  .fontSize(16)
+                  .fontWeight(FontWeight.Medium)
+                  .fontColor('#FFFFFF')
+                  .backgroundColor(this.isPaying ? '#999999' : '#007AFF')
+                  .borderRadius(24)
+                  .enabled(!this.isPaying)
+                  .onClick(() => {
+                    this.handlePay();
+                  })
+              } else if (this.orderInfo.payStatus === 'PAID') {
+                Text('✅ 已支付')
+                  .fontSize(16)
+                  .fontColor('#52C41A')
+                  .width('100%')
+                  .textAlign(TextAlign.Center)
+                  .padding(12)
+              }
 
               Button('返回首页')
                 .width('100%')
@@ -178,7 +333,9 @@ export struct OrderSuccessPage {
                 .margin({ top: 12 })
                 .onClick(() => {
                   router.clear();
-                  router.pushUrl({ url: 'pages/Index' });
+                  router.pushUrl({
+                    url: 'pages/Index'
+                  });
                 })
             }
             .width('80%')

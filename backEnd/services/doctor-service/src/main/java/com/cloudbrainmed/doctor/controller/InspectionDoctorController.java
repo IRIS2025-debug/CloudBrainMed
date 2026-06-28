@@ -1,31 +1,24 @@
 package com.cloudbrainmed.doctor.controller;
 
 import com.cloudbrainmed.common.result.Result;
-import com.cloudbrainmed.doctor.service.InspectionOrderService;
+import com.cloudbrainmed.doctor.service.MedicalOrderService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
-/**
- * 检验医生控制器 — 查看所有检验申请（medical_order 表，item_category=LAB）
- */
 @RestController
-@RequestMapping("/api/inspection-doctor")
+@RequestMapping("/inspection-doctor")
+@RequiredArgsConstructor
 public class InspectionDoctorController {
 
-    private final InspectionOrderService inspectionOrderService;
+    private final MedicalOrderService medicalOrderService;
 
-    public InspectionDoctorController(InspectionOrderService inspectionOrderService) {
-        this.inspectionOrderService = inspectionOrderService;
+    @GetMapping("/lab-orders")
+    public Result<?> getAllLabOrders() {
+        return Result.ok(medicalOrderService.getAllLabOrders());
     }
 
-    /** 查看所有检验申请列表 */
-    @GetMapping("/order/list")
-    public Result<?> list() {
-        return Result.ok(inspectionOrderService.getAllLabOrders());
-    }
-
-    /** 查看检验申请详情 */
-    @GetMapping("/order/detail/{orderId}")
-    public Result<?> detail(@PathVariable String orderId) {
-        return Result.ok(inspectionOrderService.getByOrderId(orderId));
+    @GetMapping("/order/{orderId}")
+    public Result<?> getByOrderId(@PathVariable String orderId) {
+        return Result.ok(medicalOrderService.getByOrderId(orderId));
     }
 }

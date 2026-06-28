@@ -8,6 +8,7 @@
     "pages/register/OrderSuccessPage",
     "pages/register/RegisterHistoryPage",
     "pages/register/ScheduleSelectPage",
-    "pages/profile/PersonalCenter"
+    "pages/profile/PersonalCenter",
+    "pages/pay/PayPage"
   ]
 }

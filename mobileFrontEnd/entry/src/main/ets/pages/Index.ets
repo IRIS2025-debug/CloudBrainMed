@@ -5,6 +5,7 @@ import { HomePage } from './HomePage';
 import { ConsultationAssistantPage } from './aiConsult/ConsultationAssistantPage';
 import { MedicalRecordsPage } from './medical/MedicalRecordsPage';
 import { PersonalCenter } from './profile/PersonalCenter';
+import { PatientInfo, PatientManager } from './common/PatientManager';
 
 // 定义类型接口
 interface TabItem {
@@ -24,6 +25,7 @@ struct Index {
   @State userGenderText: string = '未知';
   @State userAge: number = 0;
   @State isLoading: boolean = true;
+  @State isLoggedIn: boolean = false;
 
   private pages: TabItem[] = [
     { title: '首页', icon: '📋', selectedIcon: '📋' },
@@ -33,33 +35,36 @@ struct Index {
   ];
 
   aboutToAppear() {
-    const params = router.getParams() as Record<string, string | number>;
-    console.log('Index接收参数: ' + JSON.stringify(params));
+    console.log('Index 页面加载...');
 
-    if (params) {
-      this.patientId = (params['patientId'] as string) || '';
-      this.userName = (params['name'] as string) || '';
-      this.userPhone = (params['phone'] as string) || '';
-      this.userGender = (params['gender'] as number) || 0;
-      this.userGenderText = (params['genderText'] as string) || '未知';
-      this.userAge = (params['age'] as number) || 0;
+    // 直接从 AppStorage 获取
+    const patientInfo = PatientManager.getPatientInfo();
 
-      if (this.patientId) {
-        console.log('患者ID: ' + this.patientId);
-        console.log('患者姓名: ' + this.userName);
-        console.log('患者性别: ' + this.userGenderText);
-        console.log('患者年龄: ' + this.userAge);
-      } else {
-        console.error('未接收到患者ID');
+    if (patientInfo) {
+      // 检查 Token 是否有效
+      if (!PatientManager.isTokenValid()) {
+        console.warn('Token 已过期');
+        PatientManager.clearPatientInfo();
         setTimeout(() => {
           router.replaceUrl({ url: 'pages/login/LoginPage' });
-        }, 2000);
+        }, 500);
+        return;
       }
+
+      this.patientId = patientInfo.patientId;
+      this.userName = patientInfo.name;
+      this.userPhone = patientInfo.phone;
+      this.userGender = patientInfo.gender;
+      this.userGenderText = patientInfo.genderText;
+      this.userAge = patientInfo.age;
+      this.isLoggedIn = true;
+      console.log('患者信息加载成功');
     } else {
-      console.error('未接收到参数');
+      console.warn('未找到患者信息');
+      this.isLoggedIn = false;
       setTimeout(() => {
         router.replaceUrl({ url: 'pages/login/LoginPage' });
-      }, 2000);
+      }, 500);
     }
 
     this.isLoading = false;

@@ -3,6 +3,7 @@ package com.cloudbrainmed.patient.entity;
 import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 
@@ -15,7 +16,7 @@ public class DoctorSchedule {
     private String doctorId;
     private String doctorName;
     private String deptId;
-    private String workDate;  // 使用String，前端传入日期
+    private LocalDate workDate;
     private LocalTime startTime;
     private LocalTime endTime;
     private Integer maxNum;
@@ -29,5 +30,4 @@ public class DoctorSchedule {
     private OffsetDateTime createTime;
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private OffsetDateTime updateTime;
-    private String adjustReason;
 }

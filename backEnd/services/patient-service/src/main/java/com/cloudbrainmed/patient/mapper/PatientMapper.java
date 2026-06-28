@@ -44,6 +44,12 @@ public interface PatientMapper {
     @Select("SELECT * FROM patient WHERE phone = #{phone} AND is_deleted = 0")
     Patient selectByPhone(@Param("phone") String phone);
 
+    /**
+     * 根据身份证号查询患者
+     */
+    @Select("SELECT * FROM patient WHERE id_card = #{idCard} AND is_deleted = 0")
+    Patient selectByIdCard(@Param("idCard") String idCard);
+
 
     /**
      * 更新密码

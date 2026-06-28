@@ -5,11 +5,13 @@ import com.cloudbrainmed.common.result.Result;
 import com.cloudbrainmed.common.utils.JwtUtil;
 import com.cloudbrainmed.patient.module5.service.PatientProfileService;
 import com.cloudbrainmed.patient.service.RegisterService;
+import com.cloudbrainmed.payment.vo.PayResultVo;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -42,6 +44,13 @@ public class PatientMobileProfileController {
     public Result<?> info(@RequestHeader(value = "token", required = false) String token) {
         String patientId = extractPatientId(token);
         return Result.ok(profileService.getInfo(patientId));
+    }
+
+    /** 4.3.1.1+ 查询个人完整信息（不脱敏，仅用于改手机号等场景）。警告：新增 Patient 敏感字段时需确认本接口是否需要跳过该字段 */
+    @GetMapping("/info-raw")
+    public Result<?> infoRaw(@RequestHeader(value = "token", required = false) String token) {
+        String patientId = extractPatientId(token);
+        return Result.ok(profileService.getInfoRaw(patientId));
     }
 
     /** 4.3.1.2 更新基础信息 */
@@ -93,6 +102,15 @@ public class PatientMobileProfileController {
         return Result.ok();
     }
 
+    /** 4.3.1.7 修改身份证号（内置密码校验，无需先调 /verify-idcard） */
+    @PostMapping("/change-idcard")
+    public Result<?> changeIdCard(@RequestHeader(value = "token", required = false) String token,
+                                  @RequestBody Map<String, String> body) {
+        String patientId = extractPatientId(token);
+        profileService.changeIdCard(patientId, body.get("idCard"), body.get("password"));
+        return Result.ok();
+    }
+
     // ==================== 4.3.2 挂号记录 ====================
 
     /** 查询患者挂号记录列表 */
@@ -108,7 +126,7 @@ public class PatientMobileProfileController {
     @GetMapping("/payments")
     public Result<?> payments(@RequestHeader(value = "token", required = false) String token) {
         String patientId = extractPatientId(token);
-        Map<String, Object> result = paymentFeignClient.getPaymentHistory(patientId);
+        Result<List<PayResultVo>> result = paymentFeignClient.getPayHistory(patientId);
         return Result.ok(result);
     }
 
@@ -128,7 +146,8 @@ public class PatientMobileProfileController {
         // 板块2: 挂号记录
         data.put("registers", registerService.getRegisterHistory(patientId));
         // 板块3: 缴费记录
-        data.put("payments", paymentFeignClient.getPaymentHistory(patientId));
+        Result<List<PayResultVo>> paymentResult = paymentFeignClient.getPayHistory(patientId);
+        data.put("payments", paymentResult.getData());
 
         return Result.ok(data);
     }

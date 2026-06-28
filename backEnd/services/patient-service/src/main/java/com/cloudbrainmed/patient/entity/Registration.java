@@ -23,6 +23,7 @@ public class Registration {
     private String consultTime;
     private BigDecimal price;
     private String payStatus;
+    private String consultStatus;
     @TableField(fill = FieldFill.INSERT)
     private OffsetDateTime createTime;
 }

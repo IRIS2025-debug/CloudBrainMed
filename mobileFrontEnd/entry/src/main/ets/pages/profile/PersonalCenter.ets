@@ -12,9 +12,9 @@ interface MenuItem {
 @Component
 export struct PersonalCenter {
   @State patientId: string = '';
-  @State userName: string = '张思';
+  @State userName: string = '';
   @State userPhone: string = '';
-  @State userAvatar: string = '张';
+  @State userAvatar: string = '无';
 
   private menuItems: MenuItem[] = [
     { icon: '👨‍⚕️', title: '我的医生', route: 'pages/profile/MyDoctors' },

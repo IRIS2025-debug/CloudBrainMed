@@ -2,6 +2,7 @@
 import router from '@ohos.router';
 import { HttpUtil } from '../common/HttpUtil';
 import promptAction from '@ohos.promptAction';
+import { APIConfig } from '../common/APIConfig';
 
 interface Doctor {
   doctorId: string;
@@ -28,7 +29,7 @@ export struct DoctorListPage {
   @State deptName: string = '';
   private deptId: string = '';
   private patientId: string = '';
-  private baseUrl: string = 'http://192.168.25.143:8004/patient-service';
+  private baseUrl: string = APIConfig.PATIENT_SERVICE_URL;
 
   aboutToAppear() {
     const params = router.getParams() as Record<string, string>;
