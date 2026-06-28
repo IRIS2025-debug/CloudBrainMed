@@ -29,7 +29,7 @@ spring:
         options:
           model: deepseek-chat
           temperature: 0.1
-          max-tokens: 1024
+          max-tokens: 512
     embedding:
       api-key: sk-gqltrlssizwnhardmdhkoeygncmezcluoenonqnyghzmeiql
   pgvector:
