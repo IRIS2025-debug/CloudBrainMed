@@ -11,6 +11,7 @@ import org.apache.ibatis.annotations.Update;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 @Mapper
 public interface ConsultMapper {
@@ -84,13 +85,38 @@ public interface ConsultMapper {
     @Update("UPDATE registration SET consult_status='RECORD_CONFIRMED' WHERE register_id=#{registerId}")
     int markRecordConfirmed(@Param("registerId") String registerId);
 
-    @Insert("INSERT INTO check_report (report_id, patient_id, register_id, doctor_id, patient_name, gender, age, check_type, check_item, price, pay_status) " +
-        "VALUES (#{reportId}, #{patientId}, #{registerId}, #{doctorId}, #{patientName}, #{gender}, #{age}, #{checkType}, #{checkItem}, #{price}, 'UNPAID')")
-    int insertCheckReport(@Param("reportId") String reportId, @Param("patientId") String patientId,
-                           @Param("registerId") String registerId, @Param("doctorId") String doctorId,
-                           @Param("patientName") String patientName, @Param("gender") Integer gender,
-                           @Param("age") Integer age, @Param("checkType") String checkType,
-                           @Param("checkItem") String checkItem, @Param("price") BigDecimal price);
+    @Insert("INSERT INTO medical_order (order_id, patient_id, register_id, doctor_id, clinical_summary, urgency_level, source_type, status, pay_status) " +
+        "VALUES (#{orderId}, #{patientId}, #{registerId}, #{doctorId}, #{clinicalSummary}, #{urgencyLevel}, 'MANUAL', 'WAITING_ASSIGN', 'UNPAID')")
+    int insertCheckReport(@Param("orderId") String orderId,
+                           @Param("patientId") String patientId,
+                           @Param("registerId") String registerId,
+                           @Param("doctorId") String doctorId,
+                           @Param("clinicalSummary") String clinicalSummary,
+                           @Param("urgencyLevel") String urgencyLevel);
+
+    /** 按项目名称列表批量查 medical_item 字典 */
+    @Select("<script>" +
+            "SELECT item_id, item_code, item_name, item_category, price, dept_id " +
+            "FROM medical_item WHERE item_name IN " +
+            "<foreach collection='itemNames' item='name' open='(' separator=',' close=')'>" +
+            "#{name}" +
+            "</foreach>" +
+            " AND status = 'ACTIVE'" +
+            "</script>")
+    List<Map<String, Object>> findMedicalItemsByNames(@Param("itemNames") List<String> itemNames);
+
+    /** 写入 medical_order_item 子表行 */
+    @Insert("INSERT INTO medical_order_item (order_item_id, order_id, item_id, item_code, item_name, item_category, assigned_dept_id, urgency_level, price, status) " +
+            "VALUES (#{orderItemId}, #{orderId}, #{itemId}, #{itemCode}, #{itemName}, #{itemCategory}, #{assignedDeptId}, #{urgencyLevel}, #{price}, 'WAITING_ASSIGN')")
+    int insertOrderItem(@Param("orderItemId") String orderItemId,
+                        @Param("orderId") String orderId,
+                        @Param("itemId") String itemId,
+                        @Param("itemCode") String itemCode,
+                        @Param("itemName") String itemName,
+                        @Param("itemCategory") String itemCategory,
+                        @Param("assignedDeptId") String assignedDeptId,
+                        @Param("urgencyLevel") String urgencyLevel,
+                        @Param("price") BigDecimal price);
 
     @Update("UPDATE registration SET consult_status='COMPLETED' WHERE register_id=#{registerId}")
     int completeConsult(@Param("registerId") String registerId);

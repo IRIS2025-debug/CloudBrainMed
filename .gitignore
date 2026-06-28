@@ -58,3 +58,14 @@ dist-ssr/
 .DS_Store
 Thumbs.db
 desktop.ini
+# Python 字节码
+**/__pycache__/
+*.pyc
+*.pth
+*.egg-info/
+
+# 训练实验产出（需手动管理）
+# experiments/
+
+# 训练实验产出（太大，不提交 Git）
+experiments/

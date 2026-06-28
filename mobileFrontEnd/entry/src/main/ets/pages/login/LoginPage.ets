@@ -5,6 +5,7 @@ import promptAction from '@ohos.promptAction';
 import { HttpUtil } from '../common/HttpUtil';
 import { LogoIcon } from '../common/LogoIcon';
 import { APIConfig } from '../common/APIConfig';
+import { PatientInfo, PatientManager } from '../common/PatientManager';
 
 // 定义请求参数接口
 interface SendCodeParams {
@@ -123,26 +124,26 @@ struct LoginPage {
     return isValid;
   }
 
+  // pages/login/LoginPage.ets
   private async saveUserInfo(userInfo: LoginData): Promise<void> {
     try {
-      const context: Context = getContext(this);
-      const prefs = await preferences.getPreferences(context, 'user_prefs');
-      await prefs.put('isLogin', true);
-      await prefs.put('patientId', userInfo.patientId);
-      await prefs.put('name', userInfo.name);
-      await prefs.put('phone', userInfo.phone);
-      await prefs.put('token', userInfo.token);
-      // 保存性别信息
-      if (userInfo.gender !== undefined) {
-        await prefs.put('gender', userInfo.gender);
-      }
-      if (userInfo.genderText) {
-        await prefs.put('genderText', userInfo.genderText);
-      }
-      if (userInfo.age !== undefined) {
-        await prefs.put('age', userInfo.age);
-      }
-      await prefs.flush();
+      // 构建患者信息
+      const patientInfo: PatientInfo = {
+        patientId: userInfo.patientId,
+        name: userInfo.name,
+        phone: userInfo.phone,
+        token: userInfo.token,
+        gender: userInfo.gender ?? 0,
+        genderText: userInfo.genderText ?? '未知',
+        age: userInfo.age ?? 0,
+        loginTime: Date.now(),
+        expiresIn: 7 * 24 * 60 * 60
+      };
+
+      // 仅保存到 AppStorage
+      PatientManager.savePatientInfo(patientInfo);
+      console.log('患者信息保存成功');
+
     } catch (error) {
       console.error('保存用户信息失败：' + JSON.stringify(error));
     }

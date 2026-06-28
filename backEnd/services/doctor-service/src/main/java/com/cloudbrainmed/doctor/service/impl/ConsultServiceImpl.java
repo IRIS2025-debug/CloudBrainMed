@@ -4,17 +4,25 @@ import com.cloudbrainmed.common.exception.BusinessException;
 import com.cloudbrainmed.doctor.entity.ConsultRecord;
 import com.cloudbrainmed.doctor.mapper.ConsultMapper;
 import com.cloudbrainmed.doctor.service.ConsultService;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class ConsultServiceImpl implements ConsultService {
 
     private final ConsultMapper consultMapper;
+    private static final ObjectMapper objectMapper = new ObjectMapper();
 
     public ConsultServiceImpl(ConsultMapper consultMapper) {
         this.consultMapper = consultMapper;
@@ -68,14 +76,81 @@ public class ConsultServiceImpl implements ConsultService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void createExamOrder(String registerId, String checkItemList, String urgencyLevel) {
         ConsultRecord detail = consultMapper.findDetail(registerId);
         if (detail == null) throw new BusinessException("就诊记录不存在");
 
-        String reportId = "CHK" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
-        consultMapper.insertCheckReport(reportId, detail.getPatientId(), registerId,
-                detail.getDoctorId(), detail.getPatientName() != null ? detail.getPatientName() : detail.getName(),
-                detail.getGender(), detail.getPatientAge(), "检查", checkItemList, BigDecimal.ZERO);
+        // ----- 解析前端传来的检查项目 JSON -----
+        if (checkItemList == null || checkItemList.trim().isEmpty()) {
+            throw new BusinessException("检查项目列表为空");
+        }
+        List<Map<String, String>> items;
+        try {
+            items = objectMapper.readValue(checkItemList,
+                    new TypeReference<List<Map<String, String>>>() {});
+        } catch (JsonProcessingException e) {
+            throw new BusinessException("检查项目格式错误: " + e.getMessage(), e);
+        }
+        if (items.isEmpty()) {
+            throw new BusinessException("检查项目列表为空");
+        }
+
+        // ----- 批量查字典，避免 N+1 -----
+        List<String> itemNames = items.stream()
+                .map(i -> i.get("itemName"))
+                .filter(n -> n != null && !n.trim().isEmpty())
+                .map(String::trim)
+                .distinct()
+                .collect(Collectors.toList());
+        Map<String, Map<String, Object>> dictMap = new HashMap<>();
+        if (!itemNames.isEmpty()) {
+            List<Map<String, Object>> dictRows = consultMapper.findMedicalItemsByNames(itemNames);
+            if (dictRows != null) {
+                for (Map<String, Object> row : dictRows) {
+                    dictMap.put((String) row.get("item_name"), row);
+                }
+            }
+        }
+
+        // ----- 写入主表 -----
+        String orderId = "CHK" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+        consultMapper.insertCheckReport(orderId, detail.getPatientId(), registerId,
+                detail.getDoctorId(), checkItemList, urgencyLevel);
+
+        // ----- 逐项写入子表 -----
+        for (Map<String, String> item : items) {
+            String itemName = item.get("itemName");
+            if (itemName == null || itemName.trim().isEmpty()) continue;
+            itemName = itemName.trim();
+            Map<String, Object> dict = dictMap.get(itemName);
+
+            String orderItemId = "CHKI" + UUID.randomUUID().toString().replace("-", "").substring(0, 14);
+            if (dict == null) {
+                consultMapper.insertOrderItem(orderItemId, orderId, null, null,
+                        itemName, "EXAM", item.get("dept"), urgencyLevel, BigDecimal.ZERO);
+            } else {
+                consultMapper.insertOrderItem(orderItemId, orderId,
+                        (String) dict.get("item_id"),
+                        (String) dict.get("item_code"),
+                        (String) dict.get("item_name"),
+                        (String) dict.get("item_category"),
+                        item.get("dept") != null ? item.get("dept") : (String) dict.get("dept_id"),
+                        urgencyLevel,
+                        toBigDecimal(dict.get("price")));
+            }
+        }
+    }
+
+    private static BigDecimal toBigDecimal(Object val) {
+        if (val == null) return BigDecimal.ZERO;
+        if (val instanceof BigDecimal bd) return bd;
+        if (val instanceof Number num) return BigDecimal.valueOf(num.doubleValue());
+        try {
+            return new BigDecimal(val.toString());
+        } catch (Exception e) {
+            return BigDecimal.ZERO;
+        }
     }
 
     @Override

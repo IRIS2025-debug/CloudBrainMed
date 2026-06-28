@@ -1,12 +1,16 @@
 package com.cloudbrainmed.patient.entity;
 
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * 病历实体
+ * 病历实体（映射 medical_record 表）
  */
+@TableName("medical_record")
 public class MedicalRecord {
+    @TableId
     private String recordId;
     private String patientId;
     private String doctorId;

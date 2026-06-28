@@ -14,8 +14,14 @@ public interface PrescriptionMapper {
         @Result(column = "register_id", property = "registerId"),
         @Result(column = "patient_id", property = "patientId"),
         @Result(column = "doctor_id", property = "doctorId"),
+        @Result(column = "medicine_id", property = "medicineId"),
+        @Result(column = "patient_name", property = "patientName"),
+        @Result(column = "doctor_name", property = "doctorName"),
         @Result(column = "medicine_name", property = "medicineName"),
-        @Result(column = "usage_", property = "usage_"),
+        @Result(column = "spec", property = "spec"),
+        @Result(column = "usage", property = "usage_"),
+        @Result(column = "num", property = "num"),
+        @Result(column = "prescription_date", property = "prescriptionDate"),
         @Result(column = "pay_status", property = "payStatus"),
         @Result(column = "create_time", property = "createTime")
     })
@@ -27,8 +33,14 @@ public interface PrescriptionMapper {
         @Result(column = "register_id", property = "registerId"),
         @Result(column = "patient_id", property = "patientId"),
         @Result(column = "doctor_id", property = "doctorId"),
+        @Result(column = "medicine_id", property = "medicineId"),
+        @Result(column = "patient_name", property = "patientName"),
+        @Result(column = "doctor_name", property = "doctorName"),
         @Result(column = "medicine_name", property = "medicineName"),
-        @Result(column = "usage_", property = "usage_"),
+        @Result(column = "spec", property = "spec"),
+        @Result(column = "usage", property = "usage_"),
+        @Result(column = "num", property = "num"),
+        @Result(column = "prescription_date", property = "prescriptionDate"),
         @Result(column = "pay_status", property = "payStatus"),
         @Result(column = "create_time", property = "createTime")
     })

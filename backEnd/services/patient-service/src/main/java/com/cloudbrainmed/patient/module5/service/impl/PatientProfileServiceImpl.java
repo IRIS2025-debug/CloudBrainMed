@@ -25,12 +25,18 @@ public class PatientProfileServiceImpl implements PatientProfileService {
 
     @Override
     public Patient getInfo(String patientId) {
-        Patient p = patientMapper.selectById(patientId);
-        if (p == null) throw new BusinessException("患者不存在");
+        Patient p = getPatientRaw(patientId);
         p.setPhone(desensitizePhone(p.getPhone()));
         p.setIdCard(desensitizeIdCard(p.getIdCard()));
-        p.setPassword(null);
         return p;
+    }
+
+    /**
+     * 查询个人完整信息（不脱敏），仅用于改手机号等需要原始手机号的场景
+     */
+    @Override
+    public Patient getInfoRaw(String patientId) {
+        return getPatientRaw(patientId);
     }
 
     @Override
@@ -88,6 +94,7 @@ public class PatientProfileServiceImpl implements PatientProfileService {
         Patient p = patientMapper.selectById(patientId);
         if (p == null) throw new BusinessException("患者不存在");
         if (!p.getPhone().equals(oldPhone)) throw new BusinessException("原手机号不正确");
+        if (newPhone.equals(p.getPhone())) return; // 新旧相同，无需更新
         if (patientMapper.selectByPhone(newPhone) != null) throw new BusinessException("新手机号已被使用");
         p.setPhone(newPhone);
         patientMapper.update(p);
@@ -111,10 +118,48 @@ public class PatientProfileServiceImpl implements PatientProfileService {
         if (!p.getPassword().equals(encrypted)) throw new BusinessException("密码验证失败");
     }
 
+    @Override
+    public void changeIdCard(String patientId, String newIdCard, String password) {
+        // 1. 校验密码不为空
+        if (password == null || password.isBlank()) {
+            throw new BusinessException("密码不能为空");
+        }
+        // 2. 校验新身份证格式
+        if (newIdCard == null || !newIdCard.matches("^\\d{17}[\\dXx]$")) {
+            throw new BusinessException("身份证号格式不正确");
+        }
+        // 3. 查患者并验证密码
+        Patient p = patientMapper.selectById(patientId);
+        if (p == null) throw new BusinessException("患者不存在");
+        String encrypted = DigestUtils.md5DigestAsHex(password.getBytes(StandardCharsets.UTF_8));
+        if (!p.getPassword().equals(encrypted)) throw new BusinessException("密码错误");
+        // 4. 新旧相同则跳过，无需更新
+        if (newIdCard.equals(p.getIdCard())) {
+            return;
+        }
+        // 5. 查新身份证是否已被其他账号使用
+        if (patientMapper.selectByIdCard(newIdCard) != null) {
+            throw new BusinessException("该身份证号已被使用");
+        }
+        p.setIdCard(newIdCard);
+        patientMapper.update(p);
+    }
+
     private Integer parseGender(String gender) {
         if ("男".equals(gender) || "1".equals(gender)) return 1;
         if ("女".equals(gender) || "2".equals(gender)) return 2;
         throw new BusinessException("性别参数错误");
+    }
+
+    /**
+     * 查库返回患者完整信息（仅去密码，不脱敏）。
+     * 警告：返回值是数据库实体，新增 Patient 敏感字段时需确认本方法及调用方是否需跳过该字段
+     */
+    private Patient getPatientRaw(String patientId) {
+        Patient p = patientMapper.selectById(patientId);
+        if (p == null) throw new BusinessException("患者不存在");
+        p.setPassword(null);
+        return p;
     }
 
     private String desensitizePhone(String phone) {
