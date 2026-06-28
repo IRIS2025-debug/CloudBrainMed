@@ -2,7 +2,9 @@
 import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
 import pasteboard from '@ohos.pasteboard';
+import noticesData from './common/notices.json';
 
+// ===== 定义接口 =====
 interface FunctionItem {
   name: string;
   icon: string;
@@ -11,8 +13,15 @@ interface FunctionItem {
 }
 
 interface NoticeItem {
+  id: number;
   title: string;
   time: string;
+  summary?: string;
+  type?: string;
+}
+
+interface NoticesData {
+  notices: NoticeItem[];
 }
 
 @Entry
@@ -25,6 +34,7 @@ export struct HomePage {
   @Prop userGenderText: string = '';
   @Prop userAge: number = 0;
   @State currentNoticeIndex: number = 0;
+  @State notices: NoticeItem[] = [];
   private timer: number = -1;
 
   private functions: FunctionItem[] = [
@@ -33,18 +43,12 @@ export struct HomePage {
     { name: '检查报告', icon: '📊', route: 'pages/medical/MedicalReport', bgColor: ['#E6F3FA', '#C8E6F5'] },
     { name: '中医外方', icon: '🌿', route: 'pages/medical/PrescriptionHistory', bgColor: ['#EEF7EC', '#DCEFD8'] },
     { name: '用药助手', icon: '💊', route: 'pages/aiConsult/AIDrugConsultation', bgColor: ['#F5EEF8', '#EBDCF0'] },
-    { name: '体检预约', icon: '🩺', route: 'pages/register/DeptListPage', bgColor: ['#FFF5E6', '#FFEBCD'] }
-  ];
-
-  private notices: NoticeItem[] = [
-    { title: '关于2026年端午节放假安排的通知', time: '2026-05-30' },
-    { title: '智慧医疗系统升级公告', time: '2026-05-28' },
-    { title: '新功能上线：AI智能问诊助手', time: '2026-05-25' }
+    { name: '缴费服务', icon: '💳', route: 'pages/pay/PayHistory', bgColor: ['#FFF5E6', '#FFEBCD'] }
   ];
 
   aboutToAppear() {
-    console.log('HomePage接收参数: patientId=' + this.patientId + ', name=' + this.userName + ', gender=' + this.userGenderText + ', age=' + this.userAge);
-    this.startNoticeCarousel();
+    console.info('HomePage接收参数: patientId=' + this.patientId + ', name=' + this.userName);
+    this.loadNotices();
   }
 
   aboutToDisappear() {
@@ -54,20 +58,47 @@ export struct HomePage {
     }
   }
 
-  private startNoticeCarousel() {
+  private loadNotices(): void {
+    try {
+      const data: NoticesData = noticesData as NoticesData;
+      this.notices = data.notices || [];
+      console.info('加载健康资讯成功，共 ' + this.notices.length + ' 条');
+      if (this.notices.length > 0) {
+        this.startNoticeCarousel();
+      }
+    } catch (error) {
+      console.error('加载健康资讯失败：' + JSON.stringify(error));
+      this.notices = this.getDefaultNotices();
+      if (this.notices.length > 0) {
+        this.startNoticeCarousel();
+      }
+    }
+  }
+
+  private getDefaultNotices(): NoticeItem[] {
+    return [
+      { id: 1, title: '关于2026年端午节放假安排的通知', time: '2026-05-30', summary: '', type: '通知' },
+      { id: 2, title: '智慧医疗系统升级公告', time: '2026-05-28', summary: '', type: '公告' },
+      { id: 3, title: '新功能上线：AI智能问诊助手', time: '2026-05-25', summary: '', type: '新功能' }
+    ];
+  }
+
+  private startNoticeCarousel(): void {
     if (this.timer !== -1) {
       clearInterval(this.timer);
     }
-    this.timer = setInterval(() => {
-      this.currentNoticeIndex = (this.currentNoticeIndex + 1) % this.notices.length;
-    }, 4000);
+    if (this.notices.length > 0) {
+      this.timer = setInterval(() => {
+        this.currentNoticeIndex = (this.currentNoticeIndex + 1) % this.notices.length;
+      }, 4000);
+    }
   }
 
   private copyPatientId(): void {
     if (this.patientId) {
-      const pasteData = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, this.patientId);
-      const systemPasteboard = pasteboard.getSystemPasteboard();
-      systemPasteboard.setData(pasteData, (err) => {
+      const pasteData: pasteboard.PasteData = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, this.patientId);
+      const systemPasteboard: pasteboard.SystemPasteboard = pasteboard.getSystemPasteboard();
+      systemPasteboard.setData(pasteData, (err: Error) => {
         if (err) {
           console.error('复制失败: ' + JSON.stringify(err));
           promptAction.showToast({
@@ -84,38 +115,49 @@ export struct HomePage {
     }
   }
 
+  // ✅ @Builder 接收 item 参数，内部只有 UI 组件
   @Builder
-  NoticeItemBuilder(index: number) {
-    if (this.notices.length > 0 && index < this.notices.length) {
-      Column() {
-        Text(this.notices[index].title)
-          .fontSize(14)
-          .fontColor('#1A1A1A')
-          .fontWeight(FontWeight.Medium)
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-          .width('100%')
-        Row() {
-          Text(this.notices[index].time)
-            .fontSize(12)
-            .fontColor('#999999')
-          Blank()
-          Text('查看详情 ›')
-            .fontSize(12)
-            .fontColor('#2563EB')
-        }
+  NoticeItemBuilder(item: NoticeItem) {
+    Column() {
+      if (item.type && item.type.length > 0) {
+        Text(item.type)
+          .fontSize(10)
+          .fontColor('#FFFFFF')
+          .backgroundColor('#2563EB')
+          .padding({ left: 8, right: 8, top: 2, bottom: 2 })
+          .borderRadius(10)
+          .margin({ bottom: 6 })
+          .alignSelf(ItemAlign.Start)
+      }
+
+      Text(item.title)
+        .fontSize(14)
+        .fontColor('#1A1A1A')
+        .fontWeight(FontWeight.Medium)
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
         .width('100%')
-        .margin({ top: 4 })
+
+      Row() {
+        Text(item.time)
+          .fontSize(12)
+          .fontColor('#999999')
+        Blank()
+        Text('查看详情 ›')
+          .fontSize(12)
+          .fontColor('#2563EB')
       }
       .width('100%')
-      .padding({ top: 4, bottom: 4 })
-      .transition(TransitionEffect.OPACITY.animation({ duration: 500 }))
+      .margin({ top: 4 })
     }
+    .width('100%')
+    .padding({ top: 4, bottom: 4 })
+    .transition(TransitionEffect.OPACITY.animation({ duration: 500 }))
   }
 
   build() {
     Column() {
-      // ===== 电子就诊卡（顶部，无医院名称栏） =====
+      // ===== 电子就诊卡 =====
       Column() {
         Row() {
           Column() {
@@ -235,7 +277,7 @@ export struct HomePage {
           .margin({ bottom: 14 })
 
           Grid() {
-            ForEach(this.functions, (item: FunctionItem, index: number) => {
+            ForEach(this.functions, (item: FunctionItem) => {
               GridItem() {
                 Column() {
                   Row() {
@@ -275,7 +317,7 @@ export struct HomePage {
                   });
                 })
               }
-            })
+            }, (item: FunctionItem) => item.name)
           }
           .columnsTemplate('1fr 1fr 1fr')
           .rowsTemplate('1fr 1fr')
@@ -312,15 +354,54 @@ export struct HomePage {
                   .height(6)
                   .fill(this.currentNoticeIndex === index ? '#2563EB' : '#E0E0E0')
                   .margin({ left: 3, right: 3 })
-              })
+              }, (item: NoticeItem) => item.id.toString())
             }
           }
           .width('100%')
           .margin({ bottom: 10 })
 
-          Stack() {
+          // ✅ build 中直接判断，然后传参给 @Builder
+          if (this.notices.length > 0) {
+            Stack() {
+              Column() {
+                this.NoticeItemBuilder(this.notices[this.currentNoticeIndex])
+              }
+              .width('100%')
+              .padding(14)
+              .backgroundColor('#F8FAFF')
+              .borderRadius(12)
+              .border({
+                width: 1,
+                color: '#EEF3FF'
+              })
+            }
+            .width('100%')
+            .onClick(() => {
+              const currentItem: NoticeItem = this.notices[this.currentNoticeIndex];
+              if (currentItem) {
+                router.pushUrl({
+                  url: 'pages/NoticeDetail',
+                  params: {
+                    id: currentItem.id,
+                    title: currentItem.title,
+                    time: currentItem.time,
+                    summary: currentItem.summary || '',
+                    type: currentItem.type || ''
+                  }
+                }).catch(() => {
+                  promptAction.showToast({
+                    message: '正在加载资讯详情...',
+                    duration: 1500
+                  });
+                });
+              }
+            })
+          } else {
             Column() {
-              this.NoticeItemBuilder(this.currentNoticeIndex)
+              Text('暂无资讯')
+                .fontSize(14)
+                .fontColor('#999999')
+                .padding(20)
             }
             .width('100%')
             .padding(14)
@@ -331,21 +412,6 @@ export struct HomePage {
               color: '#EEF3FF'
             })
           }
-          .width('100%')
-          .onClick(() => {
-            router.pushUrl({
-              url: 'pages/NoticeDetail',
-              params: {
-                title: this.notices[this.currentNoticeIndex].title,
-                time: this.notices[this.currentNoticeIndex].time
-              }
-            }).catch(() => {
-              promptAction.showToast({
-                message: '正在加载资讯详情...',
-                duration: 1500
-              });
-            });
-          })
         }
         .width('100%')
         .padding(18)
