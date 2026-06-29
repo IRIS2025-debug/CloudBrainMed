@@ -32,9 +32,4 @@ public class DoctorJwtUtil {
     public static String getUserId(String token) {
         return parseToken(token).get("userId", String.class);
     }
-
-    public static Integer getRoleType(String token) {
-        Number roleType = parseToken(token).get("roleType", Number.class);
-        return roleType == null ? null : roleType.intValue();
-    }
 }
