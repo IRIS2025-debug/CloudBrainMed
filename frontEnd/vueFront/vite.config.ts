@@ -54,14 +54,6 @@ export default defineConfig({
         target: 'http://localhost:8005',
         changeOrigin: true,
       },
-      '/auth-service': {
-        target: 'http://localhost:8002',
-        changeOrigin: true,
-      },
-      '/patient-service': {
-        target: 'http://localhost:8004',
-        changeOrigin: true,
-      }
     }
   },
   resolve: {

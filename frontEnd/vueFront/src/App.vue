@@ -155,7 +155,7 @@ const menuItems = computed(() => {
     const dt = doctorType.value
 
     // 根据医生类型确定首页路径
-    let homePath = '/'
+    let homePath = '/doctor/home'
     if (dt === 2) homePath = '/examination-doctor/home'
     else if (dt === 3) homePath = '/inspection-doctor/order-list'
 
