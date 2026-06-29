@@ -11,7 +11,7 @@ spring:
   config:
     import: optional:nacos:ai-service.yml
   datasource:
-    url: jdbc:postgresql://pgm-bp101mh91d37956ybo.pg.rds.aliyuncs.com:5432/CloudBrainMed?ssl=false
+    url: jdbc:postgresql://cloudbrainmed.rwlb.rds.aliyuncs.com:5432/cloudbrainmed?ssl=false
     username: iris
     password: Abc39173551
     driver-class-name: org.postgresql.Driver
@@ -23,15 +23,21 @@ spring:
       connection-timeout: 20000
   ai:
     openai:
-      api-key: sk-86f5064268574a0ab487cb9a04fe5c5f
-      base-url: https://api.deepseek.com
+      api-key: ${DASHSCOPE_API_KEY:}
+      base-url: https://dashscope.aliyuncs.com/compatible-mode
       chat:
         options:
-          model: deepseek-chat
+          model: deepseek-v4-flash
           temperature: 0.1
           max-tokens: 1024
     embedding:
-      api-key: sk-gqltrlssizwnhardmdhkoeygncmezcluoenonqnyghzmeiql
+      api-key: ${DASHSCOPE_API_KEY:}
+      base-url: https://dashscope.aliyuncs.com/compatible-mode
+      model: text-embedding-v4
+      dimensions: 1024
+  vector-loader:
+    pdf:
+      enabled: true
   pgvector:
     enabled: true
     dimension: 1024 # 根据你的嵌入模型调整维度

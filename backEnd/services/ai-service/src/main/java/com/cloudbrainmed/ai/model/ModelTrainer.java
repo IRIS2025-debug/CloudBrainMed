@@ -1,4 +1,4 @@
-﻿package com.cloudbrainmed.ai.model;
+package com.cloudbrainmed.ai.model;
 
 import com.cloudbrainmed.ai.entity.ModelVersion;
 import com.cloudbrainmed.ai.mapper.ModelVersionMapper;

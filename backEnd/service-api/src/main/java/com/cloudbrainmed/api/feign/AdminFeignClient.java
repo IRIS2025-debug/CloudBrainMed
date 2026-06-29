@@ -16,7 +16,7 @@ public interface AdminFeignClient {
      * 获取医生排班（AI智能排班用）
      * 路径和ScheduleManageController中的方法对应
      */
-    @GetMapping("/api/admin/schedule/ai/doctor/{doctorId}")
+    @GetMapping("/admin-service/schedule/ai/doctor/{doctorId}")
     Result<List<DoctorSchedule>> getDoctorSchedulesForAI(
             @PathVariable("doctorId") String doctorId,
             @RequestParam("startDate") String startDate,
@@ -26,12 +26,12 @@ public interface AdminFeignClient {
     /**
      * 批量创建排班（AI生成后调用）
      */
-    @PostMapping("/api/admin/schedule/ai/batch-create")
+    @PostMapping("/admin-service/schedule/ai/batch-create")
     Result<List<DoctorSchedule>> batchCreateSchedules(@RequestBody List<ScheduleSaveDto> dtoList);
 
     /**
      * 检查排班冲突
      */
-    @PostMapping("/api/admin/schedule/ai/check-conflict")
+    @PostMapping("/admin-service/schedule/ai/check-conflict")
     Result<Boolean> checkConflict(@RequestBody DoctorSchedule schedule);
 }
