@@ -1,4 +1,4 @@
-﻿package com.cloudbrainmed.ai.util;
+package com.cloudbrainmed.ai.util;
 
 import com.cloudbrainmed.ai.model.CnnModel;
 
