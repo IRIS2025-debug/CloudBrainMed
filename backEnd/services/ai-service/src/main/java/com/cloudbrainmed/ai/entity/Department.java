@@ -1,4 +1,4 @@
-﻿package com.cloudbrainmed.ai.entity;
+package com.cloudbrainmed.ai.entity;
 
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;

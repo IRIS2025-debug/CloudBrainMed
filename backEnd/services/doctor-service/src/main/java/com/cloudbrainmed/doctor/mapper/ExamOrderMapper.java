@@ -16,7 +16,7 @@ public interface ExamOrderMapper {
             "JOIN patient p ON mo.patient_id = p.patient_id " +
             "JOIN medical_order_item moi ON mo.order_id = moi.order_id " +
             "LEFT JOIN medical_item mi ON moi.item_id = mi.item_id " +
-            "WHERE mo.register_id = #{registerId}")
+            "WHERE mo.register_id = #{registerId} AND mo.doctor_id = #{doctorId}")
     @Results({
         @Result(column = "order_id", property = "orderId"),
         @Result(column = "patient_id", property = "patientId"),
@@ -29,7 +29,9 @@ public interface ExamOrderMapper {
         @Result(column = "urgency_level", property = "urgencyLevel"),
         @Result(column = "create_time", property = "createTime")
     })
-    List<ExamOrder> selectByRegisterId(@Param("registerId") String registerId);
+    List<ExamOrder> selectByRegisterId(
+            @Param("registerId") String registerId,
+            @Param("doctorId") String doctorId);
 
     @Select("SELECT mo.order_id, mo.patient_id, mo.register_id, mo.doctor_id, " +
             "p.name AS patient_name, p.gender, EXTRACT(YEAR FROM AGE(CURRENT_DATE, p.birthday)) AS age, " +

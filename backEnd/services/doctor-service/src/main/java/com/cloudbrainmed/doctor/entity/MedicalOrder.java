@@ -1,7 +1,10 @@
 package com.cloudbrainmed.doctor.entity;
 
+import lombok.Data;
+
 import java.time.LocalDateTime;
 
+@Data
 /**
  * 医技申请主表实体（映射 medical_order 表）
  * 统含检查(EXAM)和检验(LAB)两类申请

@@ -163,12 +163,14 @@ public class InferenceEngine {
         try {
             AiInferenceLog logEntry = new AiInferenceLog();
             logEntry.setLogId(logId);
-            logEntry.setInferenceType("CT_ARTIFACT");
+            logEntry.setTraceId(logId);
+            logEntry.setCallSource("CT_ARTIFACT");
             logEntry.setStatus(status);
-            logEntry.setModelId(modelId);
-            logEntry.setLatencyMs(latencyMs);
-            logEntry.setMessage(message);
-            logEntry.setCreateTime(LocalDateTime.now());
+            logEntry.setModelKey(modelId != null ? modelId : "ct-artifact-model");
+            logEntry.setModelVersion("unknown");
+            logEntry.setDurationMs((int) Math.min(latencyMs, Integer.MAX_VALUE));
+            logEntry.setOutputSummary(message);
+            logEntry.setCreatedAt(LocalDateTime.now());
             inferenceLogMapper.insert(logEntry);
         } catch (Exception e) {
             log.warn("推理日志保存失败: {}", e.getMessage());
