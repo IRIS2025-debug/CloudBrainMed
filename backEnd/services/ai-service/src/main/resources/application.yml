@@ -29,7 +29,7 @@ spring:
         options:
           model: deepseek-v4-flash
           temperature: 0.1
-          max-tokens: 256
+          max-tokens: 1024
     embedding:
       api-key: sk-ws-H.RYXRIRP.m8AK.MEYCIQDJwn3c2SajYL3FsZ6inWA_GhvWr5UW23iPpSabm4Qg7QIhAIYmTurNbBTeHm2_o9CWNDKHZ_m6EzK4qiGgcZxY0wD-
       base-url: https://dashscope.aliyuncs.com/compatible-mode
