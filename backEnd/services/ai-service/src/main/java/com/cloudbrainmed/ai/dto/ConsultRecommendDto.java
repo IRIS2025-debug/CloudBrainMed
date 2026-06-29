@@ -1,9 +1,9 @@
 package com.cloudbrainmed.ai.dto;
 
 import lombok.Data;
-import org.hibernate.validator.constraints.NotBlank;
 
-import javax.validation.constraints.Size;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 @Data
 public class ConsultRecommendDto {

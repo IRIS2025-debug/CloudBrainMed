@@ -7,25 +7,37 @@ import java.time.LocalDateTime;
  */
 public class AiInferenceLog {
     private String logId;
-    private String inferenceType;
+    private String traceId;
+    private String callSource;
+    private String modelKey;
+    private String modelVersion;
+    private String inputSummary;
+    private String outputSummary;
     private String status;
-    private String modelId;
-    private Long latencyMs;
-    private String message;
-    private LocalDateTime createTime;
+    private Integer durationMs;
+    private LocalDateTime createdAt;
+    private String patientId;
 
     public String getLogId() { return logId; }
     public void setLogId(String logId) { this.logId = logId; }
-    public String getInferenceType() { return inferenceType; }
-    public void setInferenceType(String inferenceType) { this.inferenceType = inferenceType; }
+    public String getTraceId() { return traceId; }
+    public void setTraceId(String traceId) { this.traceId = traceId; }
+    public String getCallSource() { return callSource; }
+    public void setCallSource(String callSource) { this.callSource = callSource; }
+    public String getModelKey() { return modelKey; }
+    public void setModelKey(String modelKey) { this.modelKey = modelKey; }
+    public String getModelVersion() { return modelVersion; }
+    public void setModelVersion(String modelVersion) { this.modelVersion = modelVersion; }
+    public String getInputSummary() { return inputSummary; }
+    public void setInputSummary(String inputSummary) { this.inputSummary = inputSummary; }
+    public String getOutputSummary() { return outputSummary; }
+    public void setOutputSummary(String outputSummary) { this.outputSummary = outputSummary; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
-    public String getModelId() { return modelId; }
-    public void setModelId(String modelId) { this.modelId = modelId; }
-    public Long getLatencyMs() { return latencyMs; }
-    public void setLatencyMs(Long latencyMs) { this.latencyMs = latencyMs; }
-    public String getMessage() { return message; }
-    public void setMessage(String message) { this.message = message; }
-    public LocalDateTime getCreateTime() { return createTime; }
-    public void setCreateTime(LocalDateTime createTime) { this.createTime = createTime; }
+    public Integer getDurationMs() { return durationMs; }
+    public void setDurationMs(Integer durationMs) { this.durationMs = durationMs; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public String getPatientId() { return patientId; }
+    public void setPatientId(String patientId) { this.patientId = patientId; }
 }
