@@ -18,6 +18,7 @@ sentinel-dashboard-*.jar
 /target/
 /build/
 
+
 # IDE 配置文件
 .idea/
 *.iml
