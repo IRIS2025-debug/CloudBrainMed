@@ -2,6 +2,10 @@ spring:
   cloud:
     gateway:
       routes:
+        - id: ai-service-ml-route
+          uri: lb://ai-service
+          predicates:
+            - Path=/admin-service/ml/**
         - id: admin-service-route
           uri: lb://admin-service
           predicates:

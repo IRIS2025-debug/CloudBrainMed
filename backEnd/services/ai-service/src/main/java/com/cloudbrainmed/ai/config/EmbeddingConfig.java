@@ -13,19 +13,29 @@ import org.springframework.context.annotation.Primary;
 @Configuration
 public class EmbeddingConfig {
 
-    @Value("${spring.ai.embedding.api-key}")  // ← 换成自定义路径
+    @Value("${spring.ai.embedding.api-key:${spring.ai.openai.api-key:}}")
     private String embeddingApiKey;
+
+    @Value("${spring.ai.embedding.base-url:https://dashscope.aliyuncs.com/compatible-mode}")
+    private String embeddingBaseUrl;
+
+    @Value("${spring.ai.embedding.model:text-embedding-v4}")
+    private String embeddingModel;
+
+    @Value("${spring.ai.embedding.dimensions:1024}")
+    private Integer embeddingDimensions;
 
     @Bean
     @Primary
     public EmbeddingModel embeddingModel() {
         OpenAiApi embeddingApi = OpenAiApi.builder()
-                .baseUrl("https://api.siliconflow.cn")
+                .baseUrl(embeddingBaseUrl)
                 .apiKey(embeddingApiKey)
                 .build();
 
         OpenAiEmbeddingOptions options = OpenAiEmbeddingOptions.builder()
-                .model("BAAI/bge-large-zh-v1.5")
+                .model(embeddingModel)
+                .dimensions(embeddingDimensions)
                 .build();
 
         return new OpenAiEmbeddingModel(embeddingApi, MetadataMode.EMBED, options);

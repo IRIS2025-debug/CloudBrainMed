@@ -17,8 +17,9 @@ public class ExamOrderServiceImpl implements ExamOrderService {
     }
 
     @Override
-    public List<ExamOrder> getByRegisterId(String registerId) {
-        return examOrderMapper.selectByRegisterId(registerId);
+    public List<ExamOrder> getByRegisterId(
+            String registerId, String doctorId) {
+        return examOrderMapper.selectByRegisterId(registerId, doctorId);
     }
 
     @Override
