@@ -120,43 +120,4 @@ public interface ConsultMapper {
 
     @Update("UPDATE registration SET consult_status='COMPLETED' WHERE register_id=#{registerId}")
     int completeConsult(@Param("registerId") String registerId);
-
-    @Select("""
-        SELECT description
-        FROM medical_record
-        WHERE patient_id = #{patientId}
-          AND register_id <> #{registerId}
-          AND description IS NOT NULL
-          AND description <> ''
-        ORDER BY visit_date DESC, create_time DESC
-        LIMIT 5
-        """)
-    List<String> findMedicalHistory(
-            @Param("patientId") String patientId,
-            @Param("registerId") String registerId);
-
-    @Select("""
-        SELECT CONCAT_WS('；',
-            NULLIF(moi.item_name, ''),
-            NULLIF(mr.result_summary, ''),
-            NULLIF(mr.conclusion, ''),
-            CASE WHEN mr.abnormal_flag <> 'NORMAL'
-                 THEN '异常标记：' || mr.abnormal_flag END
-        )
-        FROM medical_report mr
-        JOIN medical_order_item moi
-          ON moi.order_item_id = mr.order_item_id
-        JOIN medical_order mo
-          ON mo.order_id = moi.order_id
-        WHERE mr.patient_id = #{patientId}
-          AND (mo.register_id IS NULL OR mo.register_id <> #{registerId})
-          AND mr.status = 'PUBLISHED'
-        ORDER BY mr.report_time DESC NULLS LAST,
-                 mr.performed_time DESC NULLS LAST,
-                 mr.create_time DESC
-        LIMIT 5
-        """)
-    List<String> findPreviousReports(
-            @Param("patientId") String patientId,
-            @Param("registerId") String registerId);
 }

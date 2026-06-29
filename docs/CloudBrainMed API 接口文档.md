@@ -3558,6 +3558,7 @@ GET /api/inspection-doctor/order/detail/MO202606160001
 |接口名称|请求方式|接口地址|
 |---|---|---|
 |生成AI接诊分析|`POST`|`/api/ai/assistant/analyze`|
+|提交AI采纳反馈|`POST`|`/api/ai/assistant/feedback`|
 |药品问答流式输出|`POST`|`/api/ai/medicine/chat`|
 |AI智能问诊<br>（给患者推荐科室和医生）|`POST`<br>|`/api/ai/consult/recommend`|
 
@@ -3705,6 +3706,77 @@ GET /api/inspection-doctor/order/detail/MO202606160001
 
 
 **业务规则：** 通过内部接口校验医生与接诊记录归属；AI失败时仍返回code=200，但data\.status=FAILED、fallback=true；AI结果仅供医生审核。
+
+
+
+##### 2\.4\.1\.2 提交AI采纳反馈
+
+
+
+|项目|内容|
+|---|---|
+|接口地址|`/api/ai/assistant/feedback`|
+|请求方式|`POST`|
+|请求头|token: 医生JWT（必填；当前代码兼容直接传doctorId，仅限开发）|
+|权限说明|医生本人|
+
+
+
+**请求参数**
+
+
+
+|参数名|位置|类型|必填|说明|
+|---|---|---|---|---|
+|traceId|body|String|是|分析追踪ID|
+|finalRecordDesc|body|String|是|医生最终病历|
+|adoptionType|body|String|是|FULL/PARTIAL/REJECTED|
+
+
+
+**返回参数**
+
+
+
+|参数名|类型|说明|
+|---|---|---|
+|data|Boolean|是否成功保存反馈|
+
+
+
+**请求示例**
+
+
+
+```JSON
+{
+  "traceId": "AI0123456789abcdef",
+  "finalRecordDesc": "医生确认后的病历",
+  "adoptionType": "PARTIAL"
+}
+```
+
+
+
+**返回示例**
+
+
+
+```JSON
+{
+  "code": 200,
+  "msg": "成功",
+  "data": true
+}
+```
+
+
+
+**错误码：** 400 字段为空；500 adoptionType非法；data=false 原日志/上下文不存在
+
+
+
+**业务规则：** 再次校验医生对挂号记录的访问权；计算AI草稿与最终病历的编辑差异。
 
 
 
@@ -4851,3 +4923,4 @@ GET /internal/doctor/consult/context
 6. 完成头像文件持久化、短信验证码验证和医生资料相关 TODO 后，再补充对应正式接口。
 
 7. 统一 BusinessException 的业务 code 与 HTTP 状态，避免所有业务错误都表现为 code=500。
+
