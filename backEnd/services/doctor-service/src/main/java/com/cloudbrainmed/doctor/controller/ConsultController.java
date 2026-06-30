@@ -86,7 +86,8 @@ public class ConsultController {
     @PostMapping("/complete")
     public Result<?> complete(@RequestHeader(value = "token", required = false) String token,
                               @RequestBody Map<String, String> body) {
-        service.completeConsult(body.get("registerId"));
+        String doctorId = extractDoctorId(token);
+        service.completeConsult(body.get("registerId"), doctorId);
         return Result.ok();
     }
 

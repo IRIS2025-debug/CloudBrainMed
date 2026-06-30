@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 /**
  * 病历实体（映射 medical_record 表）
  */
-@TableName("medical_record")
+@TableName("register_report")
 public class MedicalRecord {
     @TableId
     private String recordId;

@@ -11,16 +11,20 @@ spring:
   config:
     import: optional:nacos:admin-service.yml
   datasource:
-    url: jdbc:postgresql://cloudbrainmed.rwlb.rds.aliyuncs.com:5432/cloudbrainmed?ssl=false
+    url: jdbc:postgresql://cloudbrainmed.rwlb.rds.aliyuncs.com:5432/cloudbrainmed?sslmode=disable&socketTimeout=30&connectTimeout=10&tcpKeepAlive=true&ApplicationName=admin-service
     username: iris
     password: Abc39173551
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 15
       minimum-idle: 5
-      idle-timeout: 30000
-      max-lifetime: 1800000
+      idle-timeout: 300000
+      max-lifetime: 600000
       connection-timeout: 20000
+      keepalive-time: 60000
+      connection-test-query: SELECT 1
+      validation-timeout: 5000
+      leak-detection-threshold: 30000
   jpa:
     hibernate:
       ddl-auto: none

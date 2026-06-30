@@ -329,10 +329,10 @@ async function handleSubmit() {
   submitting.value = true
   try {
     if (isEdit.value) {
-      await updateDoctor({ ...form, status: 1 })
+      await updateDoctor({ ...form, status: 1, gender: form.gender ?? 0 })
       ElMessage.success({ message: '医生信息已更新', icon: '✅' })
     } else {
-      await addDoctor(form)
+      await addDoctor({ ...form, gender: form.gender ?? 0 })
       ElMessage.success({ message: '医生账号已创建（默认密码: 123456）', icon: '✅' })
     }
     dialogVisible.value = false
