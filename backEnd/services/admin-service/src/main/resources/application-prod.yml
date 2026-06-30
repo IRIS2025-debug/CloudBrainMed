@@ -1,0 +1,38 @@
+# backend/services/admin-service/src/main/resources/application-prod.yml
+spring:
+  cloud:
+    nacos:
+      server-addr: nacos:8848
+    sentinel:
+      transport:
+        dashboard: sentinel:8858
+      eager: true
+
+  datasource:
+    url: jdbc:postgresql://cloudbrainmed.rwlb.rds.aliyuncs.com:5432/cloudbrainmed
+    username: iris
+    password: Abc39173551
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 15
+      minimum-idle: 5
+      idle-timeout: 30000
+      max-lifetime: 1800000
+      connection-timeout: 20000
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+logging:
+  level:
+    com.yourcompany: INFO

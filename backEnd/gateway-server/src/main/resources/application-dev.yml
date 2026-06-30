@@ -1,8 +1,5 @@
+# backend/gateway-server/src/main/resources/application-dev.yml
 spring:
-  profiles:
-    include: route
-  application:
-    name: gateway-server
   cloud:
     nacos:
       server-addr: 127.0.0.1:8848
@@ -10,7 +7,7 @@ spring:
       transport:
         dashboard: localhost:8858
       eager: true
-  config:
-    import: optional:nacos:gateway-server.yml
-server:
-  port: 80
+
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG

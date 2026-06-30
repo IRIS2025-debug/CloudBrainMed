@@ -59,7 +59,7 @@ services:
     container_name: gateway-server
     restart: always
     ports:
-      - "8080:8080"
+      - "80:80"
     env_file:
       - .env
     environment:
@@ -89,7 +89,7 @@ services:
     container_name: admin-service
     restart: always
     ports:
-      - "8081:8081"
+      - "8000:8000"
     env_file:
       - .env
     environment:
@@ -119,7 +119,7 @@ services:
     container_name: ai-service
     restart: always
     ports:
-      - "8082:8082"
+      - "8001:8001"
     env_file:
       - .env
     environment:
@@ -149,7 +149,7 @@ services:
     container_name: auth-service
     restart: always
     ports:
-      - "8083:8083"
+      - "8002:8002"
     env_file:
       - .env
     environment:
@@ -179,7 +179,7 @@ services:
     container_name: doctor-service
     restart: always
     ports:
-      - "8084:8084"
+      - "8003:8003"
     env_file:
       - .env
     environment:
@@ -209,7 +209,7 @@ services:
     container_name: patient-service
     restart: always
     ports:
-      - "8085:8085"
+      - "8004:8004"
     env_file:
       - .env
     environment:
@@ -239,7 +239,7 @@ services:
     container_name: payment-service
     restart: always
     ports:
-      - "8086:8086"
+      - "8005:8005"
     env_file:
       - .env
     environment:
@@ -257,6 +257,29 @@ services:
       nacos:
         condition: service_healthy
       redis:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  # ===== FastAPI 检查申请服务 =====
+  exam-service:
+    build:
+      context: ../../FastApi-backend/exam-service
+      dockerfile: Dockerfile
+    container_name: exam-service
+    restart: always
+    ports:
+      - "8006:8006"
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app
+      - SERVICE_NAME=exam-service
+      - SERVICE_PORT=8006
+      - NACOS_SERVER_ADDR=nacos:8848
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8006"]
+    depends_on:
+      nacos:
         condition: service_healthy
     networks:
       - app-network
