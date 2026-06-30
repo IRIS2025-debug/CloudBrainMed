@@ -1,0 +1,55 @@
+# backend/services/ai-service/src/main/resources/application-prod.yml
+spring:
+  cloud:
+    nacos:
+      server-addr: nacos:8848
+    sentinel:
+      transport:
+        dashboard: sentinel:8858
+      eager: true
+
+  datasource:
+    url: jdbc:postgresql://cloudbrainmed.rwlb.rds.aliyuncs.com:5432/cloudbrainmed
+    username: iris
+    password: Abc39173551
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 15
+      minimum-idle: 5
+      idle-timeout: 30000
+      max-lifetime: 1800000
+      connection-timeout: 20000
+
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      base-url: https://api.deepseek.com
+      chat:
+        options:
+          model: deepseek-chat
+          temperature: 0.1
+          max-tokens: 1024
+    embedding:
+      api-key: ${EMBEDDING_API_KEY}
+
+  pgvector:
+    enabled: true
+    dimension: 1024
+    initialize-schema: true
+
+  data:
+    redis:
+      host: redis
+      port: 6379
+      timeout: 3000ms
+      password: ${REDIS_PASSWORD}
+      database: 0
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+
+logging:
+  level:
+    com.yourcompany: INFO

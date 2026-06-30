@@ -1,0 +1,13 @@
+# backend/gateway-server/src/main/resources/application-prod.yml
+spring:
+  cloud:
+    nacos:
+      server-addr: nacos:8848
+    sentinel:
+      transport:
+        dashboard: sentinel:8858
+      eager: true
+
+logging:
+  level:
+    org.springframework.cloud.gateway: INFO

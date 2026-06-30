@@ -1,16 +1,11 @@
+# backend/gateway-server/src/main/resources/application.yml
 spring:
   profiles:
-    include: route
+    include: route   # 引入 route 配置文件
   application:
     name: gateway-server
-  cloud:
-    nacos:
-      server-addr: 127.0.0.1:8848
-    sentinel:
-      transport:
-        dashboard: localhost:8858
-      eager: true
   config:
     import: optional:nacos:gateway-server.yml
+
 server:
   port: 80
