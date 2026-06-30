@@ -25,25 +25,25 @@ const router = createRouter({
       path: '/doctor/consult',
       name: 'doctorConsult',
       component: () => import('@/pages/doctor/consult/List.vue'),
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, role: 2 }
     },
     {
       path: '/doctor/consult/:registerId',
       name: 'doctorConsultDetail',
       component: () => import('@/pages/doctor/consult/Detail.vue'),
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, role: 2 }
     },
     {
       path: '/doctor/ai-medicine',
       name: 'aiMedicine',
       component: () => import('@/pages/doctor/ai-medicine/Index.vue'),
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, role: 2 }
     },
     {
       path: '/doctor/schedule',
       name: 'doctorSchedule',
       component: () => import('@/pages/doctor/schedule/Schedule.vue'),
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, role: 2 }
     },
     {
       path: '/admin/ml/dashboard',
@@ -130,6 +130,20 @@ router.beforeEach((to, from) => {
     if (!token) {
       // 没有 token，跳转到登录页
       return '/login'
+    }
+
+    if (to.path === '/') {
+      if (roleType === '3') {
+        return '/admin/home'
+      }
+
+      const doctorType = Number(sessionStorage.getItem('doctorType') || '1')
+      if (doctorType === 2) {
+        return '/examination-doctor/home'
+      }
+      if (doctorType === 3) {
+        return '/inspection-doctor/order-list'
+      }
     }
 
     // 检查角色权限

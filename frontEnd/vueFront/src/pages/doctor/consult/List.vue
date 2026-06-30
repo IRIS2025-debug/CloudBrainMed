@@ -54,31 +54,42 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import { getConsultList } from '@/api/doctor/consult'
+import { ElMessage } from 'element-plus'
 const list = ref<any[]>([]); const loading = ref(false); const page = ref(1); const total = ref(0)
 const filters = reactive({ consultStatus: '', date: '' })
 
-// Mock 数据 —— API 不可达时作为开发测试数据
-const mockList = [
-  { registerId: 'REG-20260612-001', name: '陈建国', gender: 1, patientAge: 45, chiefComplaint: '反复头痛、眩晕一周，加重两天', consultStatus: 'PENDING', visitDate: '2026-06-12' },
-  { registerId: 'REG-20260612-002', name: '林美娟', gender: 2, patientAge: 32, chiefComplaint: '右下腹持续性隐痛三天，伴恶心', consultStatus: 'IN_PROGRESS', visitDate: '2026-06-12' },
-  { registerId: 'REG-20260612-003', name: '黄志强', gender: 1, patientAge: 58, chiefComplaint: '胸闷气短两周，夜间加重', consultStatus: 'RECORD_CONFIRMED', visitDate: '2026-06-11' },
-  { registerId: 'REG-20260612-004', name: '赵小燕', gender: 2, patientAge: 27, chiefComplaint: '咳嗽咳痰五天，发热一天，体温38.2℃', consultStatus: 'COMPLETED', visitDate: '2026-06-11' },
-  { registerId: 'REG-20260612-005', name: '周文博', gender: 1, patientAge: 66, chiefComplaint: '双下肢水肿一周，既往高血压病史10年', consultStatus: 'PENDING', visitDate: '2026-06-12' },
-]
 
 async function fetchList() {
   loading.value = true
   try {
-    const res = await getConsultList({ ...filters, page: page.value, limit: 10 })
-    list.value = res.data || []
+    const res = await getConsultList({
+      consultStatus: filters.consultStatus,
+      date: formatDate(filters.date),
+      page: page.value,
+      limit: 10
+    })
+    const data = res.data
+    list.value = Array.isArray(data) ? data : (data?.list || [])
+    total.value = Number(data?.total ?? list.value.length)
   } catch {
-    // API 不可达时使用 mock 数据进行开发测试
-    list.value = mockList
+    list.value = []
+    total.value = 0
+    ElMessage.error('接诊列表加载失败，请稍后重试')
   } finally { loading.value = false }
 }
 function statusLabel(s: string) {
   const m: Record<string, string> = { PENDING: '待接诊', IN_PROGRESS: '接诊中', RECORD_CONFIRMED: '已确认', COMPLETED: '已完成' }
   return m[s] || s
+}
+
+function formatDate(value: string | Date) {
+  if (!value) return ''
+  if (value instanceof Date) {
+    const month = String(value.getMonth() + 1).padStart(2, '0')
+    const day = String(value.getDate()).padStart(2, '0')
+    return `${value.getFullYear()}-${month}-${day}`
+  }
+  return value
 }
 fetchList()
 </script>

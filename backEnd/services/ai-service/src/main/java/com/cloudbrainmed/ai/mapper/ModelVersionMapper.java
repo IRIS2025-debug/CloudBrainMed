@@ -53,4 +53,7 @@ public interface ModelVersionMapper {
 
     @Select("SELECT COUNT(*) FROM ai_model_version")
     int countAll();
+
+    @Select("SELECT COUNT(*) FROM ai_model_version WHERE status = #{status}")
+    int countByStatus(@Param("status") String status);
 }

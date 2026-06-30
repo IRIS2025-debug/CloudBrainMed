@@ -3,10 +3,10 @@ spring:
     name: ai-service
   cloud:
     nacos:
-      server-addr: 127.0.0.1:8848
+      server-addr: ${NACOS_SERVER:127.0.0.1:8848}
     sentinel:
       transport:
-        dashboard: localhost:8858
+        dashboard: ${SENTINEL_DASHBOARD:localhost:8858}
       eager: true
   config:
     import: optional:nacos:ai-service.yml
@@ -50,3 +50,7 @@ spring:
 
 server:
   port: 8001
+
+ai:
+  python-service:
+    url: ${AI_PYTHON_SERVICE_URL:http://localhost:8010}

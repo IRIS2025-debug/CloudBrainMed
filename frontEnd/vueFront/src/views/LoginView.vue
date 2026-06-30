@@ -87,6 +87,7 @@ import { Check, DataAnalysis, Lock } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const loading = ref(false)
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
 
 interface LoginForm {
   phone: string
@@ -116,7 +117,7 @@ const handleLogin = async (): Promise<void> => {
 
   loading.value = true
   try {
-    const res = await axios.post('/auth-service/login', {
+    const res = await axios.post(`${apiBaseUrl}/auth-service/login`, {
       phone: loginForm.value.phone,
       password: loginForm.value.password,
       roleType: loginForm.value.roleType

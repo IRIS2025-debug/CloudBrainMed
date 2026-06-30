@@ -9,7 +9,12 @@ import com.cloudbrainmed.ai.model.InferenceEngine;
 import com.cloudbrainmed.ai.model.ModelLoader;
 import com.cloudbrainmed.ai.model.ModelTrainer;
 import com.cloudbrainmed.ai.service.MlOpsService;
+import com.cloudbrainmed.common.exception.BusinessException;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.*;
 
@@ -42,20 +47,22 @@ public class MlOpsServiceImpl implements MlOpsService {
         return Map.of(
             "todayTotal", inferenceLogMapper.countToday(),
             "successRate", computeSuccessRate(),
-            "avgLatency", Math.round(inferenceLogMapper.avgLatency())
+            "avgLatency", Math.round(inferenceLogMapper.avgLatency()),
+            "adoptionRate", computeAdoptionRate()
         );
     }
 
     @Override
     public Map<String, Object> getModelStats() {
         return Map.of(
-            "activeModels", 1,
+            "activeModels", modelVersionMapper.countByStatus("ACTIVE"),
             "totalInference", inferenceLogMapper.countAll()
         );
     }
 
     @Override
     public Map<String, Object> getInferenceLogs(int page, int limit) {
+        validatePagination(page, limit);
         int offset = (page - 1) * limit;
         return Map.of(
             "list", inferenceLogMapper.selectPage(offset, limit),
@@ -65,6 +72,7 @@ public class MlOpsServiceImpl implements MlOpsService {
 
     @Override
     public Map<String, Object> getSampleList(int page, int limit) {
+        validatePagination(page, limit);
         int offset = (page - 1) * limit;
         return Map.of(
             "list", sampleMapper.selectPage(offset, limit),
@@ -74,7 +82,18 @@ public class MlOpsServiceImpl implements MlOpsService {
 
     @Override
     public void updateSample(String sampleId, String label, String labelType) {
-        sampleMapper.updateLabel(sampleId, label, labelType, "LABELED");
+        if (sampleId == null || sampleId.isBlank()) {
+            throw new BusinessException("样本ID不能为空");
+        }
+        if (label == null || label.isBlank()) {
+            throw new BusinessException("标签不能为空");
+        }
+        int updated = sampleMapper.updateLabel(
+                sampleId.trim(), label.trim(),
+                textOrDefault(labelType, "MANUAL"), "LABELED");
+        if (updated == 0) {
+            throw new BusinessException("样本不存在");
+        }
     }
 
     @Override
@@ -89,6 +108,9 @@ public class MlOpsServiceImpl implements MlOpsService {
             item.put("version", mv.getVersion());
             item.put("status", mv.getStatus());
             item.put("createTime", mv.getCreateTime());
+            item.put("createdAt", mv.getCreateTime());
+            item.put("artifactPath", mv.getArtifactPath());
+            item.put("trafficPct", "ACTIVE".equals(mv.getStatus()) ? 100 : 0);
             result.add(item);
         }
         return result;
@@ -96,18 +118,43 @@ public class MlOpsServiceImpl implements MlOpsService {
 
     @Override
     public Map<String, Object> triggerTrain(Map<String, String> params) {
-        String modelKey = params.getOrDefault("modelKey", "medical-ct-unet");
-        String modelType = params.getOrDefault("modelType", "unet");
-        String datasetPath = params.getOrDefault("datasetPath", "/data/ct-artifact/");
+        String modelKey = textOrDefault(params.get("modelKey"), "medical-ct-unet");
+        String modelType = textOrDefault(params.get("modelType"), "unet");
+        String datasetPath = textOrDefault(params.get("datasetPath"), "/data/ct-artifact/");
 
-        CnnModel.ModelType type = "attention".equals(modelType)
-                ? CnnModel.ModelType.ATTENTION_UNET : CnnModel.ModelType.UNET;
+        CnnModel.ModelType type = parseModelType(modelType);
+        CnnModel.HyperParams hyperParams = parseHyperParams(params);
 
         ModelTrainer.TrainingTask task = modelTrainer.createTrainingTask(
-                modelKey, type, CnnModel.HyperParams.defaultParams(), datasetPath);
+                modelKey, type, hyperParams, datasetPath);
         modelTrainer.startTraining(task.getTaskId());
 
         return Map.of("taskId", task.getTaskId(), "status", task.getStatus());
+    }
+
+    @Override
+    public Map<String, Object> setModelTraffic(String modelId, int trafficPct) {
+        if (modelId == null || modelId.isBlank() || "null".equals(modelId)) {
+            throw new BusinessException("模型ID不能为空");
+        }
+        if (trafficPct != 0 && trafficPct != 100) {
+            throw new BusinessException("当前仅支持0或100流量配置");
+        }
+
+        ModelVersion model = modelVersionMapper.selectById(modelId);
+        if (model == null) {
+            throw new BusinessException("模型不存在");
+        }
+
+        String status;
+        if (trafficPct == 100) {
+            modelLoader.activateModel(modelId);
+            status = "ACTIVE";
+        } else {
+            modelVersionMapper.updateStatus(modelId, "INACTIVE");
+            status = "INACTIVE";
+        }
+        return Map.of("modelId", modelId, "trafficPct", trafficPct, "status", status);
     }
 
     @Override
@@ -115,13 +162,19 @@ public class MlOpsServiceImpl implements MlOpsService {
         Map<String, ModelTrainer.TrainingTask> tasks = modelTrainer.listTasks();
         List<Map<String, Object>> list = new ArrayList<>();
         for (ModelTrainer.TrainingTask t : tasks.values()) {
-            list.add(Map.of(
-                "taskId", t.getTaskId(),
-                "modelKey", t.getModelKey(),
-                "modelType", t.getModelType(),
-                "status", t.getStatus(),
-                "createTime", t.getCreateTime()
-            ));
+            Map<String, Object> item = new HashMap<>();
+            item.put("taskId", t.getTaskId());
+            item.put("modelKey", t.getModelKey());
+            item.put("modelType", t.getModelType());
+            item.put("datasetPath", t.getDatasetPath());
+            item.put("hyperParams", toHyperParamMap(t.getHyperParams()));
+            item.put("status", t.getStatus());
+            item.put("modelId", t.getModelId());
+            item.put("errorMessage", t.getErrorMessage());
+            item.put("createTime", t.getCreateTime());
+            item.put("startTime", t.getStartTime());
+            item.put("completedTime", t.getCompletedTime());
+            list.add(item);
         }
         return Map.of("tasks", list, "stats", modelTrainer.getStats());
     }
@@ -136,10 +189,93 @@ public class MlOpsServiceImpl implements MlOpsService {
         );
     }
 
+    @Override
+    public Map<String, Object> predictCtArtifact(MultipartFile file) throws Exception {
+        return inferenceEngine.predictArtifact(file);
+    }
+
+    @Override
+    public ResponseEntity<byte[]> downloadCtArtifactMask(String maskFilename) throws Exception {
+        byte[] body = inferenceEngine.downloadMask(maskFilename);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + maskFilename + "\"")
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(body);
+    }
+
     private double computeSuccessRate() {
         int total = inferenceLogMapper.countAll();
         if (total == 0) return 100.0;
-        // 简化：全部成功的比例（实际应从 DB 查）
-        return 95.0;
+        int success = inferenceLogMapper.countByStatus("SUCCESS");
+        return Math.round(success * 1000.0 / total) / 10.0;
+    }
+
+    private double computeAdoptionRate() {
+        int total = sampleMapper.countAll();
+        if (total == 0) return 0.0;
+        int adopted = sampleMapper.countAdopted();
+        return Math.round(adopted * 1000.0 / total) / 10.0;
+    }
+
+    private CnnModel.ModelType parseModelType(String modelType) {
+        if ("unet".equalsIgnoreCase(modelType)) {
+            return CnnModel.ModelType.UNET;
+        }
+        if ("attention".equalsIgnoreCase(modelType)
+                || "attention_unet".equalsIgnoreCase(modelType)) {
+            return CnnModel.ModelType.ATTENTION_UNET;
+        }
+        throw new BusinessException("模型类型仅支持 unet 或 attention");
+    }
+
+    private String textOrDefault(String value, String defaultValue) {
+        return value == null || value.isBlank() ? defaultValue : value.trim();
+    }
+
+    private void validatePagination(int page, int limit) {
+        if (page < 1 || limit < 1) {
+            throw new BusinessException("分页参数错误");
+        }
+    }
+
+    private Map<String, Object> toHyperParamMap(CnnModel.HyperParams params) {
+        CnnModel.HyperParams safeParams = params != null ? params : CnnModel.HyperParams.defaultParams();
+        Map<String, Object> result = new HashMap<>();
+        result.put("learningRate", safeParams.getLearningRate());
+        result.put("epochs", safeParams.getEpochs());
+        result.put("batchSize", safeParams.getBatchSize());
+        result.put("optimizer", safeParams.getOptimizer());
+        return result;
+    }
+
+    private CnnModel.HyperParams parseHyperParams(Map<String, String> params) {
+        CnnModel.HyperParams hyperParams = CnnModel.HyperParams.defaultParams();
+        try {
+            String learningRate = params.get("learningRate");
+            if (learningRate != null && !learningRate.isBlank()) {
+                hyperParams.setLearningRate(Double.parseDouble(learningRate.trim()));
+            }
+            String epochs = params.get("epochs");
+            if (epochs != null && !epochs.isBlank()) {
+                hyperParams.setEpochs(Integer.parseInt(epochs.trim()));
+            }
+            String batchSize = params.get("batchSize");
+            if (batchSize != null && !batchSize.isBlank()) {
+                hyperParams.setBatchSize(Integer.parseInt(batchSize.trim()));
+            }
+        } catch (NumberFormatException e) {
+            throw new BusinessException("训练超参数格式错误");
+        }
+        String optimizer = params.get("optimizer");
+        if (optimizer != null && !optimizer.isBlank()) {
+            hyperParams.setOptimizer(optimizer.trim());
+        }
+        if (!Double.isFinite(hyperParams.getLearningRate())
+                || hyperParams.getLearningRate() <= 0
+                || hyperParams.getEpochs() <= 0
+                || hyperParams.getBatchSize() <= 0) {
+            throw new BusinessException("训练超参数范围错误");
+        }
+        return hyperParams;
     }
 }

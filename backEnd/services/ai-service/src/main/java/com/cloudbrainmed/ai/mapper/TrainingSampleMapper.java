@@ -28,4 +28,7 @@ public interface TrainingSampleMapper {
 
     @Select("SELECT COUNT(*) FROM training_sample")
     int countAll();
+
+    @Select("SELECT COUNT(*) FROM training_sample WHERE status IN ('LABELED', 'TRAINED')")
+    int countAdopted();
 }

@@ -24,17 +24,6 @@ export function completeConsult(registerId: string) {
   return request.post('/doctor-service/consult/complete', { registerId })
 }
 
-export function aiAnalyze(data: {
-  registerId: string
-  chiefComplaint: string
-  recordDesc: string
-  patientAge: string
-  patientGender: string
-}) {
-
-  return request.post('/doctor-service/consult/ai-analyze', data)
-}
-
 export function createPrescription(data: {
   registerId: string
   medicineName: string

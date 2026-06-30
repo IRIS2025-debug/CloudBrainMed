@@ -5,19 +5,32 @@ import com.cloudbrainmed.patient.entity.Patient;
 import com.cloudbrainmed.patient.mapper.PatientMapper;
 import com.cloudbrainmed.patient.module5.service.PatientProfileService;
 import org.springframework.http.HttpEntity;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
 import org.springframework.web.client.RestTemplate;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
 
 @Service
 public class PatientProfileServiceImpl implements PatientProfileService {
 
     private final PatientMapper patientMapper;
     private final RestTemplate restTemplate = new RestTemplate();
+    @Value("${upload.avatar.patient-dir:${user.dir}/uploads/avatar/patient}")
+    private String avatarUploadDir;
+    @Value("${patient.sms.verify-url:http://localhost:8002/auth-service/patient/verify-code}")
+    private String smsVerifyUrl;
 
     public PatientProfileServiceImpl(PatientMapper patientMapper) {
         this.patientMapper = patientMapper;
@@ -25,15 +38,12 @@ public class PatientProfileServiceImpl implements PatientProfileService {
 
     @Override
     public Patient getInfo(String patientId) {
-        Patient p = getPatientRaw(patientId);
-        p.setPhone(desensitizePhone(p.getPhone()));
-        p.setIdCard(desensitizeIdCard(p.getIdCard()));
-        return p;
+        Patient patient = getPatientRaw(patientId);
+        patient.setPhone(desensitizePhone(patient.getPhone()));
+        patient.setIdCard(desensitizeIdCard(patient.getIdCard()));
+        return patient;
     }
 
-    /**
-     * 查询个人完整信息（不脱敏），仅用于改手机号等需要原始手机号的场景
-     */
     @Override
     public Patient getInfoRaw(String patientId) {
         return getPatientRaw(patientId);
@@ -41,26 +51,47 @@ public class PatientProfileServiceImpl implements PatientProfileService {
 
     @Override
     public void updateInfo(String patientId, String name, String gender, String address, String birthday) {
-        Patient p = patientMapper.selectById(patientId);
-        if (p == null) throw new BusinessException("患者不存在");
-        if (name != null && !name.isEmpty()) p.setName(name);
-        if (gender != null && !gender.isEmpty()) p.setGender(parseGender(gender));
-        if (address != null) p.setAddress(address);
-        if (birthday != null && !birthday.isEmpty()) p.setBirthday(java.time.LocalDate.parse(birthday));
-        patientMapper.update(p);
+        Patient patient = patientMapper.selectById(patientId);
+        if (patient == null) throw new BusinessException("患者不存在");
+        if (name != null && !name.isEmpty()) patient.setName(name);
+        if (gender != null && !gender.isEmpty()) patient.setGender(parseGender(gender));
+        if (address != null) patient.setAddress(address);
+        if (birthday != null && !birthday.isEmpty()) patient.setBirthday(parseBirthday(birthday));
+        patientMapper.updateBasicInfo(patient);
     }
 
     @Override
     public String uploadAvatar(String patientId, byte[] fileBytes, String originalFilename) {
-        String ext = originalFilename.substring(originalFilename.lastIndexOf("."));
-        String filename = "avatar/patient/" + patientId + "_" + System.currentTimeMillis() + ext;
-        String avatarUrl = "/files/" + filename;
+        Patient patient = patientMapper.selectById(patientId);
+        if (patient == null) throw new BusinessException("患者不存在");
+
+        String ext = ".png";
+        if (originalFilename != null) {
+            int dotIndex = originalFilename.lastIndexOf(".");
+            if (dotIndex >= 0 && dotIndex < originalFilename.length() - 1) {
+                ext = originalFilename.substring(dotIndex);
+            }
+        }
+        String filename = patientId + "_" + UUID.randomUUID().toString().replace("-", "") + ext;
+        try {
+            Path dir = Paths.get(avatarUploadDir);
+            Files.createDirectories(dir);
+            Files.write(dir.resolve(filename), fileBytes);
+        } catch (IOException e) {
+            throw new BusinessException("头像上传失败，请稍后重试");
+        }
+        String avatarUrl = "/files/avatar/patient/" + filename;
+        patientMapper.updateAvatar(patientId, avatarUrl);
         return avatarUrl;
     }
 
     @Override
     public void changePhone(String patientId, String oldPhone, String newPhone, String smsCode) {
-        // 1. 校验验证码
+        Patient patient = patientMapper.selectById(patientId);
+        if (patient == null) throw new BusinessException("患者不存在");
+        if (!Objects.equals(patient.getPhone(), oldPhone)) throw new BusinessException("原手机号不正确");
+        if (Objects.equals(newPhone, patient.getPhone())) return;
+        if (patientMapper.selectByPhone(newPhone) != null) throw new BusinessException("新手机号已被使用");
         if (smsCode == null || smsCode.isBlank()) {
             throw new BusinessException("验证码不能为空");
         }
@@ -70,7 +101,7 @@ public class PatientProfileServiceImpl implements PatientProfileService {
             verifyReq.put("code", smsCode);
             @SuppressWarnings("unchecked")
             Map<String, Object> resp = restTemplate.postForObject(
-                    "http://localhost:8002/auth-service/patient/verify-code",
+                    smsVerifyUrl,
                     new HttpEntity<>(verifyReq), Map.class);
             if (resp == null || !Integer.valueOf(200).equals(resp.get("code"))) {
                 throw new BusinessException("验证码校验失败");
@@ -90,59 +121,54 @@ public class PatientProfileServiceImpl implements PatientProfileService {
             throw new BusinessException("验证码校验失败，请稍后重试");
         }
 
-        // 2. 校验手机号
-        Patient p = patientMapper.selectById(patientId);
-        if (p == null) throw new BusinessException("患者不存在");
-        if (!p.getPhone().equals(oldPhone)) throw new BusinessException("原手机号不正确");
-        if (newPhone.equals(p.getPhone())) return; // 新旧相同，无需更新
-        if (patientMapper.selectByPhone(newPhone) != null) throw new BusinessException("新手机号已被使用");
-        p.setPhone(newPhone);
-        patientMapper.update(p);
+        patientMapper.updatePhone(patientId, newPhone);
     }
 
     @Override
     public void changePassword(String patientId, String oldPassword, String newPassword) {
-        Patient p = patientMapper.selectById(patientId);
-        if (p == null) throw new BusinessException("患者不存在");
-        String oldEncrypted = DigestUtils.md5DigestAsHex(oldPassword.getBytes(StandardCharsets.UTF_8));
-        if (!p.getPassword().equals(oldEncrypted)) throw new BusinessException("原密码不正确");
-        String newEncrypted = DigestUtils.md5DigestAsHex(newPassword.getBytes(StandardCharsets.UTF_8));
-        patientMapper.updatePassword(patientId, newEncrypted);
+        if (oldPassword == null || oldPassword.isBlank()) {
+            throw new BusinessException("请输入原密码");
+        }
+        if (newPassword == null || newPassword.length() < 6) {
+            throw new BusinessException("新密码至少6位");
+        }
+        Patient patient = patientMapper.selectById(patientId);
+        if (patient == null) throw new BusinessException("患者不存在");
+        String oldEncrypted = encryptPassword(oldPassword);
+        if (!patient.getPassword().equals(oldEncrypted)) throw new BusinessException("原密码不正确");
+        patientMapper.updatePassword(patientId, encryptPassword(newPassword));
     }
 
     @Override
     public void verifyIdCard(String patientId, String password) {
-        Patient p = patientMapper.selectById(patientId);
-        if (p == null) throw new BusinessException("患者不存在");
-        String encrypted = DigestUtils.md5DigestAsHex(password.getBytes(StandardCharsets.UTF_8));
-        if (!p.getPassword().equals(encrypted)) throw new BusinessException("密码验证失败");
+        if (password == null || password.isBlank()) {
+            throw new BusinessException("请输入密码");
+        }
+        Patient patient = patientMapper.selectById(patientId);
+        if (patient == null) throw new BusinessException("患者不存在");
+        String encrypted = encryptPassword(password);
+        if (!patient.getPassword().equals(encrypted)) throw new BusinessException("密码验证失败");
     }
 
     @Override
     public void changeIdCard(String patientId, String newIdCard, String password) {
-        // 1. 校验密码不为空
         if (password == null || password.isBlank()) {
             throw new BusinessException("密码不能为空");
         }
-        // 2. 校验新身份证格式
         if (newIdCard == null || !newIdCard.matches("^\\d{17}[\\dXx]$")) {
             throw new BusinessException("身份证号格式不正确");
         }
-        // 3. 查患者并验证密码
-        Patient p = patientMapper.selectById(patientId);
-        if (p == null) throw new BusinessException("患者不存在");
-        String encrypted = DigestUtils.md5DigestAsHex(password.getBytes(StandardCharsets.UTF_8));
-        if (!p.getPassword().equals(encrypted)) throw new BusinessException("密码错误");
-        // 4. 新旧相同则跳过，无需更新
-        if (newIdCard.equals(p.getIdCard())) {
+        Patient patient = patientMapper.selectById(patientId);
+        if (patient == null) throw new BusinessException("患者不存在");
+        String encrypted = encryptPassword(password);
+        if (!patient.getPassword().equals(encrypted)) throw new BusinessException("密码错误");
+        if (newIdCard.equals(patient.getIdCard())) {
             return;
         }
-        // 5. 查新身份证是否已被其他账号使用
         if (patientMapper.selectByIdCard(newIdCard) != null) {
             throw new BusinessException("该身份证号已被使用");
         }
-        p.setIdCard(newIdCard);
-        patientMapper.update(p);
+        patientMapper.updateIdCard(patientId, newIdCard);
     }
 
     private Integer parseGender(String gender) {
@@ -151,15 +177,19 @@ public class PatientProfileServiceImpl implements PatientProfileService {
         throw new BusinessException("性别参数错误");
     }
 
-    /**
-     * 查库返回患者完整信息（仅去密码，不脱敏）。
-     * 警告：返回值是数据库实体，新增 Patient 敏感字段时需确认本方法及调用方是否需跳过该字段
-     */
+    private LocalDate parseBirthday(String birthday) {
+        try {
+            return LocalDate.parse(birthday);
+        } catch (DateTimeParseException e) {
+            throw new BusinessException("生日格式错误");
+        }
+    }
+
     private Patient getPatientRaw(String patientId) {
-        Patient p = patientMapper.selectById(patientId);
-        if (p == null) throw new BusinessException("患者不存在");
-        p.setPassword(null);
-        return p;
+        Patient patient = patientMapper.selectById(patientId);
+        if (patient == null) throw new BusinessException("患者不存在");
+        patient.setPassword(null);
+        return patient;
     }
 
     private String desensitizePhone(String phone) {
@@ -170,5 +200,9 @@ public class PatientProfileServiceImpl implements PatientProfileService {
     private String desensitizeIdCard(String idCard) {
         if (idCard == null || idCard.length() < 8) return idCard;
         return idCard.substring(0, 4) + "**********" + idCard.substring(idCard.length() - 4);
+    }
+
+    private String encryptPassword(String password) {
+        return DigestUtils.md5DigestAsHex(password.getBytes(StandardCharsets.UTF_8));
     }
 }

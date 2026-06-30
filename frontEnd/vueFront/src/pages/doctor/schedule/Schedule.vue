@@ -139,7 +139,7 @@
         </div>
         <div class="detail-row">
           <span class="detail-label">挂号费</span>
-          <span class="detail-value">¥{{ selectedSchedule.price.toFixed(2) }}</span>
+          <span class="detail-value">¥{{ formatPrice(selectedSchedule.price) }}</span>
         </div>
         <div class="detail-row">
           <span class="detail-label">来源</span>
@@ -294,7 +294,7 @@ async function fetchSchedule(): Promise<void> {
       weekData.value = []
     }
   } catch (error) {
-    console.error('获取排班数据失败:', error)
+    ElMessage.error((error as Error)?.message || '获取排班数据失败')
     weekData.value = []
   } finally {
     loading.value = false
@@ -351,6 +351,11 @@ function handleDateChange(val: string): void {
 function handleScheduleClick(schedule: DoctorSchedule): void {
   selectedSchedule.value = schedule
   detailVisible.value = true
+}
+
+function formatPrice(value?: number): string {
+  const price = Number(value ?? 0)
+  return Number.isFinite(price) ? price.toFixed(2) : '0.00'
 }
 
 // ============================================================

@@ -10,6 +10,18 @@ spring:
           uri: lb://admin-service
           predicates:
             - Path=/admin-service/**
+        - id: doctor-avatar-route
+          uri: lb://doctor-service
+          predicates:
+            - Path=/files/avatar/doctor/**
+        - id: admin-avatar-route
+          uri: lb://admin-service
+          predicates:
+            - Path=/files/avatar/admin/**
+        - id: patient-avatar-route
+          uri: lb://patient-service
+          predicates:
+            - Path=/files/avatar/patient/**
         - id: ai-service-route
           uri: lb://ai-service
           predicates:
@@ -22,6 +34,10 @@ spring:
           uri: lb://doctor-service
           predicates:
             - Path=/doctor-service/**
+        - id: inspection-doctor-route
+          uri: lb://doctor-service
+          predicates:
+            - Path=/inspection-doctor/**
         - id: patient-service-route
           uri: lb://patient-service
           predicates:

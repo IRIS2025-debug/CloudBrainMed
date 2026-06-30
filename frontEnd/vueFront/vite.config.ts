@@ -22,12 +22,32 @@ export default defineConfig({
         target: 'http://localhost:8003',
         changeOrigin: true,
       },
+      '/inspection-doctor': {
+        target: 'http://localhost:8003',
+        changeOrigin: true,
+      },
       '/patient-service': {
         target: 'http://localhost:8004',
         changeOrigin: true,
       },
+      '/admin-service/ml': {
+        target: 'http://localhost:8001',
+        changeOrigin: true,
+      },
       '/admin-service': {
         target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+      '/files/avatar/doctor': {
+        target: 'http://localhost:8003',
+        changeOrigin: true,
+      },
+      '/files/avatar/admin': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+      '/files/avatar/patient': {
+        target: 'http://localhost:8004',
         changeOrigin: true,
       },
       '/files/avatar': {
@@ -46,20 +66,8 @@ export default defineConfig({
           });
         }
       },
-      '/api/inspection-doctor': {
-        target: 'http://localhost:8003',
-        changeOrigin: true,
-      },
       '/api/payment': {
         target: 'http://localhost:8005',
-        changeOrigin: true,
-      },
-      '/auth-service': {
-        target: 'http://localhost:8002',
-        changeOrigin: true,
-      },
-      '/patient-service': {
-        target: 'http://localhost:8004',
         changeOrigin: true,
       }
     }
