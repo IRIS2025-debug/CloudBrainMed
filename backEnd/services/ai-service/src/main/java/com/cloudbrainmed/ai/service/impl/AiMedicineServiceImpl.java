@@ -344,11 +344,47 @@ public class AiMedicineServiceImpl implements AiMedicineService {
 
     private List<Message> loadHistory(String sessionKey) {
         String json = redisTemplate.opsForValue().get(HISTORY_KEY + sessionKey);
-        if (json == null) {
+        if (json == null || json.trim().isEmpty()) {
             return new ArrayList<>();
         }
-        List<Message> all = JSON.parseArray(json, Message.class);
-        return trimHistory(all);
+        
+        try {
+            // 使用更安全的解析方式处理复杂的Message对象
+            List<Message> all = JSON.parseArray(json, Message.class);
+            return trimHistory(all);
+        } catch (Exception e) {
+            // 如果解析失败，记录错误并尝试修复JSON
+            Logger logger = (Logger) LoggerFactory.getLogger(AiMedicineServiceImpl.class);
+            logger.error("Failed to parse message history from Redis: {}", e.getMessage());
+            
+            // 尝试修复JSON字符串
+            String fixedJson = fixMalformedJson(json);
+            if (!fixedJson.equals(json)) {
+                try {
+                    List<Message> all = JSON.parseArray(fixedJson, Message.class);
+                    return trimHistory(all);
+                } catch (Exception fixEx) {
+                    logger.error("Failed to parse fixed message history: {}", fixEx.getMessage());
+                }
+            }
+            
+            return new ArrayList<>();
+        }
+    }
+    
+    private String fixMalformedJson(String json) {
+        // 修复损坏的 $ref 引用格式
+        // 原始错误格式: "...text":"..."{"$ref":"$[0][1].media"}}]
+        // 正确格式应该是: "...text":"...","media":[]}]
+        String fixed = json.replaceAll("(?<=\")\\s*\\{\\s*\\$ref\\s*:\\s*\"([^\"}]*)\"\\s*\\}\\s*(?=\\}\\s*])", "\",\"media\":[]");
+        
+        // 修复其他可能的格式问题
+        fixed = fixed.replaceAll(",\\s*\\}\\s*,\\s*\\}", "},{");
+        
+        // 修复可能的尾部格式问题
+        fixed = fixed.replaceAll("\\{\\s*\\$ref\\s*:\\s*\"([^\"}]*)\"\\s*\\}\\s*(\\]\\s*])", "\"media\":[],$1");
+        
+        return fixed;
     }
 
     private void saveHistory(String sessionKey, List<Message> msgs) {
