@@ -9,6 +9,7 @@
     "pages/register/RegisterHistoryPage",
     "pages/register/ScheduleSelectPage",
     "pages/profile/PersonalCenter",
-    "pages/pay/PayPage"
+    "pages/pay/PayPage",
+    "pages/medicineAi/MedicineAiChatPage"
   ]
 }

@@ -1,0 +1,48 @@
+# backend/services/auth-service/src/main/resources/application-dev.yml
+spring:
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: Redis2026SecureKey
+      database: 0
+      timeout: 5000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+
+  cloud:
+    nacos:
+      server-addr: 127.0.0.1:8848
+    sentinel:
+      transport:
+        dashboard: localhost:8858
+      eager: true
+
+  datasource:
+    url: jdbc:postgresql://cloudbrainmed.rwlb.rds.aliyuncs.com:5432/cloudbrainmed
+    username: iris
+    password: Abc39173551
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 15
+      minimum-idle: 5
+      idle-timeout: 30000
+      max-lifetime: 1800000
+      connection-timeout: 20000
+    jpa:
+      hibernate:
+        ddl-auto: none
+      show-sql: true
+      properties:
+        hibernate:
+          dialect: org.hibernate.dialect.PostgreSQLDialect
+          format_sql: true
+
+logging:
+  level:
+    com.yourcompany: DEBUG
+    org.springframework.data.redis: DEBUG
+    io.lettuce.core: DEBUG

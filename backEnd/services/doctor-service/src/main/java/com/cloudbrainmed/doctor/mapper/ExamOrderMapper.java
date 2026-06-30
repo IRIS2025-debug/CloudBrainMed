@@ -29,9 +29,7 @@ public interface ExamOrderMapper {
         @Result(column = "urgency_level", property = "urgencyLevel"),
         @Result(column = "create_time", property = "createTime")
     })
-    List<ExamOrder> selectByRegisterId(
-            @Param("registerId") String registerId,
-            @Param("doctorId") String doctorId);
+    List<ExamOrder> selectByRegisterId(@Param("registerId") String registerId, @Param("doctorId") String doctorId);
 
     @Select("SELECT mo.order_id, mo.patient_id, mo.register_id, mo.doctor_id, " +
             "p.name AS patient_name, p.gender, EXTRACT(YEAR FROM AGE(CURRENT_DATE, p.birthday)) AS age, " +

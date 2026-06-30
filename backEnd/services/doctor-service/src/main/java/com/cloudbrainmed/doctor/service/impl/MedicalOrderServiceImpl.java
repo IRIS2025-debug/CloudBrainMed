@@ -57,7 +57,7 @@ public class MedicalOrderServiceImpl implements MedicalOrderService {
     public MedicalOrder getByOrderId(String orderId) {
         return medicalOrderMapper.selectByOrderId(orderId);
     }
-
+/*
     @Override
     @Transactional
     public MedicalOrderConfirmResponse confirm(
@@ -140,7 +140,7 @@ public class MedicalOrderServiceImpl implements MedicalOrderService {
         }
         return consult;
     }
-
+*/
     private void validateAiRecommendation(
             String traceId,
             ConsultRecord consult,
@@ -184,7 +184,6 @@ public class MedicalOrderServiceImpl implements MedicalOrderService {
             throw new BusinessException("AI检查检验推荐记录格式错误");
         }
     }
-
     private List<ResolvedItem> resolveItems(
             List<MedicalOrderItemRequest> requests,
             String orderUrgency) {

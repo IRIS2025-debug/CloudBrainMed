@@ -1,25 +1,11 @@
+# backend/gateway-server/src/main/resources/application.yml
 spring:
-  main:
-    # 网关基于 WebFlux（reactive），common 传递引入了 servlet MVC，需显式声明为 reactive 避免冲突
-    web-application-type: reactive
-  # 网关不访问数据库，但 common 传递引入了 mybatis-plus/jdbc，需排除相关自动装配
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
-      - org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration
-      - com.baomidou.mybatisplus.autoconfigure.MybatisPlusAutoConfiguration
   profiles:
-    include: route
+    include: route   # 引入 route 配置文件
   application:
     name: gateway-server
-  cloud:
-    nacos:
-      server-addr: ${NACOS_SERVER:127.0.0.1:8848}
-    sentinel:
-      transport:
-        dashboard: ${SENTINEL_DASHBOARD:localhost:8858}
-      eager: true
   config:
     import: optional:nacos:gateway-server.yml
+
 server:
-  port: 8080
+  port: 80
