@@ -325,7 +325,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, MagicStick, MoreFilled, Promotion } from '@element-plus/icons-vue'
 import { getConsultDetail, saveDraft, confirmRecord, createExamOrder, completeConsult, createPrescription } from '@/api/doctor/consult'
@@ -367,6 +367,7 @@ interface NormalizedExamRecommendation {
 }
 
 const route = useRoute()
+const router = useRouter()
 const registerId = route.params.registerId as string
 const detail = ref<any>({})
 const saving = ref(false)
@@ -513,7 +514,7 @@ function handleCreateExam() {
   if (!examItems.value.length) addExamItem()
 }
 
-async function handleRecommendExamItems() {
+function handleRecommendExamItems() {
   if (isCompleted.value) {
     ElMessage.warning('接诊已完成，不能继续推荐检查/检验')
     return
@@ -522,34 +523,7 @@ async function handleRecommendExamItems() {
     ElMessage.warning('请先填写主诉或病历内容')
     return
   }
-
-  examRecommendLoading.value = true
-  try {
-    const res = await recommendExamItems({
-      registerId,
-      chiefComplaint: recordSections.value.chiefComplaint || detail.value.chiefComplaint || '',
-      recordDesc: recordDesc.value,
-      patientAge: String(detail.value.patientAge || ''),
-      patientGender: genderLabel(detail.value.gender),
-      structuredParameters: buildStructuredParameters()
-    })
-    const result = normalizeExamRecommendResponse(res.data)
-    examRecommendations.value = result.items
-    examRecommendSummary.value = result.summary
-    if (!result.items.length) {
-      ElMessage.info('AI 暂未给出检查/检验项目建议')
-      return
-    }
-    ElMessage.success('AI 推荐已生成，请医生确认')
-  } catch (e: any) {
-    if (e?.response?.status === 404) {
-      ElMessage.error('AI检查/检验推荐接口暂未接入，请联系模块二确认接口地址')
-    } else {
-      showActionError(e, 'AI检查/检验推荐失败')
-    }
-  } finally {
-    examRecommendLoading.value = false
-  }
+  router.push({ path: '/doctor/ai-exam-generate', query: { registerId } })
 }
 
 function applyExamRecommendations() {

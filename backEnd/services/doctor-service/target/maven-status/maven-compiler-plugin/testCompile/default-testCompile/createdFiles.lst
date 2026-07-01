@@ -1,6 +1,0 @@
-com\cloudbrainmed\doctor\service\impl\DoctorServiceImplTest.class
-com\cloudbrainmed\doctor\controller\DoctorProfileControllerTest.class
-com\cloudbrainmed\doctor\service\impl\ConsultServiceImplTest.class
-com\cloudbrainmed\doctor\service\impl\DoctorWorkRuleServiceImplTest.class
-com\cloudbrainmed\doctor\controller\ConsultControllerTest.class
-com\cloudbrainmed\doctor\service\impl\MedicalOrderServiceImplTest.class
