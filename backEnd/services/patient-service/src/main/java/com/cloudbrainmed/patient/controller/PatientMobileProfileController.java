@@ -163,10 +163,6 @@ public class PatientMobileProfileController {
         try {
             return jwtUtil.getPatientIdFromToken(token);
         } catch (Exception e) {
-            // 兼容开发阶段直接传 patientId
-            if (token.startsWith("P") && token.length() < 30) {
-                return token;
-            }
             throw new RuntimeException("Token 无效，请重新登录");
         }
     }

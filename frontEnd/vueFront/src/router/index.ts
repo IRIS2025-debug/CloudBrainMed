@@ -68,12 +68,6 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 3 }
     },
     {
-      path: '/admin/ml/ct-inference',
-      name: 'ctInference',
-      component: () => import('@/pages/admin/ml/CTInference.vue'),
-      meta: { requiresAuth: true, role: 3 }
-    },
-    {
       path: '/admin/scheduling',
       name: 'scheduling',
       component: () => import('@/pages/admin/scheduling/Scheduling.vue'),
@@ -105,16 +99,28 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 3 }
     },
     {
+      path: '/inspection-doctor/home',
+      name: 'InspectionHome',
+      component: () => import('@/pages/inspection-doctor/InspectionHome.vue'),
+      meta: { requiresAuth: true, role: 2, doctorType: 3 }
+    },
+    {
       path: '/inspection-doctor/order-list',
       name: 'inspectionOrderList',
       component: () => import('@/pages/inspection-doctor/InspectionOrderList.vue'),
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, role: 2, doctorType: 3 }
     },
     {
       path: '/examination-doctor/home',
       name: 'ExaminationHome',
       component: () => import('@/pages/examination/ExaminationHome.vue'),
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, role: 2, doctorType: 2 }
+    },
+    {
+      path: '/examination-doctor/ct-inference',
+      name: 'ExaminationCTInference',
+      component: () => import('@/pages/examination/CTInference.vue'),
+      meta: { requiresAuth: true, role: 2, doctorType: 2 }
     },
   ],
 })
@@ -146,7 +152,7 @@ router.beforeEach((to, from) => {
         return '/examination-doctor/home'
       }
       if (doctorType === 3) {
-        return '/inspection-doctor/order-list'
+        return '/inspection-doctor/home'
       }
     }
 
@@ -154,6 +160,14 @@ router.beforeEach((to, from) => {
     if (to.meta.role) {
       const userRole = parseInt(roleType || '0')
       if (userRole !== to.meta.role) {
+        return '/login'
+      }
+    }
+
+    // 检查医生子角色（doctorType）权限
+    if (to.meta.doctorType) {
+      const userDoctorType = Number(sessionStorage.getItem('doctorType') || '0')
+      if (userDoctorType !== to.meta.doctorType) {
         return '/login'
       }
     }

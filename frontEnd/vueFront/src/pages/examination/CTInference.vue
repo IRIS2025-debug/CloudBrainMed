@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { predictCtArtifact } from '@/api/admin/ml'
+import { predictCtArtifact } from '@/api/examination/ct'
 
 const uploading = ref(false)
 const result = ref<any>(null)
@@ -85,7 +85,7 @@ function resolveDownloadUrl(url: string) {
   if (!url) return ''
   const path = /^https?:\/\//i.test(url) ? new URL(url).pathname : url
   const filename = path.split('/').filter(Boolean).pop()
-  return filename ? `${apiBaseUrl}/admin-service/ml/inference/ct-artifact/result/${encodeURIComponent(filename)}` : ''
+  return filename ? `${apiBaseUrl}/doctor-service/exam/ct-artifact/result/${encodeURIComponent(filename)}` : ''
 }
 </script>
 
@@ -96,7 +96,6 @@ function resolveDownloadUrl(url: string) {
       <p>上传 CT 影像（.nii.gz），U-Net 3D 模型自动检测伪影区域</p>
     </div>
 
-    <!-- 上传区 -->
     <div class="upload-section">
       <el-upload
         drag
@@ -126,7 +125,6 @@ function resolveDownloadUrl(url: string) {
       </el-button>
     </div>
 
-    <!-- 结果 -->
     <div v-if="result" class="result-section">
       <el-divider />
 

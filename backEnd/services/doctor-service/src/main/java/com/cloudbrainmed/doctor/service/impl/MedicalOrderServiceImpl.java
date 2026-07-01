@@ -141,6 +141,89 @@ public class MedicalOrderServiceImpl implements MedicalOrderService {
         return consult;
     }
 */
+    @Override
+    @Transactional
+    public MedicalOrderConfirmResponse confirm(
+            MedicalOrderConfirmRequest request, String doctorId) {
+        ConsultRecord consult = requireOwnedConsult(
+                request.getRegisterId(), doctorId);
+        String requestedOrderUrgency =
+                parseUrgency(request.getUrgencyLevel());
+        List<ResolvedItem> resolvedItems = resolveItems(
+                request.getItems(), requestedOrderUrgency);
+        String orderUrgency = highestUrgency(
+                requestedOrderUrgency, resolvedItems);
+        LocalDateTime now = LocalDateTime.now();
+        String orderId = newId("MO", 30);
+        boolean aiAssisted = hasText(request.getAiTraceId());
+        String aiTraceId = aiAssisted
+                ? request.getAiTraceId().trim() : null;
+        if (aiAssisted) {
+            validateAiRecommendation(
+                    aiTraceId, consult, resolvedItems);
+        }
+
+        MedicalOrder order = new MedicalOrder();
+        order.setOrderId(orderId);
+        order.setPatientId(consult.getPatientId());
+        order.setRegisterId(consult.getRegisterId());
+        order.setDoctorId(doctorId);
+        order.setClinicalSummary(request.getClinicalSummary().trim());
+        order.setUrgencyLevel(orderUrgency);
+        order.setSourceType(aiAssisted ? "AI_ASSISTED" : "MANUAL");
+        order.setAiTraceId(aiTraceId);
+        order.setStatus("WAITING_ASSIGN");
+        order.setPayStatus("WAITING");
+        order.setConfirmedTime(now);
+        order.setCreateTime(now);
+        medicalOrderMapper.insertOrder(order);
+
+        BigDecimal totalAmount = BigDecimal.ZERO;
+        for (ResolvedItem resolved : resolvedItems) {
+            MedicalItem source = resolved.item();
+            MedicalOrderItem orderItem = new MedicalOrderItem();
+            orderItem.setOrderItemId(newId("MOI", 29));
+            orderItem.setOrderId(orderId);
+            orderItem.setItemId(source.getItemId());
+            orderItem.setItemCode(source.getItemCode());
+            orderItem.setItemName(source.getItemName());
+            orderItem.setItemCategory(source.getItemCategory());
+            orderItem.setAssignedDeptId(source.getDeptId());
+            orderItem.setUrgencyLevel(resolved.urgencyLevel());
+            orderItem.setPrice(source.getPrice() == null
+                    ? BigDecimal.ZERO : source.getPrice());
+            orderItem.setStatus("WAITING_ASSIGN");
+            orderItem.setCreateTime(now);
+            medicalOrderMapper.insertOrderItem(orderItem);
+            totalAmount = totalAmount.add(orderItem.getPrice());
+        }
+
+        if (medicalOrderMapper.keepConsultInProgress(
+                consult.getRegisterId(), doctorId) != 1) {
+            throw new BusinessException("Failed to update consult status");
+        }
+        return new MedicalOrderConfirmResponse(
+                orderId,
+                order.getSourceType(),
+                resolvedItems.size(),
+                totalAmount);
+    }
+
+    private ConsultRecord requireOwnedConsult(
+            String registerId, String doctorId) {
+        ConsultRecord consult = consultMapper.findDetail(registerId);
+        if (consult == null) {
+            throw new BusinessException("Consult record not found");
+        }
+        if (!hasText(doctorId) || !doctorId.equals(consult.getDoctorId())) {
+            throw new BusinessException("无权 create medical order");
+        }
+        if ("COMPLETED".equals(consult.getConsultStatus())) {
+            throw new BusinessException("Consult already completed");
+        }
+        return consult;
+    }
+
     private void validateAiRecommendation(
             String traceId,
             ConsultRecord consult,

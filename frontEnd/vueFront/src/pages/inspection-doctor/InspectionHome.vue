@@ -2,8 +2,8 @@
   <div class="dashboard">
     <header class="page-header">
       <div>
-        <h1>检查医生工作台</h1>
-        <p class="header-sub">影像检查 · CT 伪影检测</p>
+        <h1>检验医生工作台</h1>
+        <p class="header-sub">检验申请 · 检验报告</p>
       </div>
       <div class="header-badge">
         <span class="badge-dot"></span> 系统运行中
@@ -50,18 +50,18 @@
 
 <script setup lang="ts">
 const stats = [
-  { label: '今日检查', value: '--', icon: 'Camera', color: '#2563eb' },
-  { label: '待处理影像', value: '--', icon: 'List', color: '#9c27b0' },
+  { label: '待处理申请', value: '--', icon: 'List', color: '#2563eb' },
+  { label: '今日检验', value: '--', icon: 'DataAnalysis', color: '#9c27b0' },
   { label: '已完成', value: '--', icon: 'Check', color: '#22c55e' },
-  { label: 'AI 辅助', value: '--', icon: 'Cpu', color: '#f59e0b' },
+  { label: '加急/紧急', value: '--', icon: 'CollectionTag', color: '#f59e0b' },
 ]
 
 const modules = [
   {
-    path: '/examination-doctor/ct-inference',
-    title: 'CT 伪影检测',
-    desc: '上传 CT 影像，U-Net 3D 模型自动检测伪影区域',
-    icon: 'Camera',
+    path: '/inspection-doctor/order-list',
+    title: '查看检验申请',
+    desc: '查看所有检验类（LAB）医技申请单及详情',
+    icon: 'List',
     color: '#2563eb',
   },
 ]

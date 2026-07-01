@@ -26,6 +26,7 @@ export function completeConsult(registerId: string) {
 
 export function createPrescription(data: {
   registerId: string
+  medicineId?: string
   medicineName: string
   spec: string
   usage: string

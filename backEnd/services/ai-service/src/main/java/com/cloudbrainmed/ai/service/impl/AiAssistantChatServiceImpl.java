@@ -71,7 +71,6 @@ public class AiAssistantChatServiceImpl implements AiAssistantChatService {
     @Override
     public AiAssistantChatResponse chat(
             AiAssistantChatRequest request, String doctorId) {
-        ReportContextDto context = getContext(request, doctorId);
         AiAssistantIntentEnum intent = resolveIntent(request);
 
         // 不属于辅助接诊自身处理的意图，转交给已有专业AI模块。
@@ -81,6 +80,7 @@ public class AiAssistantChatServiceImpl implements AiAssistantChatService {
 
         try {
             // 辅助接诊自身处理的意图统一通过聊天模型生成可展示文本。
+            ReportContextDto context = getContext(request, doctorId);
             String answer = chatClient.prompt(new Prompt(buildMessages(
                     request, context, intent))).call().content();
             AiAssistantChatResponse response = new AiAssistantChatResponse();

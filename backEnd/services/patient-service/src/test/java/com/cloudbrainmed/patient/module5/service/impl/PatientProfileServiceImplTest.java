@@ -1,6 +1,8 @@
 package com.cloudbrainmed.patient.module5.service.impl;
 
+import com.cloudbrainmed.api.feign.AuthFeignClient;
 import com.cloudbrainmed.common.exception.BusinessException;
+import com.cloudbrainmed.common.result.Result;
 import com.cloudbrainmed.patient.entity.Patient;
 import com.cloudbrainmed.patient.mapper.PatientMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -12,6 +14,7 @@ import org.springframework.util.DigestUtils;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -23,6 +26,7 @@ import static org.mockito.Mockito.when;
 class PatientProfileServiceImplTest {
 
     private PatientMapper patientMapper;
+    private AuthFeignClient authFeignClient;
     private PatientProfileServiceImpl service;
 
     @TempDir
@@ -31,7 +35,8 @@ class PatientProfileServiceImplTest {
     @BeforeEach
     void setUp() {
         patientMapper = mock(PatientMapper.class);
-        service = new PatientProfileServiceImpl(patientMapper);
+        authFeignClient = mock(AuthFeignClient.class);
+        service = new PatientProfileServiceImpl(patientMapper, authFeignClient);
         ReflectionTestUtils.setField(service, "avatarUploadDir", tempDir.toString());
     }
 
@@ -56,12 +61,51 @@ class PatientProfileServiceImplTest {
         patient.setPatientId("P001");
         when(patientMapper.selectById("P001")).thenReturn(patient);
 
-        String avatarUrl = service.uploadAvatar("P001", new byte[] {1}, "avatar");
+        String avatarUrl = service.uploadAvatar("P001", new byte[] {1}, "avatar.png");
 
         assertThat(avatarUrl).startsWith("/files/avatar/patient/P001_");
         assertThat(avatarUrl).endsWith(".png");
         assertThat(Files.list(tempDir)).anyMatch(path -> path.getFileName().toString().endsWith(".png"));
         verify(patientMapper).updateAvatar("P001", avatarUrl);
+    }
+
+    @Test
+    void uploadAvatarRejectsUnsupportedExtension() {
+        Patient patient = new Patient();
+        patient.setPatientId("P001");
+        when(patientMapper.selectById("P001")).thenReturn(patient);
+
+        assertThatThrownBy(() -> service.uploadAvatar("P001", new byte[] {1}, "avatar.exe"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("头像仅支持 jpg、jpeg、png、gif、webp 格式");
+    }
+
+    @Test
+    void uploadAvatarRejectsOversizedFile() {
+        Patient patient = new Patient();
+        patient.setPatientId("P001");
+        when(patientMapper.selectById("P001")).thenReturn(patient);
+        byte[] oversized = new byte[2 * 1024 * 1024 + 1];
+
+        assertThatThrownBy(() -> service.uploadAvatar("P001", oversized, "avatar.png"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("头像文件不能超过 2MB");
+    }
+
+    @Test
+    void getInfoRawDoesNotExposeFullPhoneOrIdCard() {
+        Patient patient = new Patient();
+        patient.setPatientId("P001");
+        patient.setPhone("13800000000");
+        patient.setIdCard("110101199001011234");
+        patient.setPassword(encrypt("old123"));
+        when(patientMapper.selectById("P001")).thenReturn(patient);
+
+        Patient result = service.getInfoRaw("P001");
+
+        assertThat(result.getPassword()).isNull();
+        assertThat(result.getPhone()).isEqualTo("138****0000");
+        assertThat(result.getIdCard()).isEqualTo("1101**********1234");
     }
 
     @Test
@@ -147,14 +191,7 @@ class PatientProfileServiceImplTest {
     }
 
     private void stubSmsVerifySuccess() {
-        ReflectionTestUtils.setField(service, "smsVerifyUrl", "http://localhost/verify-code");
-        org.springframework.test.web.client.MockRestServiceServer server =
-                org.springframework.test.web.client.MockRestServiceServer.bindTo(
-                        (org.springframework.web.client.RestTemplate) ReflectionTestUtils.getField(service, "restTemplate"))
-                        .build();
-        server.expect(org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo("http://localhost/verify-code"))
-                .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess(
-                        "{\"code\":200,\"data\":{\"valid\":true}}",
-                        org.springframework.http.MediaType.APPLICATION_JSON));
+        when(authFeignClient.verifyPatientCode(Map.of("phone", "13900000000", "code", "123456")))
+                .thenReturn(Result.ok(Map.of("valid", true)));
     }
 }

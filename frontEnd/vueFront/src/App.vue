@@ -94,12 +94,12 @@ const doctorMenus = [
   { path: '/doctor/consult', title: '接诊工作台', icon: 'List', group: '医生端' },
   { path: '/doctor/ai-medicine', title: 'AI 药物推荐', icon: 'DataAnalysis', group: '医生端' },
   { path: '/doctor/schedule', title: '值班查询', icon: 'List', group: '医生端' },
+  // ====== 检验医生专属（type=3）======
+  { path: '/inspection-doctor/home', title: '检验工作台', icon: 'HomeFilled', group: '检验医生' },
   { path: '/inspection-doctor/order-list', title: '查看检验申请', icon: 'List', group: '检验医生' },
-  // ====== 检查医生专属（type=2） ======
-  { path: '/examination-doctor/home', title: '检查工作台', icon: 'List', group: '检查医生' },
-  { path: '/examination-doctor/upload', title: '影像上传', icon: 'Camera', group: '检查医生' },
-  { path: '/examination-doctor/analysis', title: '影像分析', icon: 'DataAnalysis', group: '检查医生' },
-  { path: '/examination-doctor/report', title: 'AI生成报告', icon: 'CollectionTag', group: '检查医生' },
+  // ====== 检查医生专属（type=2）======
+  { path: '/examination-doctor/home', title: '检查工作台', icon: 'HomeFilled', group: '检查医生' },
+  { path: '/examination-doctor/ct-inference', title: 'CT 伪影检测', icon: 'Camera', group: '检查医生' },
 ]
 
 const adminMenus = [
@@ -111,7 +111,6 @@ const adminMenus = [
   { path: '/admin/ml/dashboard', title: 'AI 推理看板', icon: 'DataAnalysis', group: '管理员端' },
   { path: '/admin/ml/samples', title: '样本标注', icon: 'CollectionTag', group: '管理员端' },
   { path: '/admin/ml/models', title: '模型管理', icon: 'Cpu', group: '管理员端' },
-  { path: '/admin/ml/ct-inference', title: 'CT 伪影检测', icon: 'Camera', group: '管理员端' },
 ]
 
 // ==================== 角色判断（从 sessionStorage 获取）====================
@@ -157,7 +156,7 @@ const menuItems = computed(() => {
     // 根据医生类型确定首页路径
     let homePath = '/doctor/home'
     if (dt === 2) homePath = '/examination-doctor/home'
-    else if (dt === 3) homePath = '/inspection-doctor/order-list'
+    else if (dt === 3) homePath = '/inspection-doctor/home'
 
     return doctorMenus.filter(item => {
       // 接诊工作台：仅看诊医生（1）可见
@@ -165,13 +164,13 @@ const menuItems = computed(() => {
 
       // 检查医生专属（type=2）
       if (item.group === '检查医生') return dt === 2
-      
-      // 查看检验申请：仅检验医生（3）可见
-      if (item.path === '/inspection-doctor/order-list') return dt === 3
+
+      // 检验医生专属（type=3）
+      if (item.group === '检验医生') return dt === 3
 
       // Ai药物查询，仅看诊医生（1）可见与检验医生（3）可见
       if (item.path === '/doctor/ai-medicine') return dt === 1 || dt === 3
-      
+
       // 其他菜单所有医生都可访问
       return true
     }).map(item => {

@@ -5,7 +5,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * 挂号表 registration + 病历表 medical_record 联合实体（医生接诊视图）
+ * 挂号表 registration + 病历表 register_report 联合实体（医生接诊视图）
  */
 public class ConsultRecord {
     // registration 字段
@@ -25,7 +25,7 @@ public class ConsultRecord {
     private String consultStatus;
     private LocalDateTime createTime;
 
-    // medical_record 字段
+    // register_report 字段
     private String recordId;
     private String doctorName;
     private String patientName;

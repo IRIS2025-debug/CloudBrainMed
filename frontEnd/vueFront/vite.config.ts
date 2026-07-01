@@ -18,6 +18,11 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+      '/doctor-service/exam/ct-artifact': {
+        target: 'http://localhost:8001',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/doctor-service\/exam\/ct-artifact/, '/admin-service/ml/inference/ct-artifact'),
+      },
       '/doctor-service': {
         target: 'http://localhost:8003',
         changeOrigin: true,

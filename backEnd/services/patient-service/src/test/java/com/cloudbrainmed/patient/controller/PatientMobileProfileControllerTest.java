@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -32,5 +33,20 @@ class PatientMobileProfileControllerTest {
 
         assertThat(result.getCode()).isEqualTo(200);
         assertThat(result.getData()).isSameAs(payments);
+    }
+
+    @Test
+    void profileEndpointsRejectRawPatientIdToken() {
+        PatientProfileService profileService = mock(PatientProfileService.class);
+        RegisterService registerService = mock(RegisterService.class);
+        PaymentFeignClient paymentFeignClient = mock(PaymentFeignClient.class);
+        JwtUtil jwtUtil = mock(JwtUtil.class);
+        PatientMobileProfileController controller = new PatientMobileProfileController(
+                profileService, registerService, paymentFeignClient, jwtUtil);
+        when(jwtUtil.getPatientIdFromToken("P001")).thenThrow(new RuntimeException("invalid token"));
+
+        assertThatThrownBy(() -> controller.info("P001"))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("Token 无效，请重新登录");
     }
 }

@@ -74,10 +74,17 @@ public class DoctorProfileController {
         if (token == null || token.isBlank()) {
             throw new RuntimeException("未登录，请先登录");
         }
+        Integer roleType;
+        String doctorId;
         try {
-            return DoctorJwtUtil.getUserId(token);
+            roleType = DoctorJwtUtil.getRoleType(token);
+            doctorId = DoctorJwtUtil.getUserId(token);
         } catch (Exception e) {
-            return token;
+            throw new RuntimeException("医生登录凭证无效");
         }
+        if (!Integer.valueOf(2).equals(roleType)) {
+            throw new RuntimeException("仅医生可访问医生资料");
+        }
+        return doctorId;
     }
 }

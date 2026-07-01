@@ -1,6 +1,7 @@
 package com.cloudbrainmed.doctor.controller;
 
 import com.cloudbrainmed.common.exception.BusinessException;
+import com.cloudbrainmed.common.utils.DoctorJwtUtil;
 import com.cloudbrainmed.doctor.dto.PrescriptionCreateDto;
 import com.cloudbrainmed.doctor.entity.ConsultRecord;
 import com.cloudbrainmed.doctor.service.ConsultService;
@@ -61,7 +62,9 @@ class ConsultControllerTest {
                 "checkItemList", "[{\"itemName\":\"CT\"}]",
                 "urgencyLevel", "NORMAL");
 
-        controller.createExamOrder("D001", body);
+        String token = DoctorJwtUtil.createToken("D001", "11111111111", 2, 1);
+
+        controller.createExamOrder(token, body);
 
         verify(consultService).createExamOrder("D001", "R001", "[{\"itemName\":\"CT\"}]", "NORMAL");
     }

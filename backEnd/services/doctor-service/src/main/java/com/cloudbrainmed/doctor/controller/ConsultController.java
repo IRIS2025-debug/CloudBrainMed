@@ -104,19 +104,29 @@ public class ConsultController {
     }
 
     /**
-     * 从 header 或 JWT 中提取 doctorId。
-     * 优先用 DoctorJwtUtil 解析 JWT 的 userId claim；
-     * 兼容旧版直传 doctorId 的场景。
+     * 从 JWT 中解析并校验接诊医生身份，返回 doctorId。
+     * 要求 roleType==2 且 doctorType==1（接诊医生）。
      */
     private String extractDoctorId(String token) {
         if (token == null || token.isBlank()) {
-            throw new RuntimeException("未登录，请先登录");
+            throw new BusinessException("未登录，请先登录");
         }
+        Integer roleType;
+        Integer doctorType;
+        String doctorId;
         try {
-            return DoctorJwtUtil.getUserId(token);
+            roleType = DoctorJwtUtil.getRoleType(token);
+            doctorType = DoctorJwtUtil.getDoctorType(token);
+            doctorId = DoctorJwtUtil.getUserId(token);
         } catch (Exception e) {
-            // 兼容直接传 doctorId 的场景
-            return token;
+            throw new BusinessException("医生登录凭证无效");
         }
+        if (!Integer.valueOf(2).equals(roleType)) {
+            throw new BusinessException("仅医生可访问接诊功能");
+        }
+        if (!Integer.valueOf(1).equals(doctorType)) {
+            throw new BusinessException("仅接诊医生可访问接诊功能");
+        }
+        return doctorId;
     }
 }
