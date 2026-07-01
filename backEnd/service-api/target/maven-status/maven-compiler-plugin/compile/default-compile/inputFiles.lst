@@ -1,8 +1,0 @@
-D:\neusoft\CloudBrainMed\backEnd\service-api\src\main\java\com\cloudbrainmed\api\feign\AiFeignClient.java
-D:\neusoft\CloudBrainMed\backEnd\service-api\src\main\java\com\cloudbrainmed\api\feign\PatientFeignClient.java
-D:\neusoft\CloudBrainMed\backEnd\service-api\src\main\java\com\cloudbrainmed\api\feign\AdminFeignClient.java
-D:\neusoft\CloudBrainMed\backEnd\service-api\src\main\java\com\cloudbrainmed\api\feign\DoctorFeignClient.java
-D:\neusoft\CloudBrainMed\backEnd\service-api\src\main\java\com\cloudbrainmed\api\fallback\DoctorFeignFallback.java
-D:\neusoft\CloudBrainMed\backEnd\service-api\src\main\java\com\cloudbrainmed\api\fallback\AiFeignFallback.java
-D:\neusoft\CloudBrainMed\backEnd\service-api\src\main\java\com\cloudbrainmed\api\fallback\PatientFeignFallback.java
-D:\neusoft\CloudBrainMed\backEnd\service-api\src\main\java\com\cloudbrainmed\api\feign\PaymentFeignClient.java
