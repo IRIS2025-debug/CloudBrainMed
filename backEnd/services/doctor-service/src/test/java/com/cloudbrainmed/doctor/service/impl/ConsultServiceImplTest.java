@@ -6,7 +6,11 @@ import com.cloudbrainmed.doctor.mapper.ConsultMapper;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ConsultServiceImplTest {
@@ -20,7 +24,7 @@ class ConsultServiceImplTest {
         when(mapper.findDetail("R001")).thenReturn(record);
 
         assertThrows(BusinessException.class,
-                () -> service.saveDraft("R001", "病历", "D002"));
+                () -> service.saveDraft("D002", "R001", "record"));
     }
 
     @Test
@@ -29,7 +33,7 @@ class ConsultServiceImplTest {
         when(mapper.findDetail("R001")).thenReturn(record);
 
         assertThrows(BusinessException.class,
-                () -> service.saveDraft("R001", "病历", "D001"));
+                () -> service.saveDraft("D001", "R001", "record"));
     }
 
     @Test
@@ -38,7 +42,27 @@ class ConsultServiceImplTest {
         when(mapper.findDetail("R001")).thenReturn(record);
 
         assertThrows(BusinessException.class,
-                () -> service.completeConsult("R001", "D001"));
+                () -> service.completeConsult("D001", "R001"));
+    }
+
+    @Test
+    void createExamOrderRejectsAnotherDoctor() {
+        ConsultRecord record = consult("D001", "IN_PROGRESS");
+        when(mapper.findDetail("R001")).thenReturn(record);
+
+        assertThrows(BusinessException.class,
+                () -> service.createExamOrder("D002", "R001", "[{\"itemName\":\"CT\"}]", "NORMAL"));
+        verify(mapper, never()).insertCheckReport(any(), any(), eq("R001"), any(), any(), any());
+    }
+
+    @Test
+    void createExamOrderRejectsCompletedConsult() {
+        ConsultRecord record = consult("D001", "COMPLETED");
+        when(mapper.findDetail("R001")).thenReturn(record);
+
+        assertThrows(BusinessException.class,
+                () -> service.createExamOrder("D001", "R001", "[{\"itemName\":\"CT\"}]", "NORMAL"));
+        verify(mapper, never()).insertCheckReport(any(), any(), eq("R001"), any(), any(), any());
     }
 
     private ConsultRecord consult(String doctorId, String status) {

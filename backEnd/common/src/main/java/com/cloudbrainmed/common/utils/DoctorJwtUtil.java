@@ -13,10 +13,17 @@ public class DoctorJwtUtil {
     private static final long EXPIRE = 1000 * 60 * 60 * 24 * 7;
 
     public static String createToken(String userId, String phone, Integer roleType) {
-        return Jwts.builder().claim("userId", userId)
+        return createToken(userId, phone, roleType, null);
+    }
+
+    public static String createToken(String userId, String phone, Integer roleType, Integer doctorType) {
+        var builder = Jwts.builder().claim("userId", userId)
                 .claim("phone", phone)
-                .claim("roleType", roleType)
-                .setExpiration(new Date(System.currentTimeMillis() + EXPIRE))
+                .claim("roleType", roleType);
+        if (doctorType != null) {
+            builder.claim("doctorType", doctorType);
+        }
+        return builder.setExpiration(new Date(System.currentTimeMillis() + EXPIRE))
                 .signWith(KEY)
                 .compact();
     }
@@ -36,5 +43,10 @@ public class DoctorJwtUtil {
     public static Integer getRoleType(String token) {
         Number roleType = parseToken(token).get("roleType", Number.class);
         return roleType == null ? null : roleType.intValue();
+    }
+
+    public static Integer getDoctorType(String token) {
+        Number doctorType = parseToken(token).get("doctorType", Number.class);
+        return doctorType == null ? null : doctorType.intValue();
     }
 }

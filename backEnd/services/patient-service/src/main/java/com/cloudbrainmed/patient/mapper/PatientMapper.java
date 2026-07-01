@@ -32,6 +32,10 @@ public interface PatientMapper {
             "phone = #{phone}, update_time = NOW() WHERE patient_id = #{patientId}")
     int update(Patient patient);
 
+    @Update("UPDATE patient SET name = #{name}, gender = #{gender}, birthday = #{birthday}, " +
+            "address = #{address}, update_time = NOW() WHERE patient_id = #{patientId}")
+    int updateBasicInfo(Patient patient);
+
     /**
      * 根据ID查询患者
      */
@@ -56,5 +60,14 @@ public interface PatientMapper {
      */
     @Update("UPDATE patient SET password = #{password}, update_time = NOW() WHERE patient_id = #{patientId}")
     int updatePassword(@Param("patientId") String patientId, @Param("password") String password);
+
+    @Update("UPDATE patient SET avatar = #{avatar}, update_time = NOW() WHERE patient_id = #{patientId}")
+    int updateAvatar(@Param("patientId") String patientId, @Param("avatar") String avatar);
+
+    @Update("UPDATE patient SET phone = #{phone}, update_time = NOW() WHERE patient_id = #{patientId}")
+    int updatePhone(@Param("patientId") String patientId, @Param("phone") String phone);
+
+    @Update("UPDATE patient SET id_card = #{idCard}, update_time = NOW() WHERE patient_id = #{patientId}")
+    int updateIdCard(@Param("patientId") String patientId, @Param("idCard") String idCard);
 
 }

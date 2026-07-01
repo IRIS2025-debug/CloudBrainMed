@@ -94,8 +94,8 @@ onMounted(async () => {
   try {
     const res = await getAdminInfo()
     Object.assign(form, res.data)
-  } catch {
-    // 错误已在拦截器中处理
+  } catch (e: any) {
+    showActionError(e, '加载管理员资料失败')
   }
 })
 
@@ -104,19 +104,23 @@ function triggerUpload() {
 }
 
 async function onFileChange(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0]
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
   if (!file) return
-  // 限制文件大小 5MB
-  if (file.size > 5 * 1024 * 1024) {
-    ElMessage.warning('头像文件不能超过 5MB')
+  const validationMessage = validateAvatarFile(file)
+  if (validationMessage) {
+    ElMessage.warning(validationMessage)
+    input.value = ''
     return
   }
   try {
     const res = await uploadAdminAvatar(file)
     form.avatar = res.data.avatarUrl
     ElMessage.success('头像已更新')
-  } catch {
-    // 错误已在拦截器中处理
+  } catch (e: any) {
+    showActionError(e, '头像上传失败')
+  } finally {
+    input.value = ''
   }
 }
 
@@ -124,12 +128,12 @@ async function handleSave() {
   saving.value = true
   try {
     await updateAdminProfile({
-      email: form.email,
-      phone: form.phone
+      email: form.email.trim(),
+      phone: form.phone.trim()
     })
     ElMessage.success('保存成功')
-  } catch {
-    // 错误已在拦截器中处理
+  } catch (e: any) {
+    showActionError(e, '资料保存失败')
   } finally {
     saving.value = false
   }
@@ -144,11 +148,21 @@ async function handleChangePwd() {
     ElMessage.success('密码修改成功')
     pwdForm.oldPassword = ''
     pwdForm.newPassword = ''
-  } catch {
-    // 错误已在拦截器中处理
+  } catch (e: any) {
+    showActionError(e, '密码修改失败')
   } finally {
     changingPwd.value = false
   }
+}
+
+function validateAvatarFile(file: File) {
+  if (!file.type.startsWith('image/')) return '请选择图片文件'
+  if (file.size > 2 * 1024 * 1024) return '头像图片不能超过 2MB'
+  return ''
+}
+
+function showActionError(error: any, fallbackMessage: string) {
+  ElMessage.error(error?.message || fallbackMessage)
 }
 </script>
 

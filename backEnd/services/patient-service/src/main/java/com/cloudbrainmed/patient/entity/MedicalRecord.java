@@ -6,7 +6,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * 病历实体（映射 medical_record 表）
+ * 病历实体（映射 register_report 表）
  */
 @TableName("register_report")
 public class MedicalRecord {

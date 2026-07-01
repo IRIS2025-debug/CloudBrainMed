@@ -124,10 +124,9 @@ public class PatientMobileProfileController {
 
     /** 查询患者缴费记录（通过 Feign → payment-service） */
     @GetMapping("/payments")
-    public Result<?> payments(@RequestHeader(value = "token", required = false) String token) {
+    public Result<List<PayResultVo>> payments(@RequestHeader(value = "token", required = false) String token) {
         String patientId = extractPatientId(token);
-        Result<List<PayResultVo>> result = paymentFeignClient.getPayHistory(patientId);
-        return Result.ok(result);
+        return paymentFeignClient.getPayHistory(patientId);
     }
 
     // ==================== 4.3.4 聚合接口（鸿蒙端一次拉取全部数据） ====================
@@ -164,10 +163,6 @@ public class PatientMobileProfileController {
         try {
             return jwtUtil.getPatientIdFromToken(token);
         } catch (Exception e) {
-            // 兼容开发阶段直接传 patientId
-            if (token.startsWith("P") && token.length() < 30) {
-                return token;
-            }
             throw new RuntimeException("Token 无效，请重新登录");
         }
     }

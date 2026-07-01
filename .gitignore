@@ -16,7 +16,13 @@ sentinel-dashboard-*.jar
 *.tar.gz
 *.rar
 /target/
+**/target/
 /build/
+**/build/
+.env
+.env.*
+!.env.example
+!.env.template
 
 
 
@@ -29,6 +35,8 @@ sentinel-dashboard-*.jar
 .vscode/
 *.swp
 *.swo
+.venv/
+.gitnexus/
 
 # 日志
 *.log

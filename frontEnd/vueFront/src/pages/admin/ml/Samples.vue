@@ -43,8 +43,15 @@
       </el-table>
 
       <div class="table-footer">
-        <span class="tf-total">共 {{ samples.length }} 条</span>
-        <el-pagination v-model:current-page="page" :page-size="20" layout="prev, pager, next" @current-change="fetchSamples" size="small" />
+        <span class="tf-total">共 {{ total }} 条</span>
+        <el-pagination
+          v-model:current-page="page"
+          :page-size="pageSize"
+          :total="total"
+          layout="total, prev, pager, next"
+          @current-change="fetchSamples"
+          size="small"
+        />
       </div>
     </div>
 
@@ -58,7 +65,16 @@
         </el-form-item>
         <el-form-item label="选择标签">
           <div class="tag-select">
-            <button v-for="opt in tagOptions" :key="opt" class="tag-btn" :class="{ active: labelTag === opt }" @click="labelTag = opt">{{ opt }}</button>
+            <button
+              v-for="opt in tagOptions"
+              :key="opt"
+              type="button"
+              class="tag-btn"
+              :class="{ active: labelTag === opt }"
+              @click="labelTag = opt"
+            >
+              {{ opt }}
+            </button>
           </div>
         </el-form-item>
       </el-form>
@@ -73,23 +89,52 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import { Check } from '@element-plus/icons-vue'
 import { getSampleList, labelSample } from '@/api/admin/ml'
 
 const samples = ref<any[]>([])
 const loading = ref(false)
 const page = ref(1)
+const pageSize = 20
+const total = ref(0)
 const dialogVisible = ref(false)
 const currentSample = ref<any>(null)
 const labelTag = ref('')
 const labeling = ref(false)
 const tagOptions = ['问诊', '分诊', '报告', '药品']
 
+function normalizeSample(row: any) {
+  const label = row.label ?? row.labelTag ?? ''
+  const status = row.status || (label ? 'LABELED' : 'PENDING')
+  return {
+    ...row,
+    labelTag: label,
+    isAdopted: row.isAdopted ?? ['LABELED', 'TRAINED'].includes(status),
+    usedForTraining: row.usedForTraining ?? status === 'TRAINED',
+    diffScore: row.diffScore ?? row.labelType ?? '--',
+    doctorId: row.doctorId ?? row.datasetName ?? '--',
+    aiOutputJson: row.aiOutputJson ?? row.filePath ?? '--',
+    finalOutputJson: row.finalOutputJson ?? (label || '--'),
+    createdAt: row.createdAt ?? row.createTime,
+    status,
+  }
+}
+
 async function fetchSamples() {
   loading.value = true
   try {
-    const res = await getSampleList({ page: page.value, limit: 20 })
-    samples.value = res.data || []
-  } finally { loading.value = false }
+    const res = await getSampleList({ page: page.value, limit: pageSize })
+    const data = res.data || {}
+    const list = Array.isArray(data) ? data : (data.list || [])
+    samples.value = list.map(normalizeSample)
+    total.value = Array.isArray(data) ? list.length : (data.total || list.length)
+  } catch (e: any) {
+    samples.value = []
+    total.value = 0
+    ElMessage.error(e?.message || '样本列表加载失败')
+  } finally {
+    loading.value = false
+  }
 }
 
 function openLabel(row: any) {
@@ -99,14 +144,25 @@ function openLabel(row: any) {
 }
 
 async function submitLabel() {
-  if (!labelTag.value) return
+  if (!currentSample.value?.sampleId) {
+    ElMessage.warning('样本信息缺失，无法标注')
+    return
+  }
+  if (!labelTag.value) {
+    ElMessage.warning('请选择标签')
+    return
+  }
   labeling.value = true
   try {
     await labelSample({ sampleId: currentSample.value.sampleId, labelTag: labelTag.value })
     ElMessage.success('标注成功')
     dialogVisible.value = false
     fetchSamples()
-  } finally { labeling.value = false }
+  } catch (e: any) {
+    ElMessage.error(e?.message || '样本标注失败')
+  } finally {
+    labeling.value = false
+  }
 }
 
 fetchSamples()

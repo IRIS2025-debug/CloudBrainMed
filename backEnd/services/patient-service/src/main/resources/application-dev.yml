@@ -3,6 +3,8 @@ spring:
   cloud:
     nacos:
       server-addr: 127.0.0.1:8848
+      discovery:
+        ip: 127.0.0.1
     sentinel:
       transport:
         dashboard: localhost:8858
@@ -27,6 +29,9 @@ spring:
         hibernate:
           dialect: org.hibernate.dialect.PostgreSQLDialect
           format_sql: true
+  sql:
+    init:
+      mode: always
 
 logging:
   level:

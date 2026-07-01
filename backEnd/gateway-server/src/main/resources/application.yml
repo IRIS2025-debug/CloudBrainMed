@@ -1,0 +1,23 @@
+# backend/gateway-server/src/main/resources/application.yml
+# 基础配置（所有 profile 共用）。环境相关地址在 application-dev.yml / application-prod.yml 中。
+spring:
+  application:
+    name: gateway-server
+  profiles:
+    active: dev
+    include: route
+  main:
+    # 网关基于 WebFlux（reactive），common 传递引入了 servlet MVC，需显式声明为 reactive 避免冲突
+    web-application-type: reactive
+  # 网关不访问数据库，但 common 传递引入了 mybatis-plus/jdbc，需排除相关自动装配
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration
+      - com.baomidou.mybatisplus.autoconfigure.MybatisPlusAutoConfiguration
+  config:
+    import: optional:nacos:gateway-server.yml
+
+server:
+  # 容器内监听端口需与 docker-compose 的 "80:80" 映射一致
+  port: 80

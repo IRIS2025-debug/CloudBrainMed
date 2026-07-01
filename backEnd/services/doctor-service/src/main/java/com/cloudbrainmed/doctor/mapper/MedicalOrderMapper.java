@@ -43,7 +43,7 @@ public interface MedicalOrderMapper {
           AND patient_id = #{patientId}
           AND call_source = 'AI_EXAM_RECOMMEND'
           AND status = 'SUCCESS'
-        ORDER BY created_at DESC
+        ORDER BY create_time DESC
         LIMIT 1
         """)
     String findAiRecommendationInput(
@@ -57,7 +57,7 @@ public interface MedicalOrderMapper {
           AND patient_id = #{patientId}
           AND call_source = 'AI_EXAM_RECOMMEND'
           AND status = 'SUCCESS'
-        ORDER BY created_at DESC
+        ORDER BY create_time DESC
         LIMIT 1
         """)
     String findAiRecommendationOutput(
