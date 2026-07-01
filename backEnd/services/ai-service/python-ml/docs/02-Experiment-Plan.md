@@ -17,84 +17,32 @@
 
 ## 一键跑完脚本
 
-在 AutoDL 实例上执行以下脚本即可依次跑完所有实验：
+在 AutoDL 实例上执行以下命令即可依次跑完所有实验：
 
 ```bash
-#!/bin/bash
-# run_all_experiments.sh — 在 AutoDL GPU 实例上执行
 cd /root/autodl-tmp/python-ml
 
-# E1: UNet + AdamW（基线）
-echo "=========================================="
-echo "E1: UNet + AdamW, lr=1e-4, batch=8"
-echo "=========================================="
-python -m training.train \
-  --model unet --optimizer adamw --epochs 100 \
-  --batch-size 8 --accum 1 --fp16 --lr 1e-4
+# 先检查将要执行的六条训练命令
+python tools/run_six_experiments.py --dry-run
 
-# E2: UNet + Adam
-echo "=========================================="
-echo "E2: UNet + Adam, lr=1e-4, batch=8"
-echo "=========================================="
-python -m training.train \
-  --model unet --optimizer adam --epochs 100 \
-  --batch-size 8 --accum 1 --fp16 --lr 1e-4
-
-# E3: UNet + SGD
-echo "=========================================="
-echo "E3: UNet + SGD, lr=1e-3, batch=8"
-echo "=========================================="
-python -m training.train \
-  --model unet --optimizer sgd --epochs 100 \
-  --batch-size 8 --accum 1 --fp16 --lr 1e-3
-
-# E4: AttentionUNet + AdamW
-echo "=========================================="
-echo "E4: AttentionUNet + AdamW, lr=1e-4, batch=8"
-echo "=========================================="
-python -m training.train \
-  --model attention --optimizer adamw --epochs 100 \
-  --batch-size 8 --accum 1 --fp16 --lr 1e-4
-
-# E5: UNet + AdamW, 大学习率
-echo "=========================================="
-echo "E5: UNet + AdamW, lr=5e-4, batch=8"
-echo "=========================================="
-python -m training.train \
-  --model unet --optimizer adamw --epochs 100 \
-  --batch-size 8 --accum 1 --fp16 --lr 5e-4
-
-# E6: UNet + AdamW, 大 batch
-echo "=========================================="
-echo "E6: UNet + AdamW, lr=1e-4, batch=16"
-echo "=========================================="
-python -m training.train \
-  --model unet --optimizer adamw --epochs 100 \
-  --batch-size 16 --accum 1 --fp16 --lr 1e-4
-
-echo ""
-echo "所有实验完成！结果保存在 experiments/ 目录"
-ls experiments/
+# 确认参数无误后正式顺序运行 E1-E6，并在结束后生成汇总表
+python tools/run_six_experiments.py
 ```
 
-## 对比表模板
+## 对比表生成
 
-跑完后，用以下脚本自动生成对比表：
+跑完后，在 `python-ml/` 目录执行统一汇总脚本：
 
 ```bash
-# generate_comparison_table.sh
-echo "实验 | 模型 | 优化器 | LR | Batch | Best Dice | Best F1 | Best Acc | 耗时"
-echo "-----|------|--------|----|-------|----------|---------|---------|------"
-for d in experiments/*/; do
-  name=$(basename "$d")
-  if [ -f "$d/metrics.json" ]; then
-    dice=$(python -c "import json; d=json.load(open('${d}metrics.json')); print(f\"{d['best_dice']:.4f}\")")
-    f1=$(python -c "import json; d=json.load(open('${d}metrics.json')); print(f\"{d['best_metrics']['f1']:.4f}\")")
-    acc=$(python -c "import json; d=json.load(open('${d}metrics.json')); print(f\"{d['best_metrics']['accuracy']:.4f}\")")
-    echo "$name | ... | ... | ... | ... | $dice | $f1 | $acc |"
-  fi
-done
+python tools/summarize_experiments.py
 ```
+
+脚本会读取每个实验目录中的 `config.yaml` 和 `metrics.json`，自动识别 E1-E6，并输出：
+
+- `docs/generated/experiment-summary.md`
+- `docs/generated/experiment-summary.csv`
+
+把 Markdown 中的“对比表”“最优模型建议”“留痕完整性检查”复制到 `docs/04-Experiment-Results.md` 或最终报告中即可。
 
 ## 实验结果解读
 
@@ -113,6 +61,7 @@ experiments/{timestamp}_{model}_{optimizer}/
 ├── pr_curve.png             # PR 曲线
 ├── pred_sample.png          # 预测样例
 └── metrics.json             # 最终指标
+```
 
 ## 预期结论
 

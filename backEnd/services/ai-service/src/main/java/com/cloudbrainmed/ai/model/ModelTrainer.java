@@ -2,7 +2,9 @@ package com.cloudbrainmed.ai.model;
 
 import com.cloudbrainmed.ai.entity.ModelVersion;
 import com.cloudbrainmed.ai.mapper.ModelVersionMapper;
+import com.cloudbrainmed.ai.mapper.TrainingTaskMapper;
 import com.cloudbrainmed.ai.util.ConfigYamlBuilder;
+import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,6 +13,8 @@ import org.springframework.stereotype.Component;
 import java.io.*;
 import java.nio.file.*;
 import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -36,6 +40,7 @@ public class ModelTrainer {
 
     private final ModelVersionMapper modelVersionMapper;
     private final ModelLoader modelLoader;
+    private final TrainingTaskMapper trainingTaskMapper;
 
     /** Python-ml 目录（相对于应用工作目录） */
     private static final String PYTHON_ML_DIR = "backEnd/services/ai-service/python-ml";
@@ -43,9 +48,11 @@ public class ModelTrainer {
     /** 训练任务状态缓存 */
     private final ConcurrentHashMap<String, TrainingTask> tasks = new ConcurrentHashMap<>();
 
-    public ModelTrainer(ModelVersionMapper modelVersionMapper, ModelLoader modelLoader) {
+    public ModelTrainer(ModelVersionMapper modelVersionMapper, ModelLoader modelLoader,
+                        TrainingTaskMapper trainingTaskMapper) {
         this.modelVersionMapper = modelVersionMapper;
         this.modelLoader = modelLoader;
+        this.trainingTaskMapper = trainingTaskMapper;
     }
 
     /**
@@ -65,6 +72,7 @@ public class ModelTrainer {
         task.setCreateTime(LocalDateTime.now());
 
         tasks.put(taskId, task);
+        trainingTaskMapper.insert(toEntity(task));
         log.info("训练任务已创建: {} [{}] → 超参: lr={}, epochs={}, batch={}",
                 taskId, modelType.getKey(),
                 params.getLearningRate(), params.getEpochs(), params.getBatchSize());
@@ -80,6 +88,7 @@ public class ModelTrainer {
 
         task.setStatus("RUNNING");
         task.setStartTime(LocalDateTime.now());
+        trainingTaskMapper.updateStatus(toEntity(task));
         log.info("训练已启动: {}", taskId);
         new Thread(() -> runPythonTraining(taskId)).start();
     }
@@ -102,7 +111,10 @@ public class ModelTrainer {
             List<String> before = listExperimentDirs(expRoot);
 
             // 2. 写出临时配置文件
-            String yaml = ConfigYamlBuilder.build(task.getHyperParams(), resolveModelType(task.getModelType()));
+            String yaml = ConfigYamlBuilder.build(
+                    task.getHyperParams(),
+                    resolveModelType(task.getModelType()),
+                    task.getDatasetPath());
             Files.createDirectories(configPath.getParent());
             Files.writeString(configPath, yaml);
             log.info("配置文件已写入: {}", configPath.toAbsolutePath());
@@ -167,10 +179,12 @@ public class ModelTrainer {
             task.setStatus("COMPLETED");
             task.setCompletedTime(LocalDateTime.now());
             task.setModelId(mv.getModelId());
+            trainingTaskMapper.updateStatus(toEntity(task));
             log.info("训练完成: taskId={}, modelId={}, bestDice={}", taskId, mv.getModelId(), bestDice);
         } catch (Exception e) {
             task.setStatus("FAILED");
             task.setErrorMessage(e.getMessage());
+            trainingTaskMapper.updateStatus(toEntity(task));
             log.error("训练失败: {} → {}", taskId, e.getMessage());
         } finally {
             try { Files.deleteIfExists(configPath); } catch (Exception ignored) {}
@@ -210,17 +224,25 @@ public class ModelTrainer {
      * 查询所有训练任务
      */
     public Map<String, TrainingTask> listTasks() {
-        return Map.copyOf(tasks);
+        Map<String, TrainingTask> persisted = trainingTaskMapper.selectAll().stream()
+                .collect(Collectors.toMap(
+                        com.cloudbrainmed.ai.entity.TrainingTask::getTaskId,
+                        this::fromEntity,
+                        (left, right) -> left,
+                        LinkedHashMap::new));
+        tasks.forEach(persisted::put);
+        return Collections.unmodifiableMap(persisted);
     }
 
     /**
      * 获取模型训练统计
      */
     public Map<String, Object> getStats() {
-        long pending = tasks.values().stream().filter(t -> "PENDING".equals(t.getStatus())).count();
-        long running = tasks.values().stream().filter(t -> "RUNNING".equals(t.getStatus())).count();
-        long completed = tasks.values().stream().filter(t -> "COMPLETED".equals(t.getStatus())).count();
-        long failed = tasks.values().stream().filter(t -> "FAILED".equals(t.getStatus())).count();
+        Map<String, TrainingTask> allTasks = listTasks();
+        long pending = allTasks.values().stream().filter(t -> "PENDING".equals(t.getStatus())).count();
+        long running = allTasks.values().stream().filter(t -> "RUNNING".equals(t.getStatus())).count();
+        long completed = allTasks.values().stream().filter(t -> "COMPLETED".equals(t.getStatus())).count();
+        long failed = allTasks.values().stream().filter(t -> "FAILED".equals(t.getStatus())).count();
 
         return Map.of(
             "pending", pending,
@@ -236,6 +258,51 @@ public class ModelTrainer {
     /**
      * 训练任务实体
      */
+    private com.cloudbrainmed.ai.entity.TrainingTask toEntity(TrainingTask task) {
+        com.cloudbrainmed.ai.entity.TrainingTask entity = new com.cloudbrainmed.ai.entity.TrainingTask();
+        entity.setTaskId(task.getTaskId());
+        entity.setModelKey(task.getModelKey());
+        entity.setModelType(task.getModelType());
+        entity.setHyperParams(JSON.toJSONString(task.getHyperParams()));
+        entity.setDatasetPath(task.getDatasetPath());
+        entity.setStatus(task.getStatus());
+        entity.setModelId(task.getModelId());
+        entity.setErrorMessage(task.getErrorMessage());
+        entity.setCreateTime(task.getCreateTime());
+        entity.setStartTime(task.getStartTime());
+        entity.setCompletedTime(task.getCompletedTime());
+        return entity;
+    }
+
+    private TrainingTask fromEntity(com.cloudbrainmed.ai.entity.TrainingTask entity) {
+        TrainingTask task = new TrainingTask();
+        task.setTaskId(entity.getTaskId());
+        task.setModelKey(entity.getModelKey());
+        task.setModelType(entity.getModelType());
+        task.setHyperParams(parseHyperParams(entity.getHyperParams()));
+        task.setDatasetPath(entity.getDatasetPath());
+        task.setStatus(entity.getStatus());
+        task.setModelId(entity.getModelId());
+        task.setErrorMessage(entity.getErrorMessage());
+        task.setCreateTime(entity.getCreateTime());
+        task.setStartTime(entity.getStartTime());
+        task.setCompletedTime(entity.getCompletedTime());
+        return task;
+    }
+
+    private CnnModel.HyperParams parseHyperParams(String hyperParams) {
+        if (hyperParams == null || hyperParams.isBlank() || "null".equalsIgnoreCase(hyperParams.trim())) {
+            return CnnModel.HyperParams.defaultParams();
+        }
+        try {
+            CnnModel.HyperParams parsed = JSON.parseObject(hyperParams, CnnModel.HyperParams.class);
+            return parsed != null ? parsed : CnnModel.HyperParams.defaultParams();
+        } catch (Exception e) {
+            log.warn("训练任务超参解析失败，使用默认超参: {}", e.getMessage());
+            return CnnModel.HyperParams.defaultParams();
+        }
+    }
+
     public static class TrainingTask {
         private String taskId;
         private String modelKey;

@@ -13,7 +13,7 @@ export function getDoctorDetail(doctorId: string) {
 /** 新增医生 */
 export function addDoctor(data: {
   name: string
-  gender: number
+  gender: number | null
   phone: string
   email: string
   position: string
@@ -28,7 +28,7 @@ export function addDoctor(data: {
 export function updateDoctor(data: {
   doctorId: string
   name: string
-  gender: number
+  gender: number | null
   phone: string
   email: string
   position: string

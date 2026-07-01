@@ -10,12 +10,17 @@ public class ConfigYamlBuilder {
     private ConfigYamlBuilder() {}
 
     public static String build(CnnModel.HyperParams params, CnnModel.ModelType modelType) {
+        return build(params, modelType, "../../../../BrainCT/BrainCT/Datasets");
+    }
+
+    public static String build(CnnModel.HyperParams params, CnnModel.ModelType modelType, String datasetPath) {
+        String normalizedDatasetPath = normalizeDatasetPath(datasetPath);
         StringBuilder sb = new StringBuilder();
         sb.append("# ===== 由 Java MlOpsService 自动生成 =====\n");
 
         sb.append("data:\n");
-        sb.append("  ct_dir: \"../../../../BrainCT/BrainCT/Datasets/CT\"\n");
-        sb.append("  mask_dir: \"../../../../BrainCT/BrainCT/Datasets/MASK\"\n");
+        sb.append("  ct_dir: \"").append(normalizedDatasetPath).append("/CT\"\n");
+        sb.append("  mask_dir: \"").append(normalizedDatasetPath).append("/MASK\"\n");
         sb.append("  val_split: 0.2\n");
         sb.append("  seed: 42\n");
 
@@ -55,6 +60,13 @@ public class ConfigYamlBuilder {
         sb.append("  save_interval: 10\n");
 
         return sb.toString();
+    }
+
+    private static String normalizeDatasetPath(String datasetPath) {
+        String path = datasetPath == null || datasetPath.isBlank()
+                ? "../../../../BrainCT/BrainCT/Datasets"
+                : datasetPath.trim();
+        return path.replace("\\", "/").replaceAll("/+$", "");
     }
 
     private static String mapOptimizer(String javaOpt) {

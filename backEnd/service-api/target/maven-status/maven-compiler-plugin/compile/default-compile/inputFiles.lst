@@ -1,0 +1,11 @@
+D:\CloudBrainMed\backEnd\service-api\src\main\java\com\cloudbrainmed\api\fallback\AiFeignFallback.java
+D:\CloudBrainMed\backEnd\service-api\src\main\java\com\cloudbrainmed\api\fallback\PatientFeignFallback.java
+D:\CloudBrainMed\backEnd\service-api\src\main\java\com\cloudbrainmed\api\fallback\PaymentFeignFallback.java
+D:\CloudBrainMed\backEnd\service-api\src\main\java\com\cloudbrainmed\api\feign\DoctorFeignClient.java
+D:\CloudBrainMed\backEnd\service-api\src\main\java\com\cloudbrainmed\api\feign\PaymentFeignClient.java
+D:\CloudBrainMed\backEnd\service-api\src\main\java\com\cloudbrainmed\api\dto\ReportContextDto.java
+D:\CloudBrainMed\backEnd\service-api\src\main\java\com\cloudbrainmed\api\fallback\AdminFeignFallback.java
+D:\CloudBrainMed\backEnd\service-api\src\main\java\com\cloudbrainmed\api\feign\AiFeignClient.java
+D:\CloudBrainMed\backEnd\service-api\src\main\java\com\cloudbrainmed\api\fallback\DoctorFeignFallback.java
+D:\CloudBrainMed\backEnd\service-api\src\main\java\com\cloudbrainmed\api\feign\AdminFeignClient.java
+D:\CloudBrainMed\backEnd\service-api\src\main\java\com\cloudbrainmed\api\feign\PatientFeignClient.java

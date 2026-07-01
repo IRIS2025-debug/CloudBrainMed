@@ -15,7 +15,7 @@ export function assistantChat(data: {
     quantity: number
   }>
 }) {
-  return request.post('/api/ai/reception/chat', data, { timeout: 120000 })
+  return request.post('/ai-service/reception/chat', data, { timeout: 120000 })
 }
 
 export function generateMedicalRecord(data: {
@@ -24,7 +24,7 @@ export function generateMedicalRecord(data: {
   structuredParameters?: Record<string, string>
   currentRecordDesc?: string
 }) {
-  return request.post('/api/ai/reception/record/generate', data, { timeout: 120000 })
+  return request.post('/ai-service/reception/record/generate', data, { timeout: 120000 })
 }
 
 export function reviewPrescription(data: {
@@ -37,5 +37,5 @@ export function reviewPrescription(data: {
     quantity: number
   }>
 }) {
-  return request.post('/api/ai/prescription/review', data, { timeout: 120000 })
+  return request.post('/ai-service/prescription/review', data, { timeout: 120000 })
 }

@@ -1,6 +1,7 @@
 package com.cloudbrainmed.patient.controller;
 
 import com.cloudbrainmed.common.result.Result;
+import com.cloudbrainmed.common.utils.JwtUtil;
 import com.cloudbrainmed.patient.service.MedicalRecordService;
 import org.springframework.web.bind.annotation.*;
 
@@ -12,9 +13,11 @@ import org.springframework.web.bind.annotation.*;
 public class MedicalRecordController {
 
     private final MedicalRecordService medicalRecordService;
+    private final JwtUtil jwtUtil;
 
-    public MedicalRecordController(MedicalRecordService medicalRecordService) {
+    public MedicalRecordController(MedicalRecordService medicalRecordService, JwtUtil jwtUtil) {
         this.medicalRecordService = medicalRecordService;
+        this.jwtUtil = jwtUtil;
     }
 
     /** 按挂号ID查询病历 */
@@ -25,7 +28,20 @@ public class MedicalRecordController {
 
     /** 按患者ID查询所有病历 */
     @GetMapping("/my-list")
-    public Result<?> listByPatientId(@RequestParam String patientId) {
+    public Result<?> listByPatientId(@RequestHeader(value = "token", required = false) String token,
+                                     @RequestParam(required = false) String patientId) {
+        patientId = extractPatientId(token);
         return Result.ok(medicalRecordService.getByPatientId(patientId));
+    }
+
+    private String extractPatientId(String token) {
+        if (token == null || token.isBlank()) {
+            throw new RuntimeException("未登录，请先登录");
+        }
+        try {
+            return jwtUtil.getPatientIdFromToken(token);
+        } catch (Exception e) {
+            throw new RuntimeException("Token 无效，请重新登录");
+        }
     }
 }

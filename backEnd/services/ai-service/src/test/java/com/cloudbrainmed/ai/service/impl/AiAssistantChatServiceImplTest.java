@@ -84,6 +84,23 @@ class AiAssistantChatServiceImplTest {
     }
 
     @Test
+    void diagnosisAssistantFallsBackWhenConsultContextUnavailable() {
+        AiAssistantChatRequest request = request(null);
+        request.setActionType("DIAGNOSIS_ASSISTANT");
+        when(doctorClient.getConsultContext(
+                "REG001", "D001", "internal-key"))
+                .thenThrow(new IllegalStateException("context unavailable"));
+
+        AiAssistantChatResponse response = service.chat(request, "D001");
+
+        assertThat(response.getIntent()).isEqualTo("DIAGNOSIS_ASSISTANT");
+        assertThat(response.getStatus()).isEqualTo("FAILED");
+        assertThat(response.isFallback()).isTrue();
+        assertThat(response.isHandledByAssistant()).isTrue();
+        verify(chatClient, never()).prompt(any(Prompt.class));
+    }
+
+    @Test
     void chatDelegatesMedicalRecordDraftWithoutCallingChatModel() {
         prepareContext();
         AiRecordGenerateResponse generated = new AiRecordGenerateResponse();

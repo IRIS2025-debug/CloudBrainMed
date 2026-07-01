@@ -14,6 +14,7 @@ public class Patient {
     private Integer gender;
     private String phone;
     private String idCard;
+    private String avatar;
     private String address;
     private String password;
     private LocalDate birthday;

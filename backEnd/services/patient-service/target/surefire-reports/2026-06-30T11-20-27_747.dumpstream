@@ -1,0 +1,5 @@
+# Created at 2026-06-30T11:20:42.087
+Boot Manifest-JAR contains absolute paths in classpath 'D:\CloudBrainMed\backEnd\services\patient-service\target\test-classes'
+Hint: <argLine>-Djdk.net.URLClassPath.disableClassPathURLCheck=true</argLine>
+'other' has different root
+

@@ -45,9 +45,13 @@ public class ConsultServiceImpl implements ConsultService {
     }
 
     @Override
-    public void saveDraft(String registerId, String recordDesc) {
+    public void saveDraft(String doctorId, String registerId, String recordDesc) {
         ConsultRecord detail = consultMapper.findDetail(registerId);
         if (detail == null) throw new BusinessException("就诊记录不存在");
+        ensureDoctorCanEdit(doctorId, detail);
+        if ("COMPLETED".equals(detail.getConsultStatus())) {
+            throw new BusinessException("接诊已完成，不能继续修改病历");
+        }
 
         String recordId = consultMapper.findRecordId(registerId);
         if (recordId == null) {
@@ -70,16 +74,20 @@ public class ConsultServiceImpl implements ConsultService {
     }
 
     @Override
-    public void confirmRecord(String registerId, String recordDesc) {
-        saveDraft(registerId, recordDesc);
+    public void confirmRecord(String doctorId, String registerId, String recordDesc) {
+        saveDraft(doctorId, registerId, recordDesc);
         consultMapper.markRecordConfirmed(registerId);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void createExamOrder(String registerId, String checkItemList, String urgencyLevel) {
+    public void createExamOrder(String doctorId, String registerId, String checkItemList, String urgencyLevel) {
         ConsultRecord detail = consultMapper.findDetail(registerId);
         if (detail == null) throw new BusinessException("就诊记录不存在");
+        ensureDoctorCanEdit(doctorId, detail);
+        if ("COMPLETED".equals(detail.getConsultStatus())) {
+            throw new BusinessException("接诊已完成，不能继续开具检查检验申请");
+        }
 
         // ----- 解析前端传来的检查项目 JSON -----
         if (checkItemList == null || checkItemList.trim().isEmpty()) {
@@ -154,12 +162,19 @@ public class ConsultServiceImpl implements ConsultService {
     }
 
     @Override
-    public void completeConsult(String registerId, String doctorId) {
+    public void completeConsult(String doctorId, String registerId) {
         ConsultRecord detail = consultMapper.findDetail(registerId);
         if (detail == null) throw new BusinessException("就诊记录不存在");
+        ensureDoctorCanEdit(doctorId, detail);
+        if (!"RECORD_CONFIRMED".equals(detail.getConsultStatus())) {
+            throw new BusinessException("请先确认病历后再完成接诊");
+        }
+        consultMapper.completeConsult(registerId);
+    }
+
+    private void ensureDoctorCanEdit(String doctorId, ConsultRecord detail) {
         if (!doctorId.equals(detail.getDoctorId())) {
             throw new BusinessException("无权操作该接诊记录");
         }
-        consultMapper.completeConsult(registerId);
     }
 }

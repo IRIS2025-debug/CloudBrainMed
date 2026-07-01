@@ -29,19 +29,19 @@ const router = createRouter({
       path: '/doctor/consult',
       name: 'doctorConsult',
       component: () => import('@/pages/doctor/consult/List.vue'),
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, role: 2 }
     },
     {
       path: '/doctor/consult/:registerId',
       name: 'doctorConsultDetail',
       component: () => import('@/pages/doctor/consult/Detail.vue'),
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, role: 2 }
     },
     {
       path: '/doctor/ai-medicine',
       name: 'aiMedicine',
       component: () => import('@/pages/doctor/ai-medicine/Index.vue'),
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, role: 2 }
     },
     {
       path: '/doctor/ai-exam-generate',
@@ -53,7 +53,7 @@ const router = createRouter({
       path: '/doctor/schedule',
       name: 'doctorSchedule',
       component: () => import('@/pages/doctor/schedule/Schedule.vue'),
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, role: 2 }
     },
     {
       path: '/admin/ml/dashboard',
@@ -71,12 +71,6 @@ const router = createRouter({
       path: '/admin/ml/models',
       name: 'mlModels',
       component: () => import('@/pages/admin/ml/Models.vue'),
-      meta: { requiresAuth: true, role: 3 }
-    },
-    {
-      path: '/admin/ml/ct-inference',
-      name: 'ctInference',
-      component: () => import('@/pages/admin/ml/CTInference.vue'),
       meta: { requiresAuth: true, role: 3 }
     },
     {
@@ -111,16 +105,28 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 3 }
     },
     {
+      path: '/inspection-doctor/home',
+      name: 'InspectionHome',
+      component: () => import('@/pages/inspection-doctor/InspectionHome.vue'),
+      meta: { requiresAuth: true, role: 2, doctorType: 3 }
+    },
+    {
       path: '/inspection-doctor/order-list',
       name: 'inspectionOrderList',
       component: () => import('@/pages/inspection-doctor/InspectionOrderList.vue'),
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, role: 2, doctorType: 3 }
     },
     {
       path: '/examination-doctor/home',
       name: 'ExaminationHome',
       component: () => import('@/pages/examination/ExaminationHome.vue'),
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, role: 2, doctorType: 2 }
+    },
+    {
+      path: '/examination-doctor/ct-inference',
+      name: 'ExaminationCTInference',
+      component: () => import('@/pages/examination/CTInference.vue'),
+      meta: { requiresAuth: true, role: 2, doctorType: 2 }
     },
   ],
 })
@@ -142,10 +148,32 @@ router.beforeEach((to, from) => {
       return '/login'
     }
 
+    if (to.path === '/') {
+      if (roleType === '3') {
+        return '/admin/home'
+      }
+
+      const doctorType = Number(sessionStorage.getItem('doctorType') || '1')
+      if (doctorType === 2) {
+        return '/examination-doctor/home'
+      }
+      if (doctorType === 3) {
+        return '/inspection-doctor/home'
+      }
+    }
+
     // 检查角色权限
     if (to.meta.role) {
       const userRole = parseInt(roleType || '0')
       if (userRole !== to.meta.role) {
+        return '/login'
+      }
+    }
+
+    // 检查医生子角色（doctorType）权限
+    if (to.meta.doctorType) {
+      const userDoctorType = Number(sessionStorage.getItem('doctorType') || '0')
+      if (userDoctorType !== to.meta.doctorType) {
         return '/login'
       }
     }

@@ -39,25 +39,28 @@ public class DoctorProfileController {
 
     @PostMapping("/avatar-upload")
     public Result<?> avatarUpload(@RequestHeader(value = "token", required = false) String token,
-                                   @RequestParam("file") MultipartFile file) {
-        // TODO: 接入 OSS/本地文件存储后实现真正上传
-        return Result.ok(Map.of("avatarUrl", "/files/avatar/default.png"));
+                                  @RequestParam("file") MultipartFile file) throws java.io.IOException {
+        String doctorId = extractDoctorId(token);
+        String avatarUrl = doctorService.uploadAvatar(doctorId, file.getBytes(), file.getOriginalFilename());
+        return Result.ok(Map.of("avatarUrl", avatarUrl));
     }
 
     @PostMapping("/change-phone")
     public Result<?> changePhone(@RequestHeader(value = "token", required = false) String token,
-                                  @RequestBody Map<String, String> body) {
+                                 @RequestBody Map<String, String> body) {
+        String doctorId = extractDoctorId(token);
+        doctorService.changePhone(doctorId, body.get("oldPhone"), body.get("newPhone"));
         return Result.ok();
     }
 
     @PostMapping("/change-password")
     public Result<?> changePassword(@RequestHeader(value = "token", required = false) String token,
-                                     @RequestBody Map<String, String> body) {
-        // TODO: 验证旧密码 → 更新新密码
+                                    @RequestBody Map<String, String> body) {
+        String doctorId = extractDoctorId(token);
+        doctorService.changePassword(doctorId, body.get("oldPassword"), body.get("newPassword"));
         return Result.ok();
     }
 
-    /** 查询医生信息完善状态（首次登录引导） */
     @GetMapping("/setup-status")
     public Result<?> setupStatus(@RequestHeader(value = "token", required = false) String token) {
         String doctorId = extractDoctorId(token);
@@ -67,20 +70,21 @@ public class DoctorProfileController {
         return Result.ok(Map.of("needSetup", needSetup));
     }
 
-    /**
-     * 从 header 或 JWT 中提取 doctorId。
-     * 优先从 token header 直接读取（兼容旧版直传 doctorId）；
-     * 否则用 DoctorJwtUtil 解析 JWT 的 userId claim。
-     */
     private String extractDoctorId(String token) {
         if (token == null || token.isBlank()) {
             throw new RuntimeException("未登录，请先登录");
         }
+        Integer roleType;
+        String doctorId;
         try {
-            return DoctorJwtUtil.getUserId(token);
+            roleType = DoctorJwtUtil.getRoleType(token);
+            doctorId = DoctorJwtUtil.getUserId(token);
         } catch (Exception e) {
-            // 兼容直接传 doctorId 的场景
-            return token;
+            throw new RuntimeException("医生登录凭证无效");
         }
+        if (!Integer.valueOf(2).equals(roleType)) {
+            throw new RuntimeException("仅医生可访问医生资料");
+        }
+        return doctorId;
     }
 }

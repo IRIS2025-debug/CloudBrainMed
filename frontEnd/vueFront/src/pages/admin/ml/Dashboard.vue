@@ -25,14 +25,14 @@
       <div class="stat-card">
         <div class="stat-icon" style="background:#7c3aed;"><el-icon :size="18"><Star /></el-icon></div>
         <div>
-          <div class="stat-value">{{ stats.adoptionRate ?? '--' }}</div>
+          <div class="stat-value">{{ stats.adoptionRate ?? 0 }}</div>
           <div class="stat-label">采纳率</div>
         </div>
       </div>
       <div class="stat-card">
         <div class="stat-icon" style="background:#f59e0b;"><el-icon :size="18"><Timer /></el-icon></div>
         <div>
-          <div class="stat-value">{{ stats.avgLatencyMs ?? '--' }}<span class="unit"> ms</span></div>
+          <div class="stat-value">{{ stats.avgLatencyMs ?? stats.avgLatency ?? '--' }}<span class="unit"> ms</span></div>
           <div class="stat-label">平均耗时</div>
         </div>
       </div>
@@ -40,7 +40,7 @@
 
     <div class="card">
       <div class="card-head">已注册模型</div>
-      <el-table :data="stats.models || []" stripe class="model-table" v-loading="!stats.models">
+      <el-table :data="models" stripe class="model-table" v-loading="loadingModels">
         <el-table-column prop="modelKey" label="模型标识" min-width="160" />
         <el-table-column prop="version" label="版本" width="140" />
         <el-table-column label="状态" width="100">
@@ -61,9 +61,12 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { getInferenceStats } from '@/api/admin/ml'
+import { ElMessage } from 'element-plus'
+import { getInferenceStats, getModelList } from '@/api/admin/ml'
 
 const stats = ref<any>({})
+const models = ref<any[]>([])
+const loadingModels = ref(false)
 
 function statusTag(status: string) {
   const map: Record<string, string> = { '上线': 'success', '测试': 'warning', '下线': 'info', '废弃': 'danger' }
@@ -77,7 +80,22 @@ function progressColor(pct: number) {
 }
 
 onMounted(async () => {
-  try { const res = await getInferenceStats(); stats.value = res.data } catch {}
+  try {
+    const res = await getInferenceStats()
+    stats.value = res.data || {}
+  } catch (e: any) {
+    ElMessage.error(e?.message || '推理统计加载失败')
+  }
+
+  loadingModels.value = true
+  try {
+    const res = await getModelList()
+    models.value = res.data || []
+  } catch (e: any) {
+    ElMessage.error(e?.message || '模型列表加载失败')
+  } finally {
+    loadingModels.value = false
+  }
 })
 </script>
 

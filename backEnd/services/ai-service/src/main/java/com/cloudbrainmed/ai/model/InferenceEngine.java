@@ -6,18 +6,23 @@ import com.cloudbrainmed.ai.mapper.AiInferenceLogMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
 import java.io.IOException;
+import java.io.SequenceInputStream;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.Map;
 import java.util.UUID;
 
@@ -33,22 +38,39 @@ public class InferenceEngine {
     private static final Logger log = LoggerFactory.getLogger(InferenceEngine.class);
 
     /** Python 推理服务默认地址 */
-    private String pythonServiceUrl = "http://localhost:8000";
+    private String pythonServiceUrl;
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
     private final AiInferenceLogMapper inferenceLogMapper;
     private final ModelLoader modelLoader;
+    private static final String DEFAULT_PYTHON_SERVICE_URL = "http://localhost:8010";
 
-    public InferenceEngine(AiInferenceLogMapper inferenceLogMapper, ModelLoader modelLoader) {
+    public InferenceEngine(AiInferenceLogMapper inferenceLogMapper,
+                           ModelLoader modelLoader,
+                           @Value("${ai.python-service.url:${AI_PYTHON_SERVICE_URL:http://localhost:8010}}")
+                           String pythonServiceUrl) {
         this.httpClient = HttpClient.newBuilder().connectTimeout(java.time.Duration.ofSeconds(30)).build();
         this.objectMapper = new ObjectMapper();
         this.inferenceLogMapper = inferenceLogMapper;
         this.modelLoader = modelLoader;
+        this.pythonServiceUrl = normalizePythonServiceUrl(pythonServiceUrl);
     }
 
     public void setPythonServiceUrl(String url) {
-        this.pythonServiceUrl = url;
+        this.pythonServiceUrl = normalizePythonServiceUrl(url);
+    }
+
+    String getPythonServiceUrl() {
+        return pythonServiceUrl;
+    }
+
+    private String normalizePythonServiceUrl(String url) {
+        if (url == null || url.isBlank()) {
+            return DEFAULT_PYTHON_SERVICE_URL;
+        }
+        String trimmedUrl = url.trim();
+        return trimmedUrl.endsWith("/") ? trimmedUrl.substring(0, trimmedUrl.length() - 1) : trimmedUrl;
     }
 
     /**
@@ -68,7 +90,7 @@ public class InferenceEngine {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(pythonServiceUrl + "/predict-ct-artifact"))
                     .header("Content-Type", "multipart/form-data; boundary=" + boundary)
-                    .POST(HttpRequest.BodyPublishers.ofFile(tempFile))
+                    .POST(buildMultipartBody(tempFile, niftiFile, boundary))
                     .timeout(java.time.Duration.ofMinutes(5))
                     .build();
 
@@ -120,7 +142,7 @@ public class InferenceEngine {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(pythonServiceUrl + "/extract-features"))
                     .header("Content-Type", "multipart/form-data; boundary=" + boundary)
-                    .POST(HttpRequest.BodyPublishers.ofFile(tempFile))
+                    .POST(buildMultipartBody(tempFile, niftiFile, boundary))
                     .timeout(java.time.Duration.ofMinutes(5))
                     .build();
 
@@ -137,6 +159,47 @@ public class InferenceEngine {
         } finally {
             try { Files.deleteIfExists(tempFile); } catch (IOException ignored) {}
         }
+    }
+
+    public byte[] downloadMask(String maskFilename) throws IOException, InterruptedException {
+        if (maskFilename == null || maskFilename.isBlank()
+                || maskFilename.contains("/") || maskFilename.contains("\\")) {
+            throw new IllegalArgumentException("掩码文件名无效");
+        }
+        String encodedFilename = URLEncoder.encode(maskFilename, StandardCharsets.UTF_8);
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(pythonServiceUrl + "/results/" + encodedFilename))
+                .GET()
+                .timeout(java.time.Duration.ofMinutes(5))
+                .build();
+        HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
+        if (response.statusCode() != 200) {
+            throw new IOException("掩码文件下载失败: HTTP " + response.statusCode());
+        }
+        return response.body();
+    }
+
+    private HttpRequest.BodyPublisher buildMultipartBody(Path filePath, MultipartFile file, String boundary) {
+        String filename = file.getOriginalFilename() != null ? file.getOriginalFilename() : "ct.nii.gz";
+        String contentType = file.getContentType() != null ? file.getContentType() : "application/octet-stream";
+        byte[] header = (
+                "--" + boundary + "\r\n" +
+                "Content-Disposition: form-data; name=\"file\"; filename=\"" + filename + "\"\r\n" +
+                "Content-Type: " + contentType + "\r\n\r\n"
+        ).getBytes(StandardCharsets.UTF_8);
+        byte[] footer = ("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8);
+
+        return HttpRequest.BodyPublishers.ofInputStream(() -> {
+            try {
+                return new SequenceInputStream(Collections.enumeration(java.util.List.of(
+                        new java.io.ByteArrayInputStream(header),
+                        Files.newInputStream(filePath),
+                        new java.io.ByteArrayInputStream(footer)
+                )));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
     }
 
     /**
