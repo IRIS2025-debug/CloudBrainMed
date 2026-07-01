@@ -13,6 +13,11 @@ export default defineConfig({
   server: {
     // 开发时将 /auth-service, /admin-service 等转发到后端网关，避免跨域问题
     proxy: {
+      '/exam-service': {
+        target: 'http://localhost:8006',
+        changeOrigin: true,
+        secure: false,
+      },
       '/auth-service': {
         target: 'http://localhost:8002',
         changeOrigin: true,

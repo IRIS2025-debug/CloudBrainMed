@@ -1,0 +1,16 @@
+# backend/services/ai-service/src/main/resources/application.yml
+spring:
+  application:
+    name: ai-service
+  profiles:
+    active: dev
+  config:
+    import: optional:nacos:ai-service.yml
+
+server:
+  port: 8001
+
+# 训练流水线：Python 推理服务地址（环境无关，按需用环境变量覆盖）
+ai:
+  python-service:
+    url: ${AI_PYTHON_SERVICE_URL:http://localhost:8010}
