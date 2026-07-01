@@ -57,6 +57,7 @@ import {
   Cpu,
   Camera,
   HomeFilled,
+  Monitor,
   SwitchButton,
 } from '@element-plus/icons-vue'
 
@@ -85,6 +86,7 @@ const iconMap: Record<string, any> = {
   CollectionTag,
   Cpu,
   Camera,
+  Monitor,
 }
 
 // ==================== 菜单配置（包含首页概览）====================
@@ -92,14 +94,12 @@ const doctorMenus = [
   { path: '/', title: '首页概览', icon: 'HomeFilled', group: '医生端' },
   { path: '/doctor/profile', title: '医生个人信息', icon: 'UserFilled', group: '医生端' },
   { path: '/doctor/consult', title: '接诊工作台', icon: 'List', group: '医生端' },
-  { path: '/doctor/ai-exam-generate', title: 'AI检查检验', icon: 'DataAnalysis', group: '医生端' },
+  { path: '/doctor/ai-exam-generate', title: 'AI检查检验项目生成', icon: 'DataAnalysis', group: '医生端' },
   { path: '/doctor/ai-medicine', title: 'AI 药物推荐', icon: 'DataAnalysis', group: '医生端' },
   { path: '/doctor/schedule', title: '值班查询', icon: 'List', group: '医生端' },
-  // ====== 检验医生专属（type=3）======
-  { path: '/inspection-doctor/home', title: '检验工作台', icon: 'HomeFilled', group: '检验医生' },
-  { path: '/inspection-doctor/order-list', title: '查看检验申请', icon: 'List', group: '检验医生' },
+  { path: '/doctor/workbench', title: '检查检验工作台', icon: 'Monitor', group: '医生端' },
+  { path: '/doctor/queue', title: '检查检验队列', icon: 'List', group: '医生端' },
   // ====== 检查医生专属（type=2）======
-  { path: '/examination-doctor/home', title: '检查工作台', icon: 'HomeFilled', group: '检查医生' },
   { path: '/examination-doctor/ct-inference', title: 'CT 伪影检测', icon: 'Camera', group: '检查医生' },
 ]
 
@@ -175,11 +175,24 @@ const menuItems = computed(() => {
       // Ai药物查询，仅看诊医生（1）可见与检验医生（3）可见
       if (item.path === '/doctor/ai-medicine') return dt === 1 || dt === 3
 
+      // 检查检验工作台、队列：仅检查医生(2)和检验医生(3)可见
+      if (item.path === '/doctor/workbench' || item.path === '/doctor/queue') return dt === 2 || dt === 3
+
       // 其他菜单所有医生都可访问
       return true
     }).map(item => {
       // 将首页概览路径替换为对应医生类型的首页
       if (item.path === '/') return { ...item, path: homePath }
+      // 根据医生类型改标题：检查医生→检查工作台，检验医生→检验工作台
+      if (item.path === '/doctor/workbench') {
+        if (dt === 2) return { ...item, title: '检查工作台' }
+        if (dt === 3) return { ...item, title: '检验工作台' }
+      }
+      // 根据医生类型改标题：检查医生→检查队列，检验医生→检验队列
+      if (item.path === '/doctor/queue') {
+        if (dt === 2) return { ...item, title: '检查队列' }
+        if (dt === 3) return { ...item, title: '检验队列' }
+      }
       return item
     })
   }
