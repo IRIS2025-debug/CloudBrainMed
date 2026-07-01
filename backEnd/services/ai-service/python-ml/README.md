@@ -1,5 +1,9 @@
 ﻿# CT 金属伪影检测 — AI 训练与推理
 
+> Note: training data, six experiment outputs, and defense evidence have been
+> moved to `../../../../project-materials/ct-model-defense-traces/`. This backend
+> folder keeps only runtime inference code and deployed weights.
+
 ## 项目结构
 
 ```

@@ -40,7 +40,7 @@ EXPERIMENTS = [
     ExperimentCommand(
         "E4",
         "AttentionUNet architecture comparison",
-        ["--model", "attention", "--optimizer", "adamw", "--epochs", "100", "--batch-size", "8", "--accum", "1", "--fp16", "--lr", "1e-4"],
+        ["--model", "attention", "--optimizer", "adamw", "--epochs", "100", "--batch-size", "2", "--accum", "4", "--fp16", "--lr", "1e-4"],
     ),
     ExperimentCommand(
         "E5",
@@ -49,8 +49,8 @@ EXPERIMENTS = [
     ),
     ExperimentCommand(
         "E6",
-        "UNet + AdamW larger batch",
-        ["--model", "unet", "--optimizer", "adamw", "--epochs", "100", "--batch-size", "16", "--accum", "1", "--fp16", "--lr", "1e-4"],
+        "UNet + AdamW larger effective batch",
+        ["--model", "unet", "--optimizer", "adamw", "--epochs", "100", "--batch-size", "4", "--accum", "4", "--fp16", "--lr", "1e-4"],
     ),
 ]
 

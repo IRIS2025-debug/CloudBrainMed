@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse
 import SimpleITK as sitk
 
 from Detection.CTArtifactInfer import CTArtifactInfer
+from Detection.ct_artifact_result import build_artifact_result
 
 app = FastAPI(title="CT金属伪影检测AI服务", version="2.0")
 
@@ -26,13 +27,14 @@ app.add_middleware(
 )
 
 # 全局加载模型（启动时加载一次）
-MODEL_PATH = os.environ.get("MODEL_PATH", "./Model/weights/best.pth")
-MODEL_TYPE = os.environ.get("MODEL_TYPE", "unet")
+MODEL_PATH = os.environ.get("MODEL_PATH", "./Model/weights/best_attention_adamw.pth")
+MODEL_TYPE = os.environ.get("MODEL_TYPE", "attention")
+MODEL_VERSION = os.environ.get("MODEL_VERSION", "attention_adamw_e4")
 
 try:
     infer = CTArtifactInfer(model_weight_path=MODEL_PATH, model_type=MODEL_TYPE)
 except Exception as e:
-    print(f"❌ 模型加载失败: {e}")
+    print(f"Model load failed: {e}")
     raise
 
 UPLOAD_DIR = "uploads"
@@ -66,17 +68,19 @@ async def predict_ct(file: UploadFile = File(...)):
         mask_filename = f"{unique_id}_{name_without_ext}_mask.nii.gz"
         mask_save_path = os.path.join(RESULT_DIR, mask_filename)
         mask_sitk = infer.predict_from_sitk(sitk_ct, save_mask_path=mask_save_path)
+        mask_array = sitk.GetArrayFromImage(mask_sitk)
 
-        return {
-            "status": "success",
-            "message": "CT金属伪影检测完成",
-            "original_file": original_filename,
-            "mask_file": mask_filename,
-            "shape": mask_sitk.GetSize(),
-            "spacing": list(sitk_ct.GetSpacing()),
-            "origin": list(sitk_ct.GetOrigin()),
-            "download_url": f"/results/{mask_filename}"
-        }
+        return build_artifact_result(
+            original_filename=original_filename,
+            mask_filename=mask_filename,
+            mask_array=mask_array,
+            image_size=mask_sitk.GetSize(),
+            spacing=sitk_ct.GetSpacing(),
+            origin=sitk_ct.GetOrigin(),
+            download_url=f"/results/{mask_filename}",
+            model_type=MODEL_TYPE,
+            model_version=MODEL_VERSION,
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"服务处理失败: {str(e)}")
 
@@ -129,6 +133,7 @@ async def root():
         "status": "ok",
         "message": "CT金属伪影检测服务运行中",
         "model_type": MODEL_TYPE,
+        "model_version": MODEL_VERSION,
         "device": str(infer.device)
     }
 

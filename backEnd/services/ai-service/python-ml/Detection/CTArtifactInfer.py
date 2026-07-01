@@ -25,7 +25,7 @@ class CTArtifactInfer:
         self.model_weight_path = model_weight_path
         self.model_type = model_type
         self.model = self._load_model()
-        print(f"✅ 模型加载成功 [{model_type}] → {self.device}")
+        print(f"Model loaded [{model_type}] on {self.device}")
 
     def _load_model(self):
         """加载训练好的 UNet 模型（全局只加载一次）"""
@@ -36,7 +36,11 @@ class CTArtifactInfer:
             from Model.UNet2D import UNet2D
             model = UNet2D().to(self.device)
 
-        model.load_state_dict(torch.load(self.model_weight_path, map_location=self.device))
+        try:
+            state_dict = torch.load(self.model_weight_path, map_location=self.device, weights_only=True)
+        except TypeError:
+            state_dict = torch.load(self.model_weight_path, map_location=self.device)
+        model.load_state_dict(state_dict)
         model.eval()
         return model
 

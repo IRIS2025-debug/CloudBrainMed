@@ -42,15 +42,19 @@ function normalizeResult(data: Record<string, any>) {
   const totalPixels = readNumber(data, ['total_pixels', 'totalPixels'])
   const ratio = readNumber(data, ['ratio', 'artifact_ratio', 'artifactRatio'])
   const maskFile = data.mask_file || data.maskFile || ''
+  const reportInput = data.report_input || data.reportInput
   return {
     ...data,
     positivePixels,
     totalPixels,
     ratio: ratio ?? computeRatio(positivePixels, totalPixels),
     maskFile,
+    reportInput,
     downloadUrl: resolveDownloadUrl(data.download_url || data.downloadUrl || maskFile),
     shapeText: formatArray(data.shape),
     spacingText: formatArray(data.spacing),
+    modelText: [data.model_type || data.modelType, data.model_version || data.modelVersion].filter(Boolean).join(' / '),
+    summaryText: data.summary || reportInput?.summary || '',
   }
 }
 
@@ -176,7 +180,9 @@ function resolveDownloadUrl(url: string) {
         <div v-if="result.maskFile"><span>掩码文件</span>{{ result.maskFile }}</div>
         <div v-if="result.shapeText"><span>影像维度</span>{{ result.shapeText }}</div>
         <div v-if="result.spacingText"><span>像素间距</span>{{ result.spacingText }}</div>
+        <div v-if="result.modelText"><span>模型版本</span>{{ result.modelText }}</div>
         <div v-if="result.latencyMs"><span>推理耗时</span>{{ result.latencyMs }} ms</div>
+        <div v-if="result.summaryText"><span>报告输入</span>{{ result.summaryText }}</div>
         <a v-if="result.downloadUrl" :href="result.downloadUrl" target="_blank" rel="noopener">下载掩码结果</a>
       </div>
     </div>
