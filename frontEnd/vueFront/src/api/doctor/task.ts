@@ -1,0 +1,21 @@
+import request from '../request'
+
+export function getWorkbench() {
+  return request.get('/doctor-service/task/workbench')
+}
+
+export function getQueue() {
+  return request.get('/doctor-service/task/queue')
+}
+
+export function getTaskDetail(orderItemId: string) {
+  return request.get('/doctor-service/task/detail', { params: { orderItemId } })
+}
+
+export function startTask(orderItemId: string) {
+  return request.post('/doctor-service/task/start', { orderItemId })
+}
+
+export function completeTask(orderItemId: string) {
+  return request.post('/doctor-service/task/complete', { orderItemId })
+}

@@ -56,6 +56,24 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 2 }
     },
     {
+      path: '/doctor/workbench',
+      name: 'doctorWorkbench',
+      component: () => import('@/pages/doctor/workbench/Index.vue'),
+      meta: { requiresAuth: true, role: 2 }
+    },
+    {
+      path: '/doctor/queue',
+      name: 'doctorQueue',
+      component: () => import('@/pages/doctor/queue/Index.vue'),
+      meta: { requiresAuth: true, role: 2 }
+    },
+    {
+      path: '/doctor/task/:id',
+      name: 'doctorTaskDetail',
+      component: () => import('@/pages/doctor/task-detail/Index.vue'),
+      meta: { requiresAuth: true, role: 2 }
+    },
+    {
       path: '/admin/ml/dashboard',
       name: 'mlDashboard',
       component: () => import('@/pages/admin/ml/Dashboard.vue'),
