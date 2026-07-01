@@ -92,6 +92,7 @@ const doctorMenus = [
   { path: '/', title: '首页概览', icon: 'HomeFilled', group: '医生端' },
   { path: '/doctor/profile', title: '医生个人信息', icon: 'UserFilled', group: '医生端' },
   { path: '/doctor/consult', title: '接诊工作台', icon: 'List', group: '医生端' },
+  { path: '/doctor/ai-exam-generate', title: 'AI检查检验', icon: 'DataAnalysis', group: '医生端' },
   { path: '/doctor/ai-medicine', title: 'AI 药物推荐', icon: 'DataAnalysis', group: '医生端' },
   { path: '/doctor/schedule', title: '值班查询', icon: 'List', group: '医生端' },
   // ====== 检验医生专属（type=3）======
@@ -161,6 +162,9 @@ const menuItems = computed(() => {
     return doctorMenus.filter(item => {
       // 接诊工作台：仅看诊医生（1）可见
       if (item.path === '/doctor/consult') return dt === 1
+
+      // AI检查检验：仅看诊医生（1）可见
+      if (item.path === '/doctor/ai-exam-generate') return dt === 1
 
       // 检查医生专属（type=2）
       if (item.group === '检查医生') return dt === 2

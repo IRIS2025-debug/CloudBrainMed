@@ -85,8 +85,8 @@ public interface ConsultMapper {
     @Update("UPDATE registration SET consult_status='RECORD_CONFIRMED' WHERE register_id=#{registerId}")
     int markRecordConfirmed(@Param("registerId") String registerId);
 
-    @Insert("INSERT INTO medical_order (order_id, patient_id, register_id, doctor_id, clinical_summary, urgency_level, source_type, status, pay_status) " +
-        "VALUES (#{orderId}, #{patientId}, #{registerId}, #{doctorId}, #{clinicalSummary}, #{urgencyLevel}, 'MANUAL', 'WAITING_ASSIGN', 'UNPAID')")
+    @Insert("INSERT INTO medical_order (order_id, patient_id, register_id, doctor_id, clinical_summary, urgency_level, source_type, status, pay_status, create_time) " +
+        "VALUES (#{orderId}, #{patientId}, #{registerId}, #{doctorId}, #{clinicalSummary}, #{urgencyLevel}, 'MANUAL', 'WAITING_ASSIGN', 'WAITING', NOW())")
     int insertCheckReport(@Param("orderId") String orderId,
                            @Param("patientId") String patientId,
                            @Param("registerId") String registerId,
@@ -101,13 +101,13 @@ public interface ConsultMapper {
             "<foreach collection='itemNames' item='name' open='(' separator=',' close=')'>" +
             "#{name}" +
             "</foreach>" +
-            " AND status = 'ACTIVE'" +
+            " AND status = 1" +
             "</script>")
     List<Map<String, Object>> findMedicalItemsByNames(@Param("itemNames") List<String> itemNames);
 
     /** 写入 medical_order_item 子表行 */
-    @Insert("INSERT INTO medical_order_item (order_item_id, order_id, item_id, item_code, item_name, item_category, assigned_dept_id, urgency_level, price, status) " +
-            "VALUES (#{orderItemId}, #{orderId}, #{itemId}, #{itemCode}, #{itemName}, #{itemCategory}, #{assignedDeptId}, #{urgencyLevel}, #{price}, 'WAITING_ASSIGN')")
+    @Insert("INSERT INTO medical_order_item (order_item_id, order_id, item_id, item_code, item_name, item_category, assigned_dept_id, urgency_level, price, status, create_time) " +
+            "VALUES (#{orderItemId}, #{orderId}, #{itemId}, #{itemCode}, #{itemName}, #{itemCategory}, #{assignedDeptId}, #{urgencyLevel}, #{price}, 'WAITING_ASSIGN', NOW())")
     int insertOrderItem(@Param("orderItemId") String orderItemId,
                         @Param("orderId") String orderId,
                         @Param("itemId") String itemId,

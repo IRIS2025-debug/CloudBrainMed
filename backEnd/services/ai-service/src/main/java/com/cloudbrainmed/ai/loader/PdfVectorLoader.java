@@ -24,7 +24,8 @@ import java.util.Map;
 @ConditionalOnProperty(prefix = "spring.vector-loader.pdf", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class PdfVectorLoader implements CommandLineRunner {
     private static final Logger log = LoggerFactory.getLogger(PdfVectorLoader.class);
-    private static final int CHUNK_SIZE = 500; // 每块 500 字
+    private static final int CHUNK_SIZE = 500;
+    private static final int BATCH_SIZE = 10;
 
     @Autowired
     private VectorStore vectorStore;
@@ -66,8 +67,14 @@ public class PdfVectorLoader implements CommandLineRunner {
                 return;
             }
 
-            vectorStore.add(allDocs);
-            log.info("PDF 向量库导入完成，共导入 {} 个文档块", allDocs.size());
+            for (int i = 0; i < allDocs.size(); i += BATCH_SIZE) {
+                int end = Math.min(i + BATCH_SIZE, allDocs.size());
+                List<Document> batch = allDocs.subList(i, end);
+                vectorStore.add(batch);
+                log.info("PDF 向量库批次 {}/{} 导入完成，本批 {} 个文档块", (i / BATCH_SIZE + 1),
+                        (allDocs.size() + BATCH_SIZE - 1) / BATCH_SIZE, batch.size());
+            }
+            log.info("PDF 向量库全部导入完成，共导入 {} 个文档块", allDocs.size());
         } catch (Exception ex) {
             log.warn("PDF 向量库初始化失败，已跳过本次导入，不影响 ai-service 启动。原因：{}", ex.getMessage(), ex);
         }
