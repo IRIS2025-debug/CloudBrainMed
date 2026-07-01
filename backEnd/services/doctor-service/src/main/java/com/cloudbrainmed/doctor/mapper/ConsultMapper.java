@@ -48,7 +48,7 @@ public interface ConsultMapper {
 
     @Select("SELECT r.*, m.record_id, m.doctor_name, m.patient_name, m.visit_age, m.description, " +
         "EXTRACT(YEAR FROM AGE(NOW(), r.birthday)) AS patient_age " +
-        "FROM registration r LEFT JOIN medical_record m ON r.register_id = m.register_id " +
+        "FROM registration r LEFT JOIN register_report m ON r.register_id = m.register_id " +
         "WHERE r.register_id = #{registerId}")
     @Results({
         @Result(column = "register_id", property = "registerId"),
@@ -69,14 +69,14 @@ public interface ConsultMapper {
     })
     ConsultRecord findDetail(@Param("registerId") String registerId);
 
-    @Select("SELECT record_id FROM medical_record WHERE register_id = #{registerId}")
+    @Select("SELECT record_id FROM register_report WHERE register_id = #{registerId}")
     String findRecordId(@Param("registerId") String registerId);
 
-    @Insert("INSERT INTO medical_record (record_id, patient_id, doctor_id, register_id, doctor_name, patient_name, visit_age, description, visit_date, pay_status) " +
+    @Insert("INSERT INTO register_report (record_id, patient_id, doctor_id, register_id, doctor_name, patient_name, visit_age, description, visit_date, pay_status) " +
         "VALUES (#{recordId}, #{patientId}, #{doctorId}, #{registerId}, #{doctorName}, #{patientName}, #{visitAge}, #{description}, #{visitDate}, 'UNPAID')")
     int insertRecord(ConsultRecord r);
 
-    @Update("UPDATE medical_record SET description=#{description} WHERE register_id=#{registerId}")
+    @Update("UPDATE register_report SET description=#{description} WHERE register_id=#{registerId}")
     int updateRecordDesc(@Param("registerId") String registerId, @Param("description") String description);
 
     @Update("UPDATE registration SET consult_status='IN_PROGRESS' WHERE register_id=#{registerId}")
@@ -85,8 +85,8 @@ public interface ConsultMapper {
     @Update("UPDATE registration SET consult_status='RECORD_CONFIRMED' WHERE register_id=#{registerId}")
     int markRecordConfirmed(@Param("registerId") String registerId);
 
-    @Insert("INSERT INTO medical_order (order_id, patient_id, register_id, doctor_id, clinical_summary, urgency_level, source_type, status, pay_status) " +
-        "VALUES (#{orderId}, #{patientId}, #{registerId}, #{doctorId}, #{clinicalSummary}, #{urgencyLevel}, 'MANUAL', 'WAITING_ASSIGN', 'UNPAID')")
+    @Insert("INSERT INTO medical_order (order_id, patient_id, register_id, doctor_id, clinical_summary, urgency_level, source_type, status, pay_status, create_time) " +
+        "VALUES (#{orderId}, #{patientId}, #{registerId}, #{doctorId}, #{clinicalSummary}, #{urgencyLevel}, 'MANUAL', 'WAITING_ASSIGN', 'WAITING', NOW())")
     int insertCheckReport(@Param("orderId") String orderId,
                            @Param("patientId") String patientId,
                            @Param("registerId") String registerId,
@@ -101,13 +101,13 @@ public interface ConsultMapper {
             "<foreach collection='itemNames' item='name' open='(' separator=',' close=')'>" +
             "#{name}" +
             "</foreach>" +
-            " AND status = 'ACTIVE'" +
+            " AND status = 1" +
             "</script>")
     List<Map<String, Object>> findMedicalItemsByNames(@Param("itemNames") List<String> itemNames);
 
     /** 写入 medical_order_item 子表行 */
-    @Insert("INSERT INTO medical_order_item (order_item_id, order_id, item_id, item_code, item_name, item_category, assigned_dept_id, urgency_level, price, status) " +
-            "VALUES (#{orderItemId}, #{orderId}, #{itemId}, #{itemCode}, #{itemName}, #{itemCategory}, #{assignedDeptId}, #{urgencyLevel}, #{price}, 'WAITING_ASSIGN')")
+    @Insert("INSERT INTO medical_order_item (order_item_id, order_id, item_id, item_code, item_name, item_category, assigned_dept_id, urgency_level, price, status, create_time) " +
+            "VALUES (#{orderItemId}, #{orderId}, #{itemId}, #{itemCode}, #{itemName}, #{itemCategory}, #{assignedDeptId}, #{urgencyLevel}, #{price}, 'WAITING_ASSIGN', NOW())")
     int insertOrderItem(@Param("orderItemId") String orderItemId,
                         @Param("orderId") String orderId,
                         @Param("itemId") String itemId,
@@ -123,7 +123,7 @@ public interface ConsultMapper {
 
     @Select("""
         SELECT description
-        FROM medical_record
+        FROM register_report
         WHERE patient_id = #{patientId}
           AND register_id <> #{registerId}
           AND description IS NOT NULL

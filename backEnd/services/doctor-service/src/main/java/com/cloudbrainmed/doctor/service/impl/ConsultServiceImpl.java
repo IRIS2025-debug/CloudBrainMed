@@ -154,7 +154,12 @@ public class ConsultServiceImpl implements ConsultService {
     }
 
     @Override
-    public void completeConsult(String registerId) {
+    public void completeConsult(String registerId, String doctorId) {
+        ConsultRecord detail = consultMapper.findDetail(registerId);
+        if (detail == null) throw new BusinessException("就诊记录不存在");
+        if (!doctorId.equals(detail.getDoctorId())) {
+            throw new BusinessException("无权操作该接诊记录");
+        }
         consultMapper.completeConsult(registerId);
     }
 }

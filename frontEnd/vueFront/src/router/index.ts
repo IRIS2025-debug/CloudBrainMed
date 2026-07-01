@@ -44,6 +44,12 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
+      path: '/doctor/ai-exam-generate',
+      name: 'aiExamGenerate',
+      component: () => import('@/pages/doctor/ai-exam-generate/Index.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
       path: '/doctor/schedule',
       name: 'doctorSchedule',
       component: () => import('@/pages/doctor/schedule/Schedule.vue'),

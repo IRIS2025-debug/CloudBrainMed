@@ -29,7 +29,26 @@
         <div class="actions">
           <el-button @click="handleSaveDraft" :loading="saving" size="large">暂存草稿</el-button>
           <el-button type="success" @click="handleConfirm" :loading="confirming" size="large">确认病历</el-button>
-          <el-button type="warning" @click="handleCreateExam" size="large">开具检查单</el-button>
+          <el-button-group size="large">
+            <el-button type="warning" @click="handleCreateExam">
+              <el-icon><MagicStick /></el-icon> AI 开具检查单
+            </el-button>
+            <el-dropdown trigger="click" @command="handleExamCommand">
+              <el-button type="warning">
+                <el-icon><ArrowDown /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="ai">
+                    <el-icon><MagicStick /></el-icon> AI 智能推荐
+                  </el-dropdown-item>
+                  <el-dropdown-item command="manual">
+                    <el-icon><Edit /></el-icon> 手动输入检查单
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </el-button-group>
           <el-button type="success" @click="handleCreatePrescription" size="large">开具处方</el-button>
           <el-button type="primary" @click="handleAiAnalyze" :loading="aiLoading" size="large">
             <el-icon><MagicStick /></el-icon> AI 分析
@@ -132,12 +151,13 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { MagicStick } from '@element-plus/icons-vue'
+import { ArrowDown, ArrowLeft, Edit, MagicStick } from '@element-plus/icons-vue'
 import { getConsultDetail, saveDraft, confirmRecord, createExamOrder, completeConsult, aiAnalyze, createPrescription } from '@/api/doctor/consult'
 
 const route = useRoute()
+const router = useRouter()
 const registerId = route.params.registerId as string
 const detail = ref<any>({})
 const recordDesc = ref('')
@@ -161,7 +181,17 @@ async function handleConfirm() {
   confirming.value = true
   try { await confirmRecord({ registerId, recordDesc: recordDesc.value }); ElMessage.success('病历已确认'); detail.value.consultStatus = 'RECORD_CONFIRMED' } catch {} finally { confirming.value = false }
 }
-function handleCreateExam() { showExamDialog.value = true; showPrescriptionDialog.value = false }
+function handleCreateExam() {
+  router.push({ path: '/doctor/ai-exam-generate', query: { registerId } })
+}
+function handleExamCommand(cmd: string) {
+  if (cmd === 'ai') {
+    router.push({ path: '/doctor/ai-exam-generate', query: { registerId } })
+  } else {
+    showExamDialog.value = true
+    showPrescriptionDialog.value = false
+  }
+}
 function handleCreatePrescription() { showPrescriptionDialog.value = true; showExamDialog.value = false }
 async function submitPrescription() {
   if (!rxForm.value.medicineName.trim()) { ElMessage.warning('请输入药品名称'); return }
@@ -198,8 +228,8 @@ async function handleAiAnalyze() {
   } catch {} finally { aiLoading.value = false }
 }
 function handleAiConfirm() {
-  ElMessage.success('AI 分析结果已采纳，可据此开具检查单')
-  showExamDialog.value = true
+  ElMessage.success('AI 分析结果已采纳，即将跳转至检查建议页面')
+  router.push({ path: '/doctor/ai-exam-generate', query: { registerId } })
 }
 function statusLabel(s: string) { const m: Record<string, string> = { PENDING: '待接诊', IN_PROGRESS: '接诊中', RECORD_CONFIRMED: '已确认', COMPLETED: '已完成' }; return m[s] || s }
 </script>
@@ -228,6 +258,16 @@ function statusLabel(s: string) { const m: Record<string, string> = { PENDING: '
 
 .editor { margin-bottom: 16px; }
 .actions { display: flex; gap: 12px; flex-wrap: wrap; }
+
+/* 检查单按钮组 */
+.actions :deep(.el-button-group .el-button:first-child) {
+  padding-right: 8px;
+}
+.actions :deep(.el-button-group .el-button:last-child) {
+  padding-left: 6px;
+  padding-right: 10px;
+  border-left: 1px solid rgba(255, 255, 255, 0.3);
+}
 
 /* AI 分析面板 */
 .ai-panel { margin-top: 20px; background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border: 1px solid #bae6fd; border-radius: 12px; padding: 24px; }
