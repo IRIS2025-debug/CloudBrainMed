@@ -22,8 +22,10 @@ public class PrescriptionController {
 
     /** 按挂号ID查询处方 */
     @GetMapping("/list")
-    public Result<?> listByRegisterId(@RequestParam String registerId) {
-        return Result.ok(prescriptionService.getByRegisterId(registerId));
+    public Result<?> listByRegisterId(@RequestHeader(value = "token", required = false) String token,
+                                      @RequestParam String registerId) {
+        String patientId = extractPatientId(token);
+        return Result.ok(prescriptionService.getByRegisterId(registerId, patientId));
     }
 
     /** 按患者ID查询所有处方 */

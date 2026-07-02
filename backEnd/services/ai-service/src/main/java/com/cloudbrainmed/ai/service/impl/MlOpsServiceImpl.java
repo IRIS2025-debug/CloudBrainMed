@@ -195,11 +195,43 @@ public class MlOpsServiceImpl implements MlOpsService {
     }
 
     @Override
+    public Map<String, Object> predictCtLesion(MultipartFile file) throws Exception {
+        return inferenceEngine.predictLesion(file);
+    }
+
+    @Override
     public ResponseEntity<byte[]> downloadCtArtifactMask(String maskFilename) throws Exception {
         byte[] body = inferenceEngine.downloadMask(maskFilename);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + maskFilename + "\"")
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(body);
+    }
+
+    @Override
+    public ResponseEntity<byte[]> downloadCtArtifactPreview(String previewFilename) throws Exception {
+        byte[] body = inferenceEngine.downloadPreview(previewFilename);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + previewFilename + "\"")
+                .contentType(MediaType.IMAGE_PNG)
+                .body(body);
+    }
+
+    @Override
+    public ResponseEntity<byte[]> downloadCtLesionMask(String maskFilename) throws Exception {
+        byte[] body = inferenceEngine.downloadMask(maskFilename);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + maskFilename + "\"")
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(body);
+    }
+
+    @Override
+    public ResponseEntity<byte[]> downloadCtLesionPreview(String previewFilename) throws Exception {
+        byte[] body = inferenceEngine.downloadPreview(previewFilename);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + previewFilename + "\"")
+                .contentType(MediaType.IMAGE_PNG)
                 .body(body);
     }
 

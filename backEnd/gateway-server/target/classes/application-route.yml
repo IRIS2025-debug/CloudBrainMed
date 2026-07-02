@@ -2,14 +2,6 @@ spring:
   cloud:
     gateway:
       routes:
-        # 检查医生 CT 伪影检测：doctor 向语义别名，重写后转发到 ai-service
-        # 必须置于通用 /doctor-service/** 路由之前，否则会被其截走
-        - id: doctor-ct-artifact-route
-          uri: lb://ai-service
-          predicates:
-            - Path=/doctor-service/exam/ct-artifact,/doctor-service/exam/ct-artifact/**
-          filters:
-            - RewritePath=/doctor-service/exam/ct-artifact(?<segment>.*), /admin-service/ml/inference/ct-artifact${segment}
         - id: ai-service-ml-route
           uri: lb://ai-service
           predicates:
@@ -46,12 +38,6 @@ spring:
           uri: lb://doctor-service
           predicates:
             - Path=/inspection-doctor/**
-        - id: patient-api-route
-          uri: lb://patient-service
-          predicates:
-            - Path=/api/patient/**
-          filters:
-            - RewritePath=/api/patient(?<segment>.*), /patient-service${segment}
         - id: patient-service-route
           uri: lb://patient-service
           predicates:

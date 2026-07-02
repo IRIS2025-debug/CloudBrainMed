@@ -4,7 +4,7 @@ Summarize CT artifact training experiments into report-ready Markdown and CSV.
 
 Usage:
     python tools/summarize_experiments.py
-    python tools/summarize_experiments.py --experiments experiments --out docs/generated
+    python tools/summarize_experiments.py --experiments ../../../../project-materials/ct-model-defense-traces/experiments
 """
 from __future__ import annotations
 
@@ -47,8 +47,8 @@ class Experiment:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--experiments", default="experiments")
-    parser.add_argument("--out", default="docs/generated")
+    parser.add_argument("--experiments", default="../../../../project-materials/ct-model-defense-traces/experiments")
+    parser.add_argument("--out", default="../../../../project-materials/ct-model-defense-traces/python-ml-docs/docs/generated")
     args = parser.parse_args()
 
     root = Path(args.experiments)

@@ -48,7 +48,7 @@
             <el-input
                 v-model="loginForm.phone"
                 placeholder="手机号"
-                prefix-icon="User"
+                :prefix-icon="User"
                 size="large"
                 clearable
             />
@@ -58,7 +58,7 @@
             <el-input
                 v-model="loginForm.password"
                 placeholder="密码"
-                prefix-icon="Lock"
+                :prefix-icon="Lock"
                 show-password
                 size="large"
                 clearable
@@ -83,7 +83,7 @@ import { ref } from 'vue'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
-import { Check, DataAnalysis, Lock } from '@element-plus/icons-vue'
+import { Check, DataAnalysis, Lock, User } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const loading = ref(false)

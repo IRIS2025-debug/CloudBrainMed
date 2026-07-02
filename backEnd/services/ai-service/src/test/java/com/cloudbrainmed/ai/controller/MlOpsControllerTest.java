@@ -88,4 +88,52 @@ class MlOpsControllerTest {
         assertThat(response.getBody()).isEqualTo(maskBytes);
         verify(service).downloadCtArtifactMask("scan_mask.nii.gz");
     }
+
+    @Test
+    void ctInferencePreviewDownloadDelegatesPreviewFileToMlService() throws Exception {
+        byte[] previewBytes = "png".getBytes(StandardCharsets.UTF_8);
+        when(service.downloadCtArtifactPreview("scan_preview_z1.png"))
+                .thenReturn(ResponseEntity.ok(previewBytes));
+
+        ResponseEntity<byte[]> response = controller.downloadCtArtifactPreview("scan_preview_z1.png");
+
+        assertThat(response.getBody()).isEqualTo(previewBytes);
+        verify(service).downloadCtArtifactPreview("scan_preview_z1.png");
+    }
+
+    @Test
+    void ctLesionInferenceDelegatesUploadToMlService() throws Exception {
+        MockMultipartFile file = new MockMultipartFile("file", "ct.nii.gz",
+                "application/octet-stream", new byte[] {1});
+        when(service.predictCtLesion(file)).thenReturn(Map.of("status", "success"));
+
+        Object data = controller.predictCtLesion(file).getData();
+
+        assertThat(data).isEqualTo(Map.of("status", "success"));
+        verify(service).predictCtLesion(file);
+    }
+
+    @Test
+    void ctLesionResultDownloadDelegatesMaskFileToMlService() throws Exception {
+        byte[] maskBytes = "mask".getBytes(StandardCharsets.UTF_8);
+        when(service.downloadCtLesionMask("scan_lesion_mask.nii.gz"))
+                .thenReturn(ResponseEntity.ok(maskBytes));
+
+        ResponseEntity<byte[]> response = controller.downloadCtLesionMask("scan_lesion_mask.nii.gz");
+
+        assertThat(response.getBody()).isEqualTo(maskBytes);
+        verify(service).downloadCtLesionMask("scan_lesion_mask.nii.gz");
+    }
+
+    @Test
+    void ctLesionPreviewDownloadDelegatesPreviewFileToMlService() throws Exception {
+        byte[] previewBytes = "png".getBytes(StandardCharsets.UTF_8);
+        when(service.downloadCtLesionPreview("scan_lesion_preview_z1.png"))
+                .thenReturn(ResponseEntity.ok(previewBytes));
+
+        ResponseEntity<byte[]> response = controller.downloadCtLesionPreview("scan_lesion_preview_z1.png");
+
+        assertThat(response.getBody()).isEqualTo(previewBytes);
+        verify(service).downloadCtLesionPreview("scan_lesion_preview_z1.png");
+    }
 }

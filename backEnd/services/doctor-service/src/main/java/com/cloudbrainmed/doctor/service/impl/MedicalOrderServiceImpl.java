@@ -1,8 +1,10 @@
 package com.cloudbrainmed.doctor.service.impl;
 
+import com.cloudbrainmed.api.feign.PaymentFeignClient;
 import com.cloudbrainmed.common.constant.MedicalItemCodeEnum;
 import com.cloudbrainmed.common.constant.UrgencyLevelEnum;
 import com.cloudbrainmed.common.exception.BusinessException;
+import com.cloudbrainmed.common.result.Result;
 import com.cloudbrainmed.doctor.dto.MedicalOrderConfirmRequest;
 import com.cloudbrainmed.doctor.dto.MedicalOrderConfirmResponse;
 import com.cloudbrainmed.doctor.dto.MedicalOrderItemRequest;
@@ -15,6 +17,8 @@ import com.cloudbrainmed.doctor.mapper.MedicalItemMapper;
 import com.cloudbrainmed.doctor.mapper.MedicalOrderMapper;
 import com.cloudbrainmed.doctor.service.MedicalOrderService;
 import com.cloudbrainmed.doctor.vo.InspectionOrderVo;
+import com.cloudbrainmed.payment.dto.UnifiedPayDto;
+import com.cloudbrainmed.payment.vo.PayResultVo;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
@@ -35,16 +39,19 @@ public class MedicalOrderServiceImpl implements MedicalOrderService {
     private final ConsultMapper consultMapper;
     private final MedicalItemMapper medicalItemMapper;
     private final MedicalOrderMapper medicalOrderMapper;
+    private final PaymentFeignClient paymentFeignClient;
     private final ObjectMapper objectMapper;
 
     public MedicalOrderServiceImpl(
             ConsultMapper consultMapper,
             MedicalItemMapper medicalItemMapper,
             MedicalOrderMapper medicalOrderMapper,
+            PaymentFeignClient paymentFeignClient,
             ObjectMapper objectMapper) {
         this.consultMapper = consultMapper;
         this.medicalItemMapper = medicalItemMapper;
         this.medicalOrderMapper = medicalOrderMapper;
+        this.paymentFeignClient = paymentFeignClient;
         this.objectMapper = objectMapper;
     }
 
@@ -202,11 +209,59 @@ public class MedicalOrderServiceImpl implements MedicalOrderService {
                 consult.getRegisterId(), doctorId) != 1) {
             throw new BusinessException("Failed to update consult status");
         }
+        createPayOrder(order, consult, totalAmount);
         return new MedicalOrderConfirmResponse(
                 orderId,
                 order.getSourceType(),
                 resolvedItems.size(),
                 totalAmount);
+    }
+
+    @Override
+    @Transactional
+    public MedicalOrder assignOrder(String orderId, String assignedRoom) {
+        MedicalOrder order = medicalOrderMapper.selectByOrderId(orderId);
+        if (order == null) {
+            throw new BusinessException("medical order not found");
+        }
+        if (!"PAID".equals(order.getPayStatus())) {
+            throw new BusinessException("medical order pay status is not PAID");
+        }
+        if (!"WAITING_ASSIGN".equals(order.getStatus())) {
+            throw new BusinessException("medical order is not waiting assignment");
+        }
+        if (!hasText(assignedRoom)) {
+            throw new BusinessException("assigned room is required");
+        }
+        String room = assignedRoom.trim();
+        if (medicalOrderMapper.assignOrder(orderId, room) != 1) {
+            throw new BusinessException("assign medical order failed");
+        }
+        order.setStatus("QUEUED");
+        order.setAssignedRoom(room);
+        return order;
+    }
+
+    private void createPayOrder(
+            MedicalOrder order, ConsultRecord consult, BigDecimal totalAmount) {
+        UnifiedPayDto dto = new UnifiedPayDto();
+        dto.setPatientId(order.getPatientId());
+        dto.setPatientName(patientName(consult));
+        dto.setOrderType("MEDICAL");
+        dto.setBusinessId(order.getOrderId());
+        dto.setDescription("医技检查检验费");
+        dto.setAmount(totalAmount == null ? BigDecimal.ZERO : totalAmount);
+        Result<PayResultVo> result = paymentFeignClient.createPayOrder(dto);
+        if (result == null || result.getCode() == null || result.getCode() != 200) {
+            throw new BusinessException("create medical pay order failed");
+        }
+    }
+
+    private String patientName(ConsultRecord consult) {
+        if (hasText(consult.getPatientName())) {
+            return consult.getPatientName();
+        }
+        return consult.getName();
     }
 
     private ConsultRecord requireOwnedConsult(

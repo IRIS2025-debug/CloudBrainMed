@@ -104,8 +104,13 @@ const doctorMenus = [
   { path: '/doctor/schedule', title: '值班查询', icon: 'List', group: '医生端' },
   { path: '/doctor/workbench', title: '检查检验工作台', icon: 'Monitor', group: '医生端' },
   { path: '/doctor/queue', title: '检查检验队列', icon: 'List', group: '医生端' },
-  { path: '/inspection-doctor/order-list', title: '查看检验申请', icon: 'List', group: '检验医生' },
-
+  // ====== 检验医生（type=3）======
+  { path: '/inspection-doctor/home', title: '检验工作台', icon: 'HomeFilled', group: '检验医生' },
+  { path: '/inspection-doctor/order-list', title: '查看检查/检验申请', icon: 'List', group: '检验医生' },
+  // ====== 检查医生（type=2）======
+  { path: '/examination-doctor/home', title: '检查工作台', icon: 'HomeFilled', group: '检查医生' },
+  { path: '/inspection-doctor/order-list', title: '查看检查/检验申请', icon: 'List', group: '检查医生' },
+  { path: '/examination-doctor/ct-inference', title: 'CT 伪影检测', icon: 'Camera', group: '检查医生' },
 ]
 
 const adminMenus = [

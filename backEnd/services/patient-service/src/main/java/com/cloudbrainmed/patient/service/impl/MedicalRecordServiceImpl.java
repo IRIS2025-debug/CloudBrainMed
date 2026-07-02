@@ -17,8 +17,8 @@ public class MedicalRecordServiceImpl implements MedicalRecordService {
     }
 
     @Override
-    public List<MedicalRecord> getByRegisterId(String registerId) {
-        return mapper.selectByRegisterId(registerId);
+    public List<MedicalRecord> getByRegisterId(String registerId, String patientId) {
+        return mapper.selectByRegisterId(registerId, patientId);
     }
 
     @Override

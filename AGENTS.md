@@ -11,4 +11,6 @@ For feature work, especially anything involving the doctor reception workflow, m
 
 When changing an owned area that already appears in `CloudBrainMed API 接口文档.md`, keep that API document in sync. Update affected interface paths, request parameters, response bodies, DTO/entity field descriptions, and business rules in the same task whenever implementation changes them or source-code verification shows the document is stale.
 
-Keep changes minimal and surgical. Do not modify generated build artifacts, `target` directories, secrets, or deployment configuration unless explicitly requested.
+Prioritize complete business workflows, working project functionality, and bug-free behavior. Keep code as simple and focused as possible while meeting those goals. Do not modify generated build artifacts, `target` directories, secrets, or deployment configuration unless explicitly requested.
+
+If you create a temporary task plan document while executing a task, delete that plan document after the task has been implemented or completed. Do not delete permanent project documentation or user-provided documents.

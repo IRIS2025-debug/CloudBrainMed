@@ -36,4 +36,17 @@ class MedicalRecordControllerTest {
                 .isInstanceOf(RuntimeException.class)
                 .hasMessage("未登录，请先登录");
     }
+    @Test
+    void listByRegisterIdUsesPatientIdFromToken() {
+        MedicalRecordService medicalRecordService = mock(MedicalRecordService.class);
+        JwtUtil jwtUtil = mock(JwtUtil.class);
+        MedicalRecordController controller = new MedicalRecordController(
+                medicalRecordService, jwtUtil);
+        when(jwtUtil.getPatientIdFromToken("token-p001")).thenReturn("P001");
+        when(medicalRecordService.getByRegisterId("R001", "P001")).thenReturn(List.of());
+
+        controller.listByRegisterId("token-p001", "R001");
+
+        verify(medicalRecordService).getByRegisterId("R001", "P001");
+    }
 }

@@ -73,6 +73,7 @@ desktop.ini
 **/__pycache__/
 *.pyc
 *.pth
+!backEnd/services/ai-service/python-ml/Model/weights/best_attention_adamw.pth
 *.egg-info/
 
 # 训练实验产出（需手动管理）
@@ -80,3 +81,39 @@ desktop.ini
 
 # 训练实验产出（太大，不提交 Git）
 experiments/
+
+# Local restored/reference materials and CT evidence binaries.
+# Keep README/Markdown/CSV summaries trackable, but do not push large medical
+# images, archives, checkpoints, or temporary training evidence.
+project-materials/**/*.dcm
+project-materials/**/*.nii
+project-materials/**/*.nii.gz
+project-materials/**/*.mhd
+project-materials/**/*.raw
+project-materials/**/*.gz
+project-materials/**/*.b64
+project-materials/**/*.html
+project-materials/**/*.js
+project-materials/**/*.py
+project-materials/**/*.png
+project-materials/**/*.csv
+project-materials/**/*.txt
+project-materials/**/*.log
+project-materials/**/*.json
+project-materials/**/*.yaml
+project-materials/**/*.xlsx
+project-materials/ct-model-defense-traces/xunlian/**
+!project-materials/ct-model-defense-traces/xunlian/README.md
+project-materials/restored-reference-materials/course/**
+project-materials/restored-reference-materials/teach/**
+project-materials/restored-reference-materials/tmp_inspect_dataset_folder/**
+project-materials/restored-reference-materials/temp_share.js
+!project-materials/**/*.md
+!project-materials/**/README.md
+!project-materials/ct-model-defense-traces/python-ml-docs/docs/generated/*.csv
+
+# Local CT inference/training data and generated outputs.
+backEnd/services/ai-service/python-ml/uploads/
+backEnd/services/ai-service/python-ml/results/
+backEnd/services/ai-service/python-ml/previews/
+backEnd/services/ai-service/python-ml/data/

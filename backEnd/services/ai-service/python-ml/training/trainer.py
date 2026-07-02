@@ -227,8 +227,9 @@ class Trainer:
                 best_path = os.path.join(self.exp_dir, "best.pth")
                 torch.save(self.model.state_dict(), best_path)
                 # 同时更新推理服务用的模型
+                deploy_filename = config.get("model", {}).get("deploy_filename", "best.pth")
                 deploy_path = os.path.join(
-                    os.path.dirname(__file__), "..", "Model", "weights", "best.pth"
+                    os.path.dirname(__file__), "..", "Model", "weights", deploy_filename
                 )
                 os.makedirs(os.path.dirname(deploy_path), exist_ok=True)
                 shutil.copy2(best_path, deploy_path)

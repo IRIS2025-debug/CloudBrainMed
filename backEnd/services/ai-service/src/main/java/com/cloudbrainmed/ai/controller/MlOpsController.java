@@ -133,4 +133,24 @@ public class MlOpsController {
     public ResponseEntity<byte[]> downloadCtArtifactMask(@PathVariable String maskFilename) throws Exception {
         return mlOpsService.downloadCtArtifactMask(maskFilename);
     }
+
+    @GetMapping("/inference/ct-artifact/preview/{previewFilename}")
+    public ResponseEntity<byte[]> downloadCtArtifactPreview(@PathVariable String previewFilename) throws Exception {
+        return mlOpsService.downloadCtArtifactPreview(previewFilename);
+    }
+
+    @PostMapping("/inference/ct-lesion")
+    public Result<?> predictCtLesion(@RequestParam("file") MultipartFile file) throws Exception {
+        return Result.ok(mlOpsService.predictCtLesion(file));
+    }
+
+    @GetMapping("/inference/ct-lesion/result/{maskFilename}")
+    public ResponseEntity<byte[]> downloadCtLesionMask(@PathVariable String maskFilename) throws Exception {
+        return mlOpsService.downloadCtLesionMask(maskFilename);
+    }
+
+    @GetMapping("/inference/ct-lesion/preview/{previewFilename}")
+    public ResponseEntity<byte[]> downloadCtLesionPreview(@PathVariable String previewFilename) throws Exception {
+        return mlOpsService.downloadCtLesionPreview(previewFilename);
+    }
 }

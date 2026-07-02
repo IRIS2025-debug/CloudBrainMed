@@ -8,7 +8,7 @@ import java.util.List;
 @Mapper
 public interface PrescriptionMapper {
 
-    @Select("SELECT * FROM prescription WHERE register_id = #{registerId}")
+    @Select("SELECT * FROM prescription WHERE register_id = #{registerId} AND patient_id = #{patientId}")
     @Results({
         @Result(column = "prescription_id", property = "prescriptionId"),
         @Result(column = "register_id", property = "registerId"),
@@ -25,7 +25,8 @@ public interface PrescriptionMapper {
         @Result(column = "pay_status", property = "payStatus"),
         @Result(column = "create_time", property = "createTime")
     })
-    List<Prescription> selectByRegisterId(@Param("registerId") String registerId);
+    List<Prescription> selectByRegisterId(@Param("registerId") String registerId,
+                                          @Param("patientId") String patientId);
 
     @Select("SELECT p.* FROM prescription p INNER JOIN registration r ON p.register_id = r.register_id WHERE r.patient_id = #{patientId} ORDER BY p.create_time DESC")
     @Results({

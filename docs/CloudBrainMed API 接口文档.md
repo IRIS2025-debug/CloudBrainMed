@@ -28,12 +28,12 @@
 
 |服务|端口|主要路由|
 |---|---|---|
-|admin\-service|8000|/api/admin/\*\*|
-|ai\-service|8001|/api/ai/**、/api/admin/ml/**|
+|admin\-service|8000|/admin\-service/\*\*|
+|ai\-service|8001|/ai\-service/**、/admin\-service/ml/**|
 |auth\-service|8002|/api/auth/**、/auth\-service/**|
-|doctor\-service|8003|/api/doctor/**、/internal/doctor/**|
+|doctor\-service|8003|/doctor\-service/**、/inspection\-doctor/**、/internal/doctor/**|
 |patient\-service|8004|/api/patient/**、/patient\-service/**|
-|payment\-service|8005|/api/payment/\*\*（当前网关未配置）|
+|payment\-service|8005|/api/payment/\*\*、/payment-service/pay/\*\*|
 
 
 
@@ -191,9 +191,10 @@ Gateway 默认端口为 `80`，基地址为 `http://{gateway-host}`。
 
 |参数名|位置|类型|必填|说明|
 |---|---|---|---|---|
-|phone|body|String|是|手机号|
-|password|body|String|是|当前实现按数据库明文比对|
+|phone|body|String|是|手机号（同一手机号可对应多种 doctorType）|
+|password|body|String|是|当前实现按数据库「明文 OR md5(明文)」双重比对|
 |roleType|body|Integer|是|2医生，3管理员|
+|doctorType|body|Integer|否|医生子类型：1接诊 2检查 3检验；通常不传，由账号密码匹配到的医生记录返回，只有同手机号多医生账号需要精确定位时传入|
 
 
 
@@ -203,8 +204,9 @@ Gateway 默认端口为 `80`，基地址为 `http://{gateway-host}`。
 
 |参数名|类型|说明|
 |---|---|---|
-|token|String|JWT令牌|
+|token|String|JWT令牌（roleType=2 时内含 doctorType claim）|
 |roleType|Integer|角色类型|
+|doctorType|Integer|医生子类型（仅 roleType=2 返回）|
 
 
 
@@ -232,7 +234,8 @@ Gateway 默认端口为 `80`，基地址为 `http://{gateway-host}`。
   "msg": "成功",
   "data": {
     "token": "eyJhbGciOiJIUzI1NiJ9...",
-    "roleType": 2
+    "roleType": 2,
+    "doctorType": 2
   }
 }
 ```
@@ -243,7 +246,7 @@ Gateway 默认端口为 `80`，基地址为 `http://{gateway-host}`。
 
 
 
-**业务规则：** 账号不存在、密码不匹配或角色值非法时抛出业务异常。
+**业务规则：** 账号不存在、密码不匹配或角色值非法时抛出业务异常；医生登录成功后返回医生表中的 `doctorType`，前端据此进入接诊、检查或检验工作台。
 
 
 
@@ -473,6 +476,7 @@ Gateway 默认端口为 `80`，基地址为 `http://{gateway-host}`。
 |name|String|姓名|
 |gender|Integer|1男，2女|
 |phone|String|脱敏手机号|
+|avatar|String|头像地址|
 |idCard|String|脱敏身份证号|
 |address|String|地址|
 |birthday|Date|出生日期|
@@ -629,7 +633,7 @@ Gateway 默认端口为 `80`，基地址为 `http://{gateway-host}`。
 |---|---|
 |接口地址|`/api/patient/profile/info`|
 |请求方式|`GET`|
-|请求头|token: JWT（必填；当前代码兼容直接传patientId，仅限开发）|
+|请求头|token: JWT（必填）|
 |权限说明|患者本人|
 
 
@@ -690,7 +694,7 @@ GET /api/patient/profile/info
 
 
 
-**业务规则：** patientId从token解析；手机号、身份证脱敏；password置空。
+**业务规则：** patientId从JWT解析，不允许直接传patientId代替token；手机号、身份证脱敏；password置空。
 
 
 
@@ -702,7 +706,7 @@ GET /api/patient/profile/info
 |---|---|
 |接口地址|`/api/patient/profile/update`|
 |请求方式|`PUT`|
-|请求头|token: JWT（必填；当前代码兼容直接传patientId，仅限开发）|
+|请求头|token: JWT（必填）|
 |权限说明|患者本人|
 
 
@@ -786,7 +790,7 @@ GET /api/patient/profile/info
 
 |参数名|位置|类型|必填|说明|
 |---|---|---|---|---|
-|file|multipart|File|是|图片文件|
+|file|multipart|File|是|图片文件，仅支持 jpg/jpeg/png/gif/webp，最大 2MB|
 
 
 
@@ -826,7 +830,7 @@ multipart/form-data: file=<binary>
 
 
 
-**错误码：** 500 Token无效；500 文件名无扩展名可能导致异常
+**错误码：** 500 Token无效；500 患者不存在；500 头像文件为空/超过2MB/格式不支持
 
 
 
@@ -842,7 +846,7 @@ multipart/form-data: file=<binary>
 |---|---|
 |接口地址|`/api/patient/profile/change-phone`|
 |请求方式|`POST`|
-|请求头|token: JWT（必填；当前代码兼容直接传patientId，仅限开发）|
+|请求头|token: JWT（必填）|
 |权限说明|患者本人|
 
 
@@ -913,7 +917,7 @@ multipart/form-data: file=<binary>
 |---|---|
 |接口地址|`/api/patient/profile/change-password`|
 |请求方式|`POST`|
-|请求头|token: JWT（必填；当前代码兼容直接传patientId，仅限开发）|
+|请求头|token: JWT（必填）|
 |权限说明|患者本人|
 
 
@@ -982,7 +986,7 @@ multipart/form-data: file=<binary>
 |---|---|
 |接口地址|`/api/patient/profile/verify-idcard`|
 |请求方式|`POST`|
-|请求头|token: JWT（必填；当前代码兼容直接传patientId，仅限开发）|
+|请求头|token: JWT（必填）|
 |权限说明|患者本人|
 
 
@@ -1049,7 +1053,7 @@ multipart/form-data: file=<binary>
 |---|---|
 |接口地址|`/api/patient/profile/registers`|
 |请求方式|`GET`|
-|请求头|token: JWT（必填；当前代码兼容直接传patientId，仅限开发）|
+|请求头|token: JWT（必填）|
 |权限说明|患者本人|
 
 
@@ -1127,7 +1131,7 @@ GET /api/patient/profile/registers
 |---|---|
 |接口地址|`/api/patient/profile/payments`|
 |请求方式|`GET`|
-|请求头|token: JWT（必填；当前代码兼容直接传patientId，仅限开发）|
+|请求头|token: JWT（必填）|
 |权限说明|患者本人|
 
 
@@ -1206,7 +1210,7 @@ GET /api/patient/profile/payments
 |---|---|
 |接口地址|`/api/patient/profile/full`|
 |请求方式|`GET`|
-|请求头|token: JWT（必填；当前代码兼容直接传patientId，仅限开发）|
+|请求头|token: JWT（必填）|
 |权限说明|患者本人|
 
 
@@ -2040,7 +2044,7 @@ GET /patient-service/register/detail/{registerId}
 |接口地址|`/api/patient/medical/list`|
 |请求方式|`GET`|
 |请求头|JSON|
-|权限说明|患者本人/医生|
+|权限说明|患者本人；当前实现从患者 token 解析 patientId，并仅返回该患者名下 registerId 对应的病历|
 
 
 
@@ -2069,7 +2073,7 @@ GET /patient-service/register/detail/{registerId}
 
 
 ```HTTP
-GET /api/patient/medical/list
+GET /api/patient/medical/list?registerId=REG001
 无请求体
 ```
 
@@ -2118,7 +2122,7 @@ GET /api/patient/medical/list
 |---|---|
 |接口地址|`/api/patient/medical/my-list`|
 |请求方式|`GET`|
-|请求头|JSON|
+|请求头|token: 患者JWT（必填）|
 |权限说明|患者本人|
 
 
@@ -2129,7 +2133,7 @@ GET /api/patient/medical/list
 
 |参数名|位置|类型|必填|说明|
 |---|---|---|---|---|
-|patientId|query|String|是|患者ID|
+|token|header|String|是|患者JWT；patientId 从 token 解析，忽略 query 中的 patientId|
 
 
 
@@ -2185,7 +2189,7 @@ GET /api/patient/medical/my-list
 
 
 
-**业务规则：** 当前接口从查询参数取patientId，未与token绑定。
+**业务规则：** patientId 从 token 解析，不允许客户端通过 query 任意指定。
 
 
 
@@ -2198,7 +2202,7 @@ GET /api/patient/medical/my-list
 |接口地址|`/api/patient/prescription/list`|
 |请求方式|`GET`|
 |请求头|JSON|
-|权限说明|患者本人/医生|
+|权限说明|患者本人；当前实现从患者 token 解析 patientId，并仅返回该患者名下 registerId 对应的处方|
 
 
 
@@ -2227,7 +2231,7 @@ GET /api/patient/medical/my-list
 
 
 ```HTTP
-GET /api/patient/prescription/list
+GET /api/patient/prescription/list?registerId=REG001
 无请求体
 ```
 
@@ -2276,7 +2280,7 @@ GET /api/patient/prescription/list
 |---|---|
 |接口地址|`/api/patient/prescription/my-list`|
 |请求方式|`GET`|
-|请求头|JSON|
+|请求头|token: 患者JWT（必填）|
 |权限说明|患者本人|
 
 
@@ -2287,7 +2291,7 @@ GET /api/patient/prescription/list
 
 |参数名|位置|类型|必填|说明|
 |---|---|---|---|---|
-|patientId|query|String|是|患者ID|
+|token|header|String|是|患者JWT；patientId 从 token 解析，忽略 query 中的 patientId|
 
 
 
@@ -2343,7 +2347,7 @@ GET /api/patient/prescription/my-list
 
 
 
-**业务规则：** 当前接口从查询参数取patientId，未与token绑定。
+**业务规则：** patientId 从 token 解析，不允许客户端通过 query 任意指定。
 
 ### 2\.3 医生业务模块
 
@@ -2353,7 +2357,7 @@ GET /api/patient/prescription/my-list
 
 
 
-**路由范围：** `/api/doctor/**`
+**路由范围：** `/doctor-service/**`、`/inspection-doctor/**`
 
 
 
@@ -2361,7 +2365,7 @@ GET /api/patient/prescription/my-list
 
 
 
-**接口数量：** 17
+**接口数量：** 18
 
 
 
@@ -2371,23 +2375,23 @@ GET /api/patient/prescription/my-list
 
 |接口名称|请求方式|接口地址|
 |---|---|---|
-|查询医生资料|`GET`|`/api/doctor/profile/info`|
-|更新医生资料|`PUT`|`/api/doctor/profile/update`|
-|查询资料完善状态|`GET`|`/api/doctor/profile/setup-status`|
-|查询接诊列表|`GET`|`/api/doctor/consult/list`|
-|查询接诊详情|`GET`|`/api/doctor/consult/detail`|
-|暂存病历草稿|`POST`|`/api/doctor/consult/save-draft`|
-|确认正式病历|`POST`|`/api/doctor/consult/confirm-record`|
-|创建检查申请单|`POST`|`/api/doctor/consult/create-exam-order`|
-|完成接诊|`POST`|`/api/doctor/consult/complete`|
-|开具处方|`POST`|`/api/doctor/consult/create-prescription`|
-|按挂号ID查询处方|`GET`|`/api/doctor/consult/prescription-list`|
-|按挂号ID查询检查单|`GET`|`/api/doctor/exam-order/list`|
-|查询当前医生开具的检查单|`GET`|`/api/doctor/exam-order/my-list`|
-|查询当前医生全部排班|`GET`|`/api/doctor/schedule/my-list`|
-|查询当前医生未来排班<br>|`GET`<br>|`/api/doctor/schedule/upcoming`|
-|查询所有检验申请列表|`GET`<br>|`/api/inspection-doctor/order/list`|
-|查询检验申请详情|`GET`<br>|`/api/inspection-doctor/order/detail/{orderId}`|
+|查询医生资料|`GET`|`/doctor-service/profile/info`|
+|更新医生资料|`PUT`|`/doctor-service/profile/update`|
+|查询资料完善状态|`GET`|`/doctor-service/profile/setup-status`|
+|查询接诊列表|`GET`|`/doctor-service/consult/list`|
+|查询接诊详情|`GET`|`/doctor-service/consult/detail`|
+|暂存病历草稿|`POST`|`/doctor-service/consult/save-draft`|
+|确认正式病历|`POST`|`/doctor-service/consult/confirm-record`|
+|创建检查申请单|`POST`|`/doctor-service/consult/create-exam-order`|
+|完成接诊|`POST`|`/doctor-service/consult/complete`|
+|开具处方|`POST`|`/doctor-service/consult/create-prescription`|
+|按挂号ID查询处方|`GET`|`/doctor-service/consult/prescription-list`|
+|按挂号ID查询检查单|`GET`|`/doctor-service/exam-order/list`|
+|查询当前医生开具的检查单|`GET`|`/doctor-service/exam-order/my-list`|
+|查询医生周排班|`GET`|`/doctor-service/schedule/weekly`|
+|查询医生可选药品列表|`GET`|`/doctor-service/medicine/list`|
+|查询所有检验申请列表|`GET`<br>|`/inspection-doctor/lab-orders`|
+|查询检验申请详情|`GET`<br>|`/inspection-doctor/order/{orderId}`|
 
 
 
@@ -2479,6 +2483,24 @@ GET /api/patient/prescription/my-list
 
 
 
+##### `MedicineOption`
+
+
+
+|字段|类型|说明|
+|---|---|---|
+|medicineId|String|药品ID|
+|name|String|药品名称|
+|spec|String|规格|
+|usage|String|默认用法用量|
+|indication|String|适应症|
+|attention|String|注意事项|
+|stock|Integer|库存|
+|price|Decimal|单价|
+|createTime|DateTime|创建时间|
+
+
+
 #### 2\.3\.1 医生个人资料
 
 
@@ -2489,9 +2511,9 @@ GET /api/patient/prescription/my-list
 
 |项目|内容|
 |---|---|
-|接口地址|`/api/doctor/profile/info`|
+|接口地址|`/doctor-service/profile/info`|
 |请求方式|`GET`|
-|请求头|token: 医生JWT（必填；当前代码兼容直接传doctorId，仅限开发）|
+|请求头|token: 医生JWT（必填）|
 |权限说明|医生本人|
 
 
@@ -2519,7 +2541,7 @@ GET /api/patient/prescription/my-list
 
 
 ```HTTP
-GET /api/doctor/profile/info
+GET /doctor-service/profile/info
 无请求体
 ```
 
@@ -2561,7 +2583,7 @@ GET /api/doctor/profile/info
 
 |项目|内容|
 |---|---|
-|接口地址|`/api/doctor/profile/update`|
+|接口地址|`/doctor-service/profile/update`|
 |请求方式|`PUT`|
 |请求头|token: 医生JWT（必填；当前代码兼容直接传doctorId，仅限开发）|
 |权限说明|医生本人|
@@ -2632,7 +2654,7 @@ GET /api/doctor/profile/info
 
 |项目|内容|
 |---|---|
-|接口地址|`/api/doctor/profile/setup-status`|
+|接口地址|`/doctor-service/profile/setup-status`|
 |请求方式|`GET`|
 |请求头|token: 医生JWT（必填；当前代码兼容直接传doctorId，仅限开发）|
 |权限说明|医生本人|
@@ -2662,7 +2684,7 @@ GET /api/doctor/profile/info
 
 
 ```HTTP
-GET /api/doctor/profile/setup-status
+GET /doctor-service/profile/setup-status
 无请求体
 ```
 
@@ -2702,7 +2724,7 @@ GET /api/doctor/profile/setup-status
 
 |项目|内容|
 |---|---|
-|接口地址|`/api/doctor/consult/list`|
+|接口地址|`/doctor-service/consult/list`|
 |请求方式|`GET`|
 |请求头|token: 医生JWT（必填；当前代码兼容直接传doctorId，仅限开发）|
 |权限说明|医生本人|
@@ -2737,7 +2759,7 @@ GET /api/doctor/profile/setup-status
 
 
 ```HTTP
-GET /api/doctor/consult/list
+GET /doctor-service/consult/list
 无请求体
 ```
 
@@ -2782,7 +2804,7 @@ GET /api/doctor/consult/list
 
 |项目|内容|
 |---|---|
-|接口地址|`/api/doctor/consult/detail`|
+|接口地址|`/doctor-service/consult/detail`|
 |请求方式|`GET`|
 |请求头|token: 医生JWT（必填；当前代码兼容直接传doctorId，仅限开发）|
 |权限说明|医生；当前实现未校验记录归属|
@@ -2814,7 +2836,7 @@ GET /api/doctor/consult/list
 
 
 ```HTTP
-GET /api/doctor/consult/detail
+GET /doctor-service/consult/detail
 无请求体
 ```
 
@@ -2857,7 +2879,7 @@ GET /api/doctor/consult/detail
 
 |项目|内容|
 |---|---|
-|接口地址|`/api/doctor/consult/save-draft`|
+|接口地址|`/doctor-service/consult/save-draft`|
 |请求方式|`POST`|
 |请求头|token: 医生JWT（必填；当前代码兼容直接传doctorId，仅限开发）|
 |权限说明|医生；当前实现未校验记录归属|
@@ -2926,7 +2948,7 @@ GET /api/doctor/consult/detail
 
 |项目|内容|
 |---|---|
-|接口地址|`/api/doctor/consult/confirm-record`|
+|接口地址|`/doctor-service/consult/confirm-record`|
 |请求方式|`POST`|
 |请求头|token: 医生JWT（必填；当前代码兼容直接传doctorId，仅限开发）|
 |权限说明|记录所属医生|
@@ -2995,7 +3017,7 @@ GET /api/doctor/consult/detail
 
 |项目|内容|
 |---|---|
-|接口地址|`/api/doctor/consult/create-exam-order`|
+|接口地址|`/doctor-service/consult/create-exam-order`|
 |请求方式|`POST`|
 |请求头|token: 医生JWT（必填；当前代码兼容直接传doctorId，仅限开发）|
 |权限说明|医生；当前实现未校验记录归属|
@@ -3066,7 +3088,7 @@ GET /api/doctor/consult/detail
 
 |项目|内容|
 |---|---|
-|接口地址|`/api/doctor/consult/complete`|
+|接口地址|`/doctor-service/consult/complete`|
 |请求方式|`POST`|
 |请求头|token: 医生JWT（必填；当前代码兼容直接传doctorId，仅限开发）|
 |权限说明|医生；当前实现未校验记录归属|
@@ -3127,6 +3149,176 @@ GET /api/doctor/consult/detail
 
 
 
+##### 2\.3\.2\.7 开具处方
+
+
+
+|项目|内容|
+|---|---|
+|接口地址|`/doctor-service/consult/create-prescription`|
+|请求方式|`POST`|
+|请求头|token: 医生JWT（必填）|
+|权限说明|记录所属医生；已完成接诊不能继续开具处方|
+
+
+
+**请求参数**
+
+
+
+|参数名|位置|类型|必填|说明|
+|---|---|---|---|---|
+|registerId|body|String|是|挂号ID|
+|medicineId|body|String|否|药品ID；当前前端处方审查会选择真实药品并传入该字段|
+|medicineName|body|String|是|药品名称|
+|spec|body|String|否|规格|
+|usage|body|String|否|用法用量|
+|num|body|Integer|是|数量|
+|price|body|Decimal|否|单价|
+
+
+
+**返回参数**
+
+
+
+|参数名|类型|说明|
+|---|---|---|
+|data|Prescription|已创建的处方记录|
+
+
+
+**请求示例**
+
+
+
+```JSON
+{
+  "registerId": "REG001",
+  "medicineId": "MED001",
+  "medicineName": "示例药品",
+  "spec": "10mg×20片",
+  "usage": "口服，每次1片，每日2次",
+  "num": 1,
+  "price": 25.5
+}
+```
+
+
+
+**返回示例**
+
+
+
+```JSON
+{
+  "code": 200,
+  "msg": "成功",
+  "data": {
+    "prescriptionId": "PRE0123456789ABCDEF01234567",
+    "registerId": "REG001",
+    "doctorId": "DOC001",
+    "medicineId": "MED001",
+    "medicineName": "示例药品",
+    "spec": "10mg×20片",
+    "usage": "口服，每次1片，每日2次",
+    "num": 1,
+    "price": 25.5,
+    "payStatus": "WAITING",
+    "createTime": "2026-06-16T09:30:00"
+  }
+}
+```
+
+
+
+**错误码：** 500 Token无效；500 就诊记录不存在；500 接诊已完成不能继续开具处方。
+
+
+
+**业务规则：** 当前实现创建处方并将 `payStatus` 固定为 `WAITING`，同时同步调用 payment-service 创建 `orderType=PRESCRIPTION`、`businessId=prescriptionId` 的待支付订单，支付金额按单价 `price` × 数量 `num` 计算；返回体会回填 `payStatus` 和 `createTime`；后端从所属接诊记录回填 `patientId`、`patientName` 和 `doctorName`，不信任前端传入这些展示字段；`medicineId` 为兼容新增字段，传入时写入 `prescription.medicine_id`，旧调用不传仍可创建处方；开方本身不扣减药品库存。
+
+
+
+##### 2\.3\.2\.8 按挂号ID查询处方
+
+
+
+|项目|内容|
+|---|---|
+|接口地址|`/doctor-service/consult/prescription-list`|
+|请求方式|`GET`|
+|请求头|token: 医生JWT（必填；当前代码兼容直接传doctorId，仅限开发）|
+|权限说明|记录所属医生|
+
+
+
+**请求参数**
+
+
+
+|参数名|位置|类型|必填|说明|
+|---|---|---|---|---|
+|registerId|query|String|是|挂号ID|
+
+
+
+**返回参数**
+
+
+
+|参数名|类型|说明|
+|---|---|---|
+|data|Prescription\[\]|处方列表|
+
+
+
+**请求示例**
+
+
+
+```HTTP
+GET /doctor-service/consult/prescription-list?registerId=REG001
+无请求体
+```
+
+
+
+**返回示例**
+
+
+
+```JSON
+{
+  "code": 200,
+  "msg": "成功",
+  "data": [
+    {
+      "prescriptionId": "PRE0123456789ABCDEF01234567",
+      "registerId": "REG001",
+      "doctorId": "DOC001",
+      "medicineId": "MED001",
+      "medicineName": "示例药品",
+      "spec": "10mg×20片",
+      "usage": "口服，每次1片，每日2次",
+      "num": 1,
+      "price": 25.5,
+      "payStatus": "WAITING"
+    }
+  ]
+}
+```
+
+
+
+**错误码：** 500 Token无效；500 就诊记录不存在或无权访问。
+
+
+
+**业务规则：** 查询前复用接诊详情归属校验；按创建时间倒序返回。
+
+
+
 #### 2\.3\.3 医生检查单
 
 
@@ -3137,10 +3329,10 @@ GET /api/doctor/consult/detail
 
 |项目|内容|
 |---|---|
-|接口地址|`/api/doctor/exam-order/list`|
+|接口地址|`/doctor-service/exam-order/list`|
 |请求方式|`GET`|
-|请求头|JSON|
-|权限说明|医生|
+|请求头|token: 医生JWT（必填）|
+|权限说明|医生本人；doctorId 从 token 解析，客户端传入 doctorId 会被忽略|
 
 
 
@@ -3169,7 +3361,7 @@ GET /api/doctor/consult/detail
 
 
 ```HTTP
-GET /api/doctor/exam-order/list
+GET /doctor-service/exam-order/list?registerId=REG001
 无请求体
 ```
 
@@ -3215,7 +3407,7 @@ GET /api/doctor/exam-order/list
 
 |项目|内容|
 |---|---|
-|接口地址|`/api/doctor/exam-order/my-list`|
+|接口地址|`/doctor-service/exam-order/my-list`|
 |请求方式|`GET`|
 |请求头|token: 医生JWT（必填；当前代码兼容直接传doctorId，仅限开发）|
 |权限说明|医生本人|
@@ -3245,7 +3437,7 @@ GET /api/doctor/exam-order/list
 
 
 ```HTTP
-GET /api/doctor/exam-order/my-list
+GET /doctor-service/exam-order/my-list
 无请求体
 ```
 
@@ -3289,13 +3481,13 @@ GET /api/doctor/exam-order/my-list
 
 
 
-##### 2\.3\.4\.1 查询当前医生全部排班
+##### 2\.3\.4\.1 查询医生周排班
 
 
 
 |项目|内容|
 |---|---|
-|接口地址|`/api/doctor/schedule/my-list`|
+|接口地址|`/doctor-service/schedule/weekly`|
 |请求方式|`GET`|
 |请求头|token: 医生JWT（必填；当前代码兼容直接传doctorId，仅限开发）|
 |权限说明|医生本人|
@@ -3316,7 +3508,7 @@ GET /api/doctor/exam-order/my-list
 
 |参数名|类型|说明|
 |---|---|---|
-|data|Schedule\[\]|排班列表|
+|data|WeeklyScheduleVo|周排班视图|
 
 
 
@@ -3325,7 +3517,7 @@ GET /api/doctor/exam-order/my-list
 
 
 ```HTTP
-GET /api/doctor/schedule/my-list
+GET /doctor-service/schedule/weekly?weekStart=2026-06-15
 无请求体
 ```
 
@@ -3339,19 +3531,30 @@ GET /api/doctor/schedule/my-list
 {
   "code": 200,
   "msg": "成功",
-  "data": [
-    {
-      "scheduleId": "SCH001",
-      "doctorId": "DOC001",
-      "deptId": "D001",
-      "workDate": "2026-06-16",
-      "timeSlot": "09:00-12:00",
-      "maxNum": 20,
-      "remainNum": 8,
-      "price": 30,
-      "status": "ACTIVE"
-    }
-  ]
+  "data": {
+    "weekStart": "2026-06-15",
+    "weekEnd": "2026-06-21",
+    "weekData": [
+      {
+        "date": "2026-06-16",
+        "dayOfWeek": 2,
+        "dayName": "周二",
+        "schedules": [
+          {
+            "scheduleId": "SCH001",
+            "doctorId": "DOC001",
+            "deptId": "D001",
+            "workDate": "2026-06-16",
+            "timeSlot": "09:00-12:00",
+            "maxNum": 20,
+            "remainNum": 8,
+            "price": 30,
+            "status": "ACTIVE"
+          }
+        ]
+      }
+    ]
+  }
 }
 ```
 
@@ -3361,20 +3564,22 @@ GET /api/doctor/schedule/my-list
 
 
 
-**业务规则：** 按请求参数查询或处理；空列表返回 `[]`，无业务数据返回 `null`。
+**业务规则：** `weekStart` 为空时返回当前周；返回一周七天数据，没有排班的日期 `schedules` 为空数组。
+
+#### 2\.3\.5 医生可选药品
 
 
 
-##### 2\.3\.4\.2 查询当前医生未来排班
+##### 2\.3\.5\.1 查询医生可选药品列表
 
 
 
 |项目|内容|
 |---|---|
-|接口地址|`/api/doctor/schedule/upcoming`|
+|接口地址|`/doctor-service/medicine/list`|
 |请求方式|`GET`|
 |请求头|token: 医生JWT（必填；当前代码兼容直接传doctorId，仅限开发）|
-|权限说明|医生本人|
+|权限说明|医生本人；只读查询，不提供新增、更新、扣库存能力|
 
 
 
@@ -3382,7 +3587,9 @@ GET /api/doctor/schedule/my-list
 
 
 
-无。
+|参数名|位置|类型|必填|说明|
+|---|---|---|---|---|
+|keyword|query|String|否|按药品名称模糊查询|
 
 
 
@@ -3392,7 +3599,7 @@ GET /api/doctor/schedule/my-list
 
 |参数名|类型|说明|
 |---|---|---|
-|data|Schedule\[\]|未来排班列表|
+|data|MedicineOption\[\]|药品列表|
 
 
 
@@ -3401,7 +3608,7 @@ GET /api/doctor/schedule/my-list
 
 
 ```HTTP
-GET /api/doctor/schedule/upcoming
+GET /doctor-service/medicine/list?keyword=阿莫西林
 无请求体
 ```
 
@@ -3417,15 +3624,15 @@ GET /api/doctor/schedule/upcoming
   "msg": "成功",
   "data": [
     {
-      "scheduleId": "SCH001",
-      "doctorId": "DOC001",
-      "deptId": "D001",
-      "workDate": "2026-06-16",
-      "timeSlot": "09:00-12:00",
-      "maxNum": 20,
-      "remainNum": 8,
-      "price": 30,
-      "status": "ACTIVE"
+      "medicineId": "MED001",
+      "name": "阿莫西林胶囊",
+      "spec": "0.25g×24粒",
+      "usage": "口服，每次0.5g，每日3次",
+      "indication": "细菌感染",
+      "attention": "青霉素过敏禁用",
+      "stock": 120,
+      "price": 18.5,
+      "createTime": "2026-06-16T09:00:00"
     }
   ]
 }
@@ -3433,23 +3640,23 @@ GET /api/doctor/schedule/upcoming
 
 
 
-**错误码：** 500 Token无效
+**错误码：** 500 未登录/Token无效。
 
 
 
-**业务规则：** 按请求参数查询或处理；空列表返回 `[]`，无业务数据返回 `null`。
+**业务规则：** 医生开方和 AI 处方审查通过该接口选择真实 `medicineId`；接口仅读取 `medicine` 表，不扣减库存。
 
-#### **2\.3\.5 检验申请查看**
+#### **2\.3\.6 检验申请查看**
 
 
 
-##### **2.3.5\.1 查询所有检验申请列表**
+##### **2.3.6\.1 查询所有检验申请列表**
 
 
 
 |**项目**|**内容**|
 |---|---|
-|接口地址|`/api/inspection-doctor/order/list`|
+|接口地址|`/inspection-doctor/lab-orders`|
 |请求方式|`GET`|
 |认证|需要医生登录 token|
 |权限|检验医生角色|
@@ -3457,7 +3664,7 @@ GET /api/doctor/schedule/upcoming
 **请求示例：**
 
 ```Plain Text
-GET /api/inspection-doctor/order/list
+GET /inspection-doctor/lab-orders
 ```
 
 **返回示例：**
@@ -3490,11 +3697,11 @@ GET /api/inspection-doctor/order/list
 }
 ```
 
-##### **2.3.5\.2 查询检验申请详情**
+##### **2.3.6\.2 查询检验申请详情**
 
 |**项目**|**内容**|
 |---|---|
-|接口地址|`/api/inspection-doctor/order/detail/{orderId}`|
+|接口地址|`/inspection-doctor/order/{orderId}`|
 |请求方式|`GET`|
 |认证|需要医生登录 token|
 |路径参数|orderId \- 医技申请ID|
@@ -3502,7 +3709,7 @@ GET /api/inspection-doctor/order/list
 **请求示例：**
 
 ```Plain Text
-GET /api/inspection-doctor/order/detail/MO202606160001
+GET /inspection-doctor/order/MO202606160001
 ```
 
 **返回示例：**
@@ -3535,19 +3742,19 @@ GET /api/inspection-doctor/order/detail/MO202606160001
 
 
 
-**模块职责：** 提供医生辅助接诊分析、AI 采纳反馈、药品问答流式输出、AI智能问诊（给患者推荐科室和医生）。
+**模块职责：** 提供医生辅助接诊分析、AI 采纳反馈、药品问答流式输出、AI智能问诊（给患者推荐科室和医生）、AI报告分析，以及模块3负责的AI生成检查/检验项目建议。
 
 
 
-**路由范围：** `/api/ai/**`
+**路由范围：** `/ai-service/**`、`/api/ai/**`
 
 
 
-**权限说明：** 辅助接诊接口仅医生使用；药品问答当前 Controller 尚未校验 token。
+**权限说明：** 辅助接诊和报告分析接口仅医生使用；AI生成检查/检验项目建议由模块3维护；药品问答当前 Controller 尚未校验 token。
 
 
 
-**接口数量：** 4
+**接口数量：** 5
 
 
 
@@ -3557,7 +3764,9 @@ GET /api/inspection-doctor/order/detail/MO202606160001
 
 |接口名称|请求方式|接口地址|
 |---|---|---|
-|生成AI接诊分析|`POST`|`/api/ai/assistant/analyze`|
+|AI辅助接诊聊天|`POST`|`/ai-service/reception/chat`|
+|AI生成检查/检验项目建议|`POST`|`/ai-service/agent/exam/generate`|
+|AI报告分析|`POST`|`/ai-service/report/analyze`|
 |药品问答流式输出|`POST`|`/api/ai/medicine/chat`|
 |AI智能问诊<br>（给患者推荐科室和医生）|`POST`<br>|`/api/ai/consult/recommend`|
 
@@ -3567,28 +3776,155 @@ GET /api/inspection-doctor/order/detail/MO202606160001
 
 
 
-##### `AiAssistResponse`
+##### `AiAssistantChatRequest`
 
 
 
 |字段|类型|说明|
 |---|---|---|
-|traceId|String|本次AI分析追踪ID|
-|status|String|SUCCESS/FAILED|
+|registerId|String|挂号ID，必填，最多32字符|
+|message|String|医生自然语言问题，最多2000字符；与actionType至少提供一项|
+|actionType|String|快捷功能意图，最多64字符；与message至少提供一项|
+|currentRecordDesc|String|当前病历草稿，最多10000字符|
+|symptomDescription|String|补充症状描述，最多5000字符|
+|conversationText|String|医患对话或本次问题上下文，最多20000字符|
+|structuredParameters|Map\<String,String\>|结构化问诊参数，最多30项|
+|followUpAnswers|Map\<String,String\>|AI追问和患者回答，最多10项|
+|patientInformation|Map\<String,String\>|处方审查补充患者信息，最多30项|
+|medicines|PrescriptionReviewMedicineRequest\[\]|处方审查药品列表，最多10项|
+
+
+
+##### `PrescriptionReviewMedicineRequest`
+
+
+
+|字段|类型|说明|
+|---|---|---|
+|medicineId|String|药品ID，必填，最多32字符|
+|usage|String|用法用量，必填，最多200字符|
+|quantity|Integer|数量，必填，1到10000|
+
+
+
+##### `AiAssistantChatResponse`
+
+
+
+|字段|类型|说明|
+|---|---|---|
+|traceId|String|本次AI请求追踪ID|
+|intent|String|识别出的意图，对应actionType枚举|
+|answer|String|可直接展示在医生AI对话框中的文本回复|
+|status|String|SUCCESS/DELEGATED/NEEDS_INPUT/FAILED/UNSUPPORTED|
+|handledModule|String|实际处理模块；为空表示由辅助接诊模块直接处理|
+|moduleResult|Object|专业模块结构化结果，例如病历草稿或处方审查结果|
 |modelVersion|String|模型名称或版本|
-|extractedChiefComplaint|String|规范化主诉|
-|structuredSymptoms|Object\[\]|结构化症状列表|
-|followUpQuestions|Object\[\]|追问问题列表|
-|informationCompleteness|String|SUFFICIENT/INCOMPLETE|
-|missingInformation|String\[\]|缺失信息|
-|suggestedRecordDesc|String|建议病历草稿|
-|diagnosis|Object\[\]|疑似诊断：name/probability/basis|
-|exams|Object\[\]|检查建议：name/purpose/urgency|
-|advice|String|处置建议|
-|riskLevel|String|风险等级|
-|risk|String|风险说明|
-|redFlags|String\[\]|红旗征象|
+|handledByAssistant|Boolean|是否由AI辅助接诊模块直接处理|
 |fallback|Boolean|是否降级结果|
+
+
+
+##### `ExamGenerateRequest`
+
+
+
+|字段|类型|说明|
+|---|---|---|
+|registerId|String|挂号ID，必填|
+|context|ExamGenerateContext|病历上下文，必填|
+
+
+
+##### `ExamGenerateContext`
+
+
+
+|字段|类型|说明|
+|---|---|---|
+|patientId|String|患者ID，必填|
+|visitAge|Integer|就诊年龄|
+|description|String|病历描述、主诉、现病史、体格检查、初步诊断等文本|
+
+
+
+##### `ExamGenerateResponse`
+
+
+
+|字段|类型|说明|
+|---|---|---|
+|traceId|String|本次生成追踪ID|
+|clinicalSummary|String|临床摘要|
+|checkItems|CheckItem\[\]|AI建议的检查/检验项目列表|
+|urgencyLevel|String|紧急程度：NORMAL/URGENT/EMERGENCY|
+|reasoningTrace|String|Agent执行追踪信息|
+
+
+
+##### `CheckItem`
+
+
+
+|字段|类型|说明|
+|---|---|---|
+|itemName|String|检查/检验项目名称|
+|selected|Boolean|默认是否选中，供医生确认|
+
+
+
+##### `ReportAnalysisDto`
+
+
+
+|字段|类型|说明|
+|---|---|---|
+|registerId|String|挂号ID，必填|
+|reportType|String|报告类型：EXAM/LAB|
+|reportText|String|报告原文|
+|indicators|IndicatorDto\[\]|检验指标明细，可选|
+
+
+
+##### `IndicatorDto`
+
+
+
+|字段|类型|说明|
+|---|---|---|
+|name|String|指标名称|
+|value|String|指标值|
+|unit|String|单位|
+|referenceRange|String|参考范围|
+|abnormalFlag|String|异常标记|
+
+
+
+##### `ReportAnalysisVo`
+
+
+
+|字段|类型|说明|
+|---|---|---|
+|summary|String|报告分析摘要|
+|riskLevel|String|风险等级：LOW/MEDIUM/HIGH等|
+|abnormalIndicators|AbnormalIndicatorVo\[\]|异常指标解释|
+|suggestions|String\[\]|处理建议|
+|followUpAdvice|String|随访或复查建议|
+|fallback|Boolean|是否降级结果|
+
+
+
+##### `AbnormalIndicatorVo`
+
+
+
+|字段|类型|说明|
+|---|---|---|
+|name|String|指标名称|
+|value|String|指标值|
+|referenceRange|String|参考范围|
+|interpretation|String|AI解释|
 
 
 
@@ -3596,15 +3932,15 @@ GET /api/inspection-doctor/order/detail/MO202606160001
 
 
 
-##### 2\.4\.1\.1 生成AI接诊分析
+##### 2\.4\.1\.1 AI辅助接诊聊天
 
 
 
 |项目|内容|
 |---|---|
-|接口地址|`/api/ai/assistant/analyze`|
+|接口地址|`/ai-service/reception/chat`|
 |请求方式|`POST`|
-|请求头|token: 医生JWT（必填；当前代码兼容直接传doctorId，仅限开发）|
+|请求头|token: 医生JWT|
 |权限说明|医生本人|
 
 
@@ -3616,9 +3952,15 @@ GET /api/inspection-doctor/order/detail/MO202606160001
 |参数名|位置|类型|必填|说明|
 |---|---|---|---|---|
 |registerId|body|String|是|挂号ID|
+|message|body|String|否|医生自然语言问题；与actionType至少提供一项|
+|actionType|body|String|否|快捷功能意图；与message至少提供一项|
 |currentRecordDesc|body|String|否|当前病历，最多10000字符|
 |symptomDescription|body|String|否|补充症状，最多5000字符|
+|conversationText|body|String|否|医患对话或本次问题上下文，最多20000字符|
+|structuredParameters|body|Map\<String,String\>|否|最多30项；AI病历生成至少应提供conversationText或非空structuredParameters|
 |followUpAnswers|body|Map\<String,String\>|否|最多10项|
+|patientInformation|body|Map\<String,String\>|否|处方审查补充患者信息，最多30项|
+|medicines|body|PrescriptionReviewMedicineRequest\[\]|否|处方审查必填，最多10项|
 
 
 
@@ -3628,7 +3970,7 @@ GET /api/inspection-doctor/order/detail/MO202606160001
 
 |参数名|类型|说明|
 |---|---|---|
-|data|AiAssistResponse|结构化AI建议|
+|data|AiAssistantChatResponse|AI聊天响应|
 
 
 
@@ -3639,6 +3981,8 @@ GET /api/inspection-doctor/order/detail/MO202606160001
 ```JSON
 {
   "registerId": "REG001",
+  "message": "请基于当前接诊信息给出追问建议",
+  "actionType": "FOLLOW_UP_QUESTION",
   "currentRecordDesc": "主诉：咳嗽三天。",
   "symptomDescription": "夜间加重",
   "followUpAnswers": {
@@ -3659,40 +4003,11 @@ GET /api/inspection-doctor/order/detail/MO202606160001
   "msg": "成功",
   "data": {
     "traceId": "AI0123456789abcdef",
+    "intent": "FOLLOW_UP_QUESTION",
+    "answer": "建议继续追问是否发热、咳痰颜色、胸痛气促和既往过敏史。",
     "status": "SUCCESS",
     "modelVersion": "deepseek-v4-flash",
-    "extractedChiefComplaint": "咳嗽3天",
-    "structuredSymptoms": [
-      {
-        "name": "咳嗽",
-        "duration": "3天",
-        "severity": "待补充"
-      }
-    ],
-    "followUpQuestions": [
-      {
-        "question": "是否发热？",
-        "reason": "用于风险判断",
-        "priority": "HIGH"
-      }
-    ],
-    "informationCompleteness": "INCOMPLETE",
-    "missingInformation": [
-      "体温"
-    ],
-    "suggestedRecordDesc": "主诉：咳嗽3天。现病史：待补充。",
-    "diagnosis": [
-      {
-        "name": "上呼吸道感染",
-        "probability": "MEDIUM",
-        "basis": "当前主诉"
-      }
-    ],
-    "exams": [],
-    "advice": "由医生结合检查确认",
-    "riskLevel": "LOW",
-    "risk": "当前信息有限",
-    "redFlags": [],
+    "handledByAssistant": true,
     "fallback": false
   }
 }
@@ -3700,19 +4015,203 @@ GET /api/inspection-doctor/order/detail/MO202606160001
 
 
 
+**actionType枚举：** `FOLLOW_UP_QUESTION`、`MISSING_INFORMATION`、`CONTEXT_SUMMARY`、`CONTEXT_QA`、`MEDICAL_RECORD_DRAFT`、`PRESCRIPTION_REVIEW`、`DIAGNOSIS_ASSISTANT`。
+
+
+
 **错误码：** 400 参数校验失败；200\+FAILED AI或依赖服务失败
 
 
 
-**业务规则：** 通过内部接口校验医生与接诊记录归属；AI失败时仍返回code=200，但data\.status=FAILED、fallback=true；AI结果仅供医生审核。
+**业务规则：** 通过内部接口校验医生与接诊记录归属；快捷按钮传入的actionType优先于关键词识别；`MEDICAL_RECORD_DRAFT`委派AI病历生成模块，`PRESCRIPTION_REVIEW`委派AI处方审查模块且必须提供真实medicineId、usage和quantity；AI失败时仍可能返回code=200，但data\.status=FAILED、fallback=true；AI结果仅供医生审核。
 
 
 
-#### 2\.4\.2 AI药品问答
+#### 2\.4\.2 AI生成检查/检验项目建议
 
 
 
-##### 2\.4\.2\.1 药品问答流式输出
+##### 2\.4\.2\.1 AI生成检查/检验项目建议
+
+
+
+|项目|内容|
+|---|---|
+|接口地址|`/ai-service/agent/exam/generate`|
+|请求方式|`POST`|
+|请求头|Content\-Type: application/json|
+|权限说明|模块3维护；医生接诊模块仅跳转、传参、消费结果并由医生确认开单|
+
+
+
+**请求参数**
+
+
+
+|参数名|位置|类型|必填|说明|
+|---|---|---|---|---|
+|registerId|body|String|是|挂号ID|
+|context.patientId|body|String|是|患者ID|
+|context.visitAge|body|Integer|否|就诊年龄|
+|context.description|body|String|否|病历描述、主诉、现病史、体格检查、初步诊断等文本|
+
+
+
+**返回参数**
+
+
+
+|参数名|类型|说明|
+|---|---|---|
+|data|ExamGenerateResponse|AI生成的检查/检验项目建议|
+
+
+
+**请求示例**
+
+
+
+```JSON
+{
+  "registerId": "REG001",
+  "context": {
+    "patientId": "P001",
+    "visitAge": 35,
+    "description": "主诉：头痛伴眩晕三天。现病史：..."
+  }
+}
+```
+
+
+
+**返回示例**
+
+
+
+```JSON
+{
+  "code": 200,
+  "msg": "成功",
+  "data": {
+    "traceId": "EXAM_0123456789abcdef",
+    "clinicalSummary": "患者头痛伴眩晕，建议结合神经系统检查进一步评估。",
+    "checkItems": [
+      {
+        "itemName": "颅脑CT平扫",
+        "selected": true
+      }
+    ],
+    "urgencyLevel": "NORMAL",
+    "reasoningTrace": "=== Step 1: Planner ===\n..."
+  }
+}
+```
+
+
+
+**错误码：** 400 参数校验失败；200\+空checkItems AI生成失败或无建议。
+
+
+
+**业务规则：** 该接口仅生成建议，不直接写入正式检查/检验申请；前端医生接诊页面可跳转到 `/doctor/ai-exam-generate` 或消费生成结果，但正式申请必须由医生确认后调用医生业务模块的开单接口。`/doctor/ai-exam-generate` 页面和该生成流程归模块3维护。
+
+
+
+#### 2\.4\.3 AI报告分析
+
+
+
+##### 2\.4\.3\.1 AI报告分析
+
+
+
+|项目|内容|
+|---|---|
+|接口地址|`/ai-service/report/analyze`|
+|请求方式|`POST`|
+|请求头|token: 医生JWT|
+|权限说明|医生本人；通过内部接诊上下文校验医生与挂号记录归属|
+
+
+
+**请求参数**
+
+
+
+|参数名|位置|类型|必填|说明|
+|---|---|---|---|---|
+|registerId|body|String|是|挂号ID|
+|reportType|body|String|否|报告类型：EXAM/LAB|
+|reportText|body|String|否|报告原文|
+|indicators|body|IndicatorDto\[\]|否|检验指标明细|
+
+
+
+**返回参数**
+
+
+
+|参数名|类型|说明|
+|---|---|---|
+|data|ReportAnalysisVo|AI报告分析结果|
+
+
+
+**请求示例**
+
+
+
+```JSON
+{
+  "registerId": "REG001",
+  "reportType": "LAB",
+  "reportText": "脑脊液蛋白 0.62 g/L，参考范围 0.15-0.45 g/L"
+}
+```
+
+
+
+**返回示例**
+
+
+
+```JSON
+{
+  "code": 200,
+  "msg": "成功",
+  "data": {
+    "summary": "脑脊液蛋白偏高，需结合临床表现判断炎症或屏障受损可能。",
+    "riskLevel": "MEDIUM",
+    "abnormalIndicators": [
+      {
+        "name": "脑脊液蛋白",
+        "value": "0.62 g/L",
+        "referenceRange": "0.15-0.45 g/L",
+        "interpretation": "高于参考范围"
+      }
+    ],
+    "suggestions": ["核对报告原文和异常指标", "必要时结合影像和病史复查"],
+    "followUpAdvice": "由医生结合查体和既往检查结果确认。",
+    "fallback": false
+  }
+}
+```
+
+
+
+**错误码：** 500 Token无效；500 挂号ID为空；500 无法获取患者接诊信息。
+
+
+
+**业务规则：** 调用前通过内部接口校验医生拥有该接诊记录；AI分析结果仅供医生参考，可由医生写入病历草稿。
+
+
+
+#### 2\.4\.4 AI药品问答
+
+
+
+##### 2\.4\.4\.1 药品问答流式输出
 
 
 
@@ -3779,7 +4278,7 @@ data: [后续文本片段]
 
 **业务规则：** 响应Content\-Type为text/event\-stream；超时300秒；会话历史当前不读取，仅写入Redis字符串，过期30分钟。
 
-#### 2\.4\.3 AI智能问诊
+#### 2\.4\.5 AI智能问诊
 
 
 
@@ -3820,6 +4319,25 @@ data: [后续文本片段]
 |触发模型训练|`POST`|`/api/admin/ml/models/train`|
 |训练任务列表|`GET`|`/api/admin/ml/models/tasks`|
 |Python推理服务健康检查|`GET`|`/api/admin/ml/python/health`|
+|CT伪影检测推理|`POST`|`/admin-service/ml/inference/ct-artifact`|
+|CT伪影检测结果掩膜下载|`GET`|`/admin-service/ml/inference/ct-artifact/result/{maskFilename}`|
+|CT伪影检测预览图下载|`GET`|`/admin-service/ml/inference/ct-artifact/preview/{previewFilename}`|
+|CT病灶识别与分割推理|`POST`|`/admin-service/ml/inference/ct-lesion`|
+|CT病灶识别与分割结果掩膜下载|`GET`|`/admin-service/ml/inference/ct-lesion/result/{maskFilename}`|
+|CT病灶识别与分割预览图下载|`GET`|`/admin-service/ml/inference/ct-lesion/preview/{previewFilename}`|
+
+> **四角色拆分（CT 归属检查医生）**：CT 伪影检测虽物理上仍由 `ai-service` 的 `MlOpsController` 实现，但业务上归**检查医生（roleType=2, doctorType=2）**，不再属于管理员 MLOps。网关新增 doctor 向语义别名，前端检查医生页面应调用别名路径：
+>
+> | 检查医生调用路径（别名） | 网关重写后转发到 ai-service |
+> |---|---|
+> | `POST /doctor-service/exam/ct-artifact` | `POST /admin-service/ml/inference/ct-artifact` |
+> | `GET /doctor-service/exam/ct-artifact/result/{maskFilename}` | `GET /admin-service/ml/inference/ct-artifact/result/{maskFilename}` |
+> | `GET /doctor-service/exam/ct-artifact/preview/{previewFilename}` | `GET /admin-service/ml/inference/ct-artifact/preview/{previewFilename}` |
+> | `POST /doctor-service/exam/ct-lesion` | `POST /admin-service/ml/inference/ct-lesion` |
+> | `GET /doctor-service/exam/ct-lesion/result/{maskFilename}` | `GET /admin-service/ml/inference/ct-lesion/result/{maskFilename}` |
+> | `GET /doctor-service/exam/ct-lesion/preview/{previewFilename}` | `GET /admin-service/ml/inference/ct-lesion/preview/{previewFilename}` |
+>
+> 路由 `doctor-ct-artifact-route`、`doctor-ct-lesion-route` 置于通用 `/doctor-service/**` 路由之前（`gateway-server/application-route.yml`），通过 `RewritePath` 完成路径重写。原 `/admin-service/ml/inference/ct-artifact`、`/admin-service/ml/inference/ct-lesion` 路径仍可用（向后兼容），但检查医生端前端应优先调用 doctor 语义路径。
 
 
 
@@ -3875,6 +4393,85 @@ data: [后续文本片段]
 |version|String|版本|
 |status|String|状态|
 |createTime|DateTime|创建时间|
+
+##### `CtArtifactInferenceResult`
+
+|字段|类型|说明|
+|---|---|---|
+|status|String|Python 推理状态，成功为 success|
+|message|String|推理结果提示|
+|originalFile|String|原始上传文件名|
+|maskFile|String|生成的掩膜文件名|
+|shape|Integer\[\]|影像维度|
+|spacing|Double\[\]|像素间距|
+|origin|Double\[\]|影像原点|
+|downloadUrl|String|掩膜下载路径；前端应通过 Java 代理下载|
+|artifactSliceIndices|Integer\[\]|存在伪影阳性像素/体素的 Z 轴切片索引|
+|previewSliceIndex|Integer|用于前端预览的 Z 轴切片索引；优先选择伪影像素最多的切片|
+|previewImageFile|String|生成的 2D 预览 PNG 文件名|
+|previewImageUrl|String|2D 预览 PNG 下载路径；前端应通过 Java 代理下载|
+|artifactDetected|Boolean|是否检测到金属伪影|
+|positivePixels|Integer|伪影阳性像素/体素数|
+|totalPixels|Integer|总像素/体素数|
+|artifactRatio|Double|伪影占比，百分数|
+|modelType|String|模型结构，当前默认 attention|
+|modelVersion|String|模型版本，当前默认 attention_adamw_e4|
+|summary|String|结构化摘要|
+|reportInput|CtArtifactReportInput|给后续大语言模型生成文字描述/报告初稿的结构化输入|
+|logId|String|Java 侧推理日志ID|
+|latencyMs|Long|Java 调用 Python 总耗时毫秒|
+
+##### `CtArtifactReportInput`
+
+|字段|类型|说明|
+|---|---|---|
+|task|String|固定为 CT_ARTIFACT_REPORT|
+|modality|String|固定为 CT|
+|finding|Object|artifactDetected、positivePixels、totalPixels、artifactRatio、maskFile、artifactSliceIndices、previewSliceIndex、previewImageFile、previewImageUrl|
+|imageMeta|Object|shape、spacing、origin|
+|model|Object|modelType、modelVersion|
+|summary|String|可直接交给大语言模型参考的摘要|
+
+##### `CtLesionInferenceResult`
+
+|字段|类型|说明|
+|---|---|---|
+|status|String|Python 推理状态，成功为 success|
+|message|String|推理结果提示|
+|originalFile|String|原始上传文件名|
+|maskFile|String|生成的病灶候选区掩膜文件名|
+|shape|Integer\[\]|影像维度|
+|spacing|Double\[\]|像素间距|
+|origin|Double\[\]|影像原点|
+|downloadUrl|String|掩膜下载路径；前端应通过 Java 代理下载|
+|lesionSliceIndices|Integer\[\]|存在病灶候选像素/体素的 Z 轴切片索引|
+|previewSliceIndex|Integer|用于前端预览的 Z 轴切片索引；优先选择病灶候选像素最多的切片|
+|previewImageFile|String|生成的 2D 预览 PNG 文件名|
+|previewImageUrl|String|2D 预览 PNG 下载路径；前端应通过 Java 代理下载|
+|lesionDetected|Boolean|是否检测到病灶候选区|
+|lesionPixels|Integer|病灶候选阳性像素/体素数|
+|totalPixels|Integer|总像素/体素数|
+|lesionRatio|Double|病灶候选区占比，百分数|
+|lesionCount|Integer|按连通域统计的病灶候选区数量|
+|largestLesionPixels|Integer|最大病灶候选连通域像素/体素数|
+|fallback|Boolean|是否使用未加载训练权重时的启发式候选结果|
+|modelType|String|模型结构，当前默认 attention|
+|modelVersion|String|模型版本；未加载病灶权重时为 heuristic_no_weights|
+|summary|String|结构化摘要|
+|reportInput|CtLesionReportInput|给后续大语言模型生成文字描述/报告初稿的结构化输入|
+|logId|String|Java 侧推理日志ID|
+|latencyMs|Long|Java 调用 Python 总耗时毫秒|
+
+##### `CtLesionReportInput`
+
+|字段|类型|说明|
+|---|---|---|
+|task|String|固定为 CT_LESION_REPORT|
+|modality|String|固定为 CT|
+|finding|Object|lesionDetected、lesionPixels、totalPixels、lesionRatio、maskFile、lesionSliceIndices、lesionCount、largestLesionPixels、fallback、previewSliceIndex、previewImageFile、previewImageUrl|
+|imageMeta|Object|shape、spacing、origin|
+|model|Object|modelType、modelVersion|
+|summary|String|可直接交给大语言模型参考的摘要；LLM 不负责重新判断病灶区域|
 
 
 
@@ -4546,13 +5143,268 @@ GET /api/admin/ml/python/health
 
 **业务规则：** 按请求参数查询或处理；空列表返回 `[]`，无业务数据返回 `null`。
 
+##### 2\.5\.1\.10 CT伪影检测推理
 
+|项目|内容|
+|---|---|
+|接口地址|`/doctor-service/exam/ct-artifact`（检查医生语义路径）|
+|兼容地址|`/admin-service/ml/inference/ct-artifact`|
+|请求方式|`POST`|
+|请求头|multipart/form-data|
+|权限说明|业务上归检查医生；当前 Controller 未单独校验 doctorType|
+
+**请求参数**
+
+|参数名|位置|类型|必填|说明|
+|---|---|---|---|---|
+|file|multipart|File|是|CT NIfTI 文件，仅支持 `.nii` 或 `.nii.gz`|
+
+**返回参数**
+
+|参数名|类型|说明|
+|---|---|---|
+|data|CtArtifactInferenceResult|CT 金属伪影检测结构化结果|
+
+**请求示例**
+
+```HTTP
+POST /doctor-service/exam/ct-artifact
+multipart/form-data: file=<scan.nii.gz>
+```
+
+**返回示例**
+
+```JSON
+{
+  "code": 200,
+  "msg": "成功",
+  "data": {
+    "status": "success",
+    "message": "CT金属伪影检测完成",
+    "originalFile": "scan.nii.gz",
+    "maskFile": "xxx_scan_mask.nii.gz",
+    "shape": [512, 512, 120],
+    "spacing": [0.5, 0.5, 1.0],
+    "origin": [0.0, 0.0, 0.0],
+    "downloadUrl": "/results/xxx_scan_mask.nii.gz",
+    "artifactSliceIndices": [42, 43, 44],
+    "previewSliceIndex": 43,
+    "previewImageFile": "xxx_scan_preview_z43.png",
+    "previewImageUrl": "/previews/xxx_scan_preview_z43.png",
+    "artifactDetected": true,
+    "positivePixels": 12034,
+    "totalPixels": 31457280,
+    "artifactRatio": 0.0383,
+    "modelType": "attention",
+    "modelVersion": "attention_adamw_e4",
+    "summary": "检测到CT金属伪影，伪影像素占比约0.0383%。",
+    "reportInput": {
+      "task": "CT_ARTIFACT_REPORT",
+      "modality": "CT",
+      "finding": {
+        "artifactDetected": true,
+        "positivePixels": 12034,
+        "totalPixels": 31457280,
+        "artifactRatio": 0.0383,
+        "maskFile": "xxx_scan_mask.nii.gz",
+        "artifactSliceIndices": [42, 43, 44],
+        "previewSliceIndex": 43,
+        "previewImageFile": "xxx_scan_preview_z43.png",
+        "previewImageUrl": "/previews/xxx_scan_preview_z43.png"
+      },
+      "imageMeta": {
+        "shape": [512, 512, 120],
+        "spacing": [0.5, 0.5, 1.0],
+        "origin": [0.0, 0.0, 0.0]
+      },
+      "model": {
+        "modelType": "attention",
+        "modelVersion": "attention_adamw_e4"
+      },
+      "summary": "检测到CT金属伪影，伪影像素占比约0.0383%。"
+    },
+    "logId": "INF0123456789abcdef",
+    "latencyMs": 842
+  }
+}
+```
+
+**错误码：** 400 文件格式不支持；500 Python 服务不可用或推理异常。
+
+**业务规则：** Python 服务生成 3D 掩膜、结构化统计和 2D PNG 预览图。预览图为选定 Z 轴 CT 灰度切片叠加红色伪影候选区，用于前端优先展示；完整 3D 掩膜仍通过下载接口保留。Java 后端追加 `logId`、`latencyMs` 并记录推理日志。`reportInput` 是后续大语言模型生成文字描述和报告初稿的输入，LLM 不负责重新判断伪影区域。
+
+##### 2\.5\.1\.11 CT伪影检测结果掩膜下载
+
+|项目|内容|
+|---|---|
+|接口地址|`/doctor-service/exam/ct-artifact/result/{maskFilename}`（检查医生语义路径）|
+|兼容地址|`/admin-service/ml/inference/ct-artifact/result/{maskFilename}`|
+|请求方式|`GET`|
+|请求头|JSON|
+|权限说明|业务上归检查医生；当前 Controller 未单独校验 doctorType|
+
+**请求参数**
+
+|参数名|位置|类型|必填|说明|
+|---|---|---|---|---|
+|maskFilename|path|String|是|推理返回的掩膜文件名，不允许包含 `/` 或 `\`|
+
+**返回参数**
+
+二进制 NIfTI 掩膜文件，`Content-Type: application/octet-stream`。
+
+**请求示例**
+
+```HTTP
+GET /doctor-service/exam/ct-artifact/result/xxx_scan_mask.nii.gz
+无请求体
+```
+
+**业务规则：** 前端通过 Java 后端代理下载，不直接暴露 Python 服务地址。
+
+
+
+##### 2\.5\.1\.12 CT伪影检测预览图下载
+
+|项目|内容|
+|---|---|
+|接口地址|`/doctor-service/exam/ct-artifact/preview/{previewFilename}`（检查医生语义路径）|
+|兼容地址|`/admin-service/ml/inference/ct-artifact/preview/{previewFilename}`|
+|请求方式|`GET`|
+|请求头|JSON|
+|权限说明|业务上归检查医生；当前 Controller 未单独校验 doctorType|
+
+**请求参数**
+
+|参数名|位置|类型|必填|说明|
+|---|---|---|---|---|
+|previewFilename|path|String|是|推理返回的预览 PNG 文件名，不允许包含 `/` 或 `\`|
+
+**返回参数**
+
+二进制 PNG 图片，`Content-Type: image/png`。图片内容为 CT 灰度切片叠加红色金属伪影候选区。
+
+**请求示例**
+
+```HTTP
+GET /doctor-service/exam/ct-artifact/preview/xxx_scan_preview_z43.png
+无请求体
+```
+
+**业务规则：** 前端通过 Java 后端代理下载预览图，不直接暴露 Python 服务地址。该图只展示模型分割结果，医生仍需复核确认。
+
+
+
+##### 2\.5\.1\.13 CT病灶识别与分割推理
+|项目|内容|
+|---|---|
+|接口地址|`/doctor-service/exam/ct-lesion`（检查医生语义路径）|
+|兼容地址|`/admin-service/ml/inference/ct-lesion`|
+|请求方式|`POST`|
+|请求头|multipart/form-data|
+|权限说明|业务上归检查医生；当前 Controller 未单独校验 doctorType|
+
+**请求参数**
+
+|参数名|位置|类型|必填|说明|
+|---|---|---|---|---|
+|file|multipart|File|是|CT NIfTI 文件，仅支持 `.nii` 或 `.nii.gz`|
+
+**返回参数**
+
+|参数名|类型|说明|
+|---|---|---|
+|data|CtLesionInferenceResult|CT 病灶识别与分割结构化结果|
+
+**请求示例**
+
+```HTTP
+POST /doctor-service/exam/ct-lesion
+multipart/form-data: file=<scan.nii.gz>
+```
+
+**返回示例**
+
+```JSON
+{
+  "code": 200,
+  "msg": "成功",
+  "data": {
+    "status": "success",
+    "message": "CT病灶识别与分割完成",
+    "originalFile": "scan.nii.gz",
+    "maskFile": "xxx_scan_lesion_mask.nii.gz",
+    "lesionSliceIndices": [36, 37, 38],
+    "previewSliceIndex": 37,
+    "previewImageFile": "xxx_scan_lesion_preview_z37.png",
+    "previewImageUrl": "/previews/xxx_scan_lesion_preview_z37.png",
+    "lesionDetected": true,
+    "lesionPixels": 3264,
+    "totalPixels": 31457280,
+    "lesionRatio": 0.0104,
+    "lesionCount": 2,
+    "largestLesionPixels": 2140,
+    "fallback": false,
+    "modelType": "attention",
+    "modelVersion": "lesion_attention_v1",
+    "summary": "检测到CT病灶候选区2处，候选像素占比约0.0104%。",
+    "reportInput": {
+      "task": "CT_LESION_REPORT",
+      "modality": "CT"
+    },
+    "logId": "INF0123456789abcdef",
+    "latencyMs": 910
+  }
+}
+```
+
+**错误码：** 400 文件格式不支持；500 Python 服务不可用或推理异常。
+
+**业务规则：** Python 服务生成 3D 病灶候选掩膜、结构化统计和 2D PNG 预览图。预览图为选定 Z 轴 CT 灰度切片叠加红色病灶候选区，用于前端优先展示；完整 3D 掩膜仍通过下载接口保留。若 `LESION_MODEL_PATH` 未配置或权重不存在，Python 服务返回 `fallback=true` 且 `modelVersion=heuristic_no_weights`，仅表示服务链路可运行的启发式候选结果，不代表训练模型诊断。推荐使用公开带 mask 的 MSD Task10 Colon CT 肿瘤分割数据集，经 `tools/prepare_msd_lesion_dataset.py` 转为 2D `.npy` CT/MASK 切片后，用 `training/config_lesion.yaml` 训练 Attention U-Net；训练完成后将权重保存为 `Model/weights/best_lesion_attention.pth` 并通过 `LESION_MODEL_PATH` 加载。`reportInput` 是后续大语言模型生成文字描述和报告初稿的输入，LLM 不负责重新判断病灶区域。
+
+##### 2\.5\.1\.14 CT病灶识别与分割结果掩膜下载
+|项目|内容|
+|---|---|
+|接口地址|`/doctor-service/exam/ct-lesion/result/{maskFilename}`（检查医生语义路径）|
+|兼容地址|`/admin-service/ml/inference/ct-lesion/result/{maskFilename}`|
+|请求方式|`GET`|
+|请求头|JSON|
+|权限说明|业务上归检查医生；当前 Controller 未单独校验 doctorType|
+
+**请求参数**
+
+|参数名|位置|类型|必填|说明|
+|---|---|---|---|---|
+|maskFilename|path|String|是|推理返回的掩膜文件名，不允许包含 `/` 或 `\`|
+
+**返回参数**
+
+二进制 NIfTI 掩膜文件，`Content-Type: application/octet-stream`。
+
+##### 2\.5\.1\.15 CT病灶识别与分割预览图下载
+|项目|内容|
+|---|---|
+|接口地址|`/doctor-service/exam/ct-lesion/preview/{previewFilename}`（检查医生语义路径）|
+|兼容地址|`/admin-service/ml/inference/ct-lesion/preview/{previewFilename}`|
+|请求方式|`GET`|
+|请求头|JSON|
+|权限说明|业务上归检查医生；当前 Controller 未单独校验 doctorType|
+
+**请求参数**
+
+|参数名|位置|类型|必填|说明|
+|---|---|---|---|---|
+|previewFilename|path|String|是|推理返回的预览 PNG 文件名，不允许包含 `/` 或 `\`|
+
+**返回参数**
+
+二进制 PNG 图片，`Content-Type: image/png`。图片内容为 CT 灰度切片叠加红色病灶候选区。
 
 ### 2\.6 支付模块
 
 
 
-**模块职责：** 当前仅提供患者支付历史查询，统一支付下单能力尚未实现。
+**模块职责：** 提供统一支付订单创建、支付状态变更、业务支付状态联动和患者支付历史查询。
 
 
 
@@ -4679,7 +5531,7 @@ GET /api/payment/history/{patientId}
 
 
 
-**业务规则：** 网关当前未配置/api/payment/\*\*路由，/payment\-service/\*\*也不会自动去除前缀；通过网关调用前需修复路由。
+**业务规则：** 网关已配置 `/api/payment/**` 到 payment-service 的重写路由；服务内路径仍为 `/payment-service/pay/**`，服务间 Feign 调用继续使用该内部路径。
 
 
 
@@ -4827,7 +5679,7 @@ GET /internal/doctor/consult/context
 |项目架构、技术栈、目录树、部署说明|删除|不属于 API 接口文档|
 |/api/auth/sms/send、/api/auth/logout|删除|当前无 Controller 映射|
 |管理员账号、排班、药品接口|删除|对应 Controller 为空|
-|AI 检查推荐、报告分析、智能分诊|删除|对应 Controller 为空|
+|AI 智能分诊|删除|对应 Controller 为空；AI生成检查/检验项目建议和AI报告分析已纳入 2.4 AI 能力模块|
 |统一支付 /api/pay/unified\-pay|删除|当前 payment\-service 仅实现支付历史查询|
 |医生头像上传、修改手机、修改密码|未纳入正式清单|已有路由但为固定返回或 TODO，不能视为已实现|
 |原前端 MLOps 单数路径|替换|后端真实路径为 `/samples/**` 和 `/models/**`|
@@ -4840,7 +5692,7 @@ GET /internal/doctor/consult/context
 
 1. 实现 Gateway 全局过滤器，至少保证返回 `chain.filter(exchange)`，并完成 JWT 角色校验。
 
-2. 为 `/api/payment/**` 配置网关路由，或统一 Controller 与网关的 `/payment-service/**` 前缀并增加 `StripPrefix`。
+2. `/api/payment/**` 网关路由已配置；后续若新增支付接口，需要保持网关重写与 Controller 路径同步。
 
 3. 将患者病历/处方 `my-list` 接口改为从 token 读取 patientId，禁止客户端任意指定。
 
@@ -4851,3 +5703,42 @@ GET /internal/doctor/consult/context
 6. 完成头像文件持久化、短信验证码验证和医生资料相关 TODO 后，再补充对应正式接口。
 
 7. 统一 BusinessException 的业务 code 与 HTTP 状态，避免所有业务错误都表现为 code=500。
+
+## 4. 2026-07-02 医技检查/检验支付与分配补充
+
+### 4.1 开具检查/检验申请
+
+- 接诊医生通过 `/doctor-service/consult/create-exam-order` 开具检查/检验申请时，后端写入 `medical_order`、`medical_order_item`，并同步调用 `payment-service/pay/create` 创建 `orderType=MEDICAL` 的支付订单。
+- 检查/检验项目必须能在 `medical_item` 字典中匹配；未知项目会拒绝开单，不再以 0 元项目写入或创建支付订单。
+- 支付订单 `businessId` 等于 `medical_order.order_id`，初始 `payStatus=WAITING`。
+- `medical_order.pay_status` 初始为 `WAITING`，申请状态 `status` 初始为 `WAITING_ASSIGN`。
+
+### 4.2 支付状态联动
+
+- `POST /payment-service/pay/success/{payId}` 支付成功后，同步更新业务表支付状态；`MEDICAL` 更新 `medical_order.pay_status=PAID`，`PRESCRIPTION` 更新 `prescription.pay_status=PAID`，`REGISTER` 更新 `registration.pay_status=PAID`。
+- 取消和退款分别同步为 `CANCELLED`、`REFUNDED`；如果业务表未更新到对应记录，本次支付状态变更失败并回滚。
+
+### 4.3 检查/检验医生申请列表与分配
+
+| 接口名称 | 请求方式 | 接口地址 |
+|---|---|---|
+| 查询检查/检验申请列表 | `GET` | `/inspection-doctor/orders` |
+| 兼容旧地址 | `GET` | `/inspection-doctor/lab-orders` |
+| 分配检查/检验申请 | `POST` | `/inspection-doctor/order/{orderId}/assign` |
+
+`/inspection-doctor/orders` 返回全部 `EXAM` 和 `LAB` 医技申请，不再仅限 LAB。
+
+分配请求体：
+
+```JSON
+{
+  "assignedRoom": "CT-1"
+}
+```
+
+分配业务规则：
+
+- 仅检查/检验医生可调用。
+- 只有 `pay_status=PAID` 且 `status=WAITING_ASSIGN` 的申请可以分配。
+- `assignedRoom` 必须非空；分配成功后写入 `medical_order.assigned_room`，并将 `medical_order.status` 更新为 `QUEUED`。
+- 检查/检验医生工作台可按 `payStatus=PAID`、`status=QUEUED` 查找可以执行的患者。

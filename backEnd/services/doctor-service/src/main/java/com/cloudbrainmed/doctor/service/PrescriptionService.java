@@ -5,7 +5,8 @@ import com.cloudbrainmed.doctor.entity.Prescription;
 import java.util.List;
 
 public interface PrescriptionService {
-    Prescription create(PrescriptionCreateDto dto, String doctorId, String doctorName);
+    Prescription create(PrescriptionCreateDto dto, String doctorId, String doctorName,
+                        String patientId, String patientName);
     List<Prescription> getByRegisterId(String registerId);
     Prescription getById(String prescriptionId);
 }

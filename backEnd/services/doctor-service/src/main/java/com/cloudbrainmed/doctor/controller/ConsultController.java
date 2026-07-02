@@ -81,7 +81,10 @@ public class ConsultController {
         if ("COMPLETED".equals(record.getConsultStatus())) {
             throw new BusinessException("接诊已完成，不能继续开具处方");
         }
-        Prescription p = prescriptionService.create(dto, doctorId, doctorId);
+        String doctorName = record.getDoctorName() != null ? record.getDoctorName() : doctorId;
+        String patientName = record.getPatientName() != null ? record.getPatientName() : record.getName();
+        Prescription p = prescriptionService.create(dto, doctorId, doctorName,
+                record.getPatientId(), patientName);
         return Result.ok(p);
     }
 

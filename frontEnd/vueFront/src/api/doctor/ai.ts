@@ -90,11 +90,19 @@ export interface AiExamRecommendResponse {
 
 export function recommendExamItems(data: {
   registerId: string
+  patientId?: string
   chiefComplaint?: string
   recordDesc?: string
   patientAge?: string
   patientGender?: string
   structuredParameters?: Record<string, string>
 }) {
-  return request.post<AiExamRecommendResponse | AiExamRecommendationItem[]>('/ai-service/exam/recommend', data, { timeout: 120000 })
+  return request.post<AiExamRecommendResponse | AiExamRecommendationItem[]>('/ai-service/agent/exam/generate', {
+    registerId: data.registerId,
+    context: {
+      patientId: data.patientId || '',
+      visitAge: Number(data.patientAge || 0),
+      description: data.recordDesc || data.chiefComplaint || ''
+    }
+  }, { timeout: 120000 })
 }

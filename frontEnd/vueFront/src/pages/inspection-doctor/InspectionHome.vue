@@ -49,11 +49,13 @@
 </template>
 
 <script setup lang="ts">
+import { ArrowRight, Check, CollectionTag, DataAnalysis, List } from '@element-plus/icons-vue'
+
 const stats = [
-  { label: '待处理申请', value: '--', icon: 'List', color: '#2563eb' },
-  { label: '今日检验', value: '--', icon: 'DataAnalysis', color: '#9c27b0' },
-  { label: '已完成', value: '--', icon: 'Check', color: '#22c55e' },
-  { label: '加急/紧急', value: '--', icon: 'CollectionTag', color: '#f59e0b' },
+  { label: '待处理申请', value: '--', icon: List, color: '#2563eb' },
+  { label: '今日检验', value: '--', icon: DataAnalysis, color: '#9c27b0' },
+  { label: '已完成', value: '--', icon: Check, color: '#22c55e' },
+  { label: '加急/紧急', value: '--', icon: CollectionTag, color: '#f59e0b' },
 ]
 
 const modules = [
@@ -61,7 +63,7 @@ const modules = [
     path: '/inspection-doctor/order-list',
     title: '查看检验申请',
     desc: '查看所有检验类（LAB）医技申请单及详情',
-    icon: 'List',
+    icon: List,
     color: '#2563eb',
   },
 ]

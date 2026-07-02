@@ -65,6 +65,10 @@ public class PayServiceImpl implements PayService {
 
         // ✅ 支付成功时，更新 payTime 为支付完成时间
         int result = payMapper.updatePaySuccess(payId, "PAID", LocalDateTime.now());
+        if (result != 1) {
+            throw new BusinessException("支付状态更新失败");
+        }
+        syncBusinessPayStatus(pay, "PAID");
         return result > 0;
     }
 
@@ -79,7 +83,11 @@ public class PayServiceImpl implements PayService {
             throw new BusinessException("支付订单状态异常");
         }
 
-        int result = payMapper.updatePayStatus(payId, "CANCELLED");
+        int result = payMapper.updatePayStatusFrom(payId, "CANCELLED", "WAITING");
+        if (result != 1) {
+            throw new BusinessException("支付状态更新失败");
+        }
+        syncBusinessPayStatus(pay, "CANCELLED");
         return result > 0;
     }
 
@@ -94,8 +102,23 @@ public class PayServiceImpl implements PayService {
             throw new BusinessException("只有已支付的订单才能退款");
         }
 
-        int result = payMapper.updatePayStatus(payId, "REFUNDED");
+        int result = payMapper.updatePayStatusFrom(payId, "REFUNDED", "PAID");
+        if (result != 1) {
+            throw new BusinessException("支付状态更新失败");
+        }
+        syncBusinessPayStatus(pay, "REFUNDED");
         return result > 0;
+    }
+
+    private void syncBusinessPayStatus(Pay pay, String payStatus) {
+        if (pay.getBusinessId() == null || pay.getOrderType() == null) {
+            return;
+        }
+        int updated = payMapper.updateBusinessPayStatus(
+                pay.getOrderType(), pay.getBusinessId(), payStatus);
+        if (updated != 1) {
+            throw new BusinessException("业务支付状态同步失败");
+        }
     }
 
     @Override

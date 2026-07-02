@@ -132,7 +132,7 @@ const router = createRouter({
       path: '/inspection-doctor/order-list',
       name: 'inspectionOrderList',
       component: () => import('@/pages/inspection-doctor/InspectionOrderList.vue'),
-      meta: { requiresAuth: true, role: 2, doctorType: 3 }
+      meta: { requiresAuth: true, role: 2, doctorTypes: [2, 3] }
     },
     {
       path: '/examination-doctor/home',
@@ -222,6 +222,14 @@ router.beforeEach((to, from) => {
     if (to.meta.doctorType) {
       const userDoctorType = Number(sessionStorage.getItem('doctorType') || '0')
       if (userDoctorType !== to.meta.doctorType) {
+        return '/login'
+      }
+    }
+
+    if (to.meta.doctorTypes) {
+      const userDoctorType = Number(sessionStorage.getItem('doctorType') || '0')
+      const allowedDoctorTypes = to.meta.doctorTypes as number[]
+      if (!allowedDoctorTypes.includes(userDoctorType)) {
         return '/login'
       }
     }

@@ -22,8 +22,10 @@ public class MedicalRecordController {
 
     /** 按挂号ID查询病历 */
     @GetMapping("/list")
-    public Result<?> listByRegisterId(@RequestParam String registerId) {
-        return Result.ok(medicalRecordService.getByRegisterId(registerId));
+    public Result<?> listByRegisterId(@RequestHeader(value = "token", required = false) String token,
+                                      @RequestParam String registerId) {
+        String patientId = extractPatientId(token);
+        return Result.ok(medicalRecordService.getByRegisterId(registerId, patientId));
     }
 
     /** 按患者ID查询所有病历 */

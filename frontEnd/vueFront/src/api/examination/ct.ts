@@ -12,3 +12,12 @@ export function predictCtArtifact(file: File) {
     headers: { 'Content-Type': 'multipart/form-data' },
   })
 }
+
+export function predictCtLesion(file: File) {
+  const form = new FormData()
+  form.append('file', file)
+  return request.post('/doctor-service/exam/ct-lesion', form, {
+    timeout: 300000,
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}

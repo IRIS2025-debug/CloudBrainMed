@@ -1,5 +1,9 @@
 ﻿# CT 金属伪影检测 — AI 训练与推理
 
+> Note: training data, six experiment outputs, and defense evidence have been
+> moved to `../../../../project-materials/ct-model-defense-traces/`. This backend
+> folder keeps only runtime inference code and deployed weights.
+
 ## 项目结构
 
 ```
@@ -57,6 +61,31 @@ python-ml/
 cd backEnd/services/ai-service/python-ml
 python -m training.train
 ```
+
+### 病灶识别/分割训练
+
+默认推荐公开数据集：Medical Segmentation Decathlon `Task10_Colon.tar`，下载地址：
+
+```text
+https://msd-for-monai.s3.us-west-2.amazonaws.com/Task10_Colon.tar
+```
+
+该数据集为 CT 肿瘤分割任务，`labelsTr` 中前景标签可直接作为病灶 mask。先抽取少量病例并转换成现有 2D 训练格式：
+
+```bash
+python tools/prepare_msd_lesion_dataset.py \
+  --archive D:/datasets/Task10_Colon.tar \
+  --output-dir data/ct_lesion_dataset \
+  --max-cases 8
+```
+
+然后使用病灶配置训练 Attention U-Net：
+
+```bash
+python -m training.train --config training/config_lesion.yaml
+```
+
+`training/config_lesion.yaml` 会把最佳权重同步到 `Model/weights/best_lesion_attention.pth`。推理服务默认通过 `LESION_MODEL_PATH` 加载该权重；如果权重还不存在，`/predict-ct-lesion` 会返回 `fallback=true`，表示当前只是启发式候选结果，不能当作训练模型诊断结论。
 
 ### 2. 指定参数运行
 

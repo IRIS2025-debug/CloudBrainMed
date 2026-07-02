@@ -16,7 +16,7 @@
           v-model="searchKeyword"
           placeholder="搜索医生姓名 / 手机号…"
           clearable
-          prefix-icon="Search"
+          :prefix-icon="Search"
           class="search-input"
           @input="handleSearch"
         />
@@ -205,7 +205,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   UserFilled, Plus, User, CircleCheckFilled, CircleCloseFilled,
-  InfoFilled
+  InfoFilled, Search
 } from '@element-plus/icons-vue'
 import { getDoctorList, addDoctor, updateDoctor, deleteDoctor } from '@/api/admin/doctor'
 import { getDeptList } from '@/api/admin/dept'

@@ -20,6 +20,7 @@ public class MedicalOrder {
     private String aiTraceId;
     private String status;
     private String payStatus;
+    private String assignedRoom;
     private LocalDateTime confirmedTime;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
@@ -44,6 +45,8 @@ public class MedicalOrder {
     public void setStatus(String status) { this.status = status; }
     public String getPayStatus() { return payStatus; }
     public void setPayStatus(String payStatus) { this.payStatus = payStatus; }
+    public String getAssignedRoom() { return assignedRoom; }
+    public void setAssignedRoom(String assignedRoom) { this.assignedRoom = assignedRoom; }
     public LocalDateTime getConfirmedTime() { return confirmedTime; }
     public void setConfirmedTime(LocalDateTime confirmedTime) { this.confirmedTime = confirmedTime; }
     public LocalDateTime getCreateTime() { return createTime; }
