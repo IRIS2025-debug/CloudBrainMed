@@ -12,10 +12,10 @@ export interface ApiResponse<T = any> {
 }
 
 
-const request = axios.create({
-  baseURL: import.meta.env.PROD ? 'http://localhost:80' : '',
-  timeout: 15000,
-})
+ const request = axios.create({
+   baseURL: import.meta.env.PROD ? 'http://localhost:80' : '',
+   timeout: 15000,
+ })
 
 request.interceptors.request.use((config) => {
   const token = sessionStorage.getItem('token')

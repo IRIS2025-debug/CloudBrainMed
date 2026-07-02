@@ -65,6 +65,7 @@
 
 <script setup lang="ts">
 import { ref, nextTick } from 'vue'
+import { ElMessage } from 'element-plus'
 
 interface ChatMessage {
   role: 'user' | 'ai'
@@ -76,6 +77,7 @@ const question = ref<string>('')
 const chatList = ref<ChatMessage[]>([])
 const chatBox = ref<HTMLDivElement | null>(null)
 const loading = ref<boolean>(false)
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
 
 const formatContent = (text: string): string => {
   if (!text) return ''
@@ -101,9 +103,13 @@ const sendQuestion = async (): Promise<void> => {
   await nextTick(() => scrollToBottom())
 
   try {
-    const response = await fetch('/ai-service/medicine/chat', {
+    const token = sessionStorage.getItem('token') || ''
+    const response = await fetch(`${apiBaseUrl}/ai-service/medicine/chat`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}`, token } : {})
+      },
       body: JSON.stringify({ sessionId: sessionId.value, question: q })
     })
     if (!response.ok) {
@@ -112,7 +118,11 @@ const sendQuestion = async (): Promise<void> => {
       throw new Error(`请求失败 ${response.status} ${errText}`)
     }
 
-    const reader = response.body!.getReader()
+    if (!response.body) {
+      throw new Error('AI 服务未返回响应内容')
+    }
+
+    const reader = response.body.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
     while (true) {
@@ -133,9 +143,8 @@ const sendQuestion = async (): Promise<void> => {
       const msg = chatList.value[lastIdx]
       if (msg) msg.content += buffer.substring(5)
     }
-  } catch (e) {
-    // 更详细地在控制台输出错误，方便定位（网络/跨域/404/后端异常）
-    console.error('AI 请求失败：', e)
+  } catch (e: any) {
+    ElMessage.error(e?.message || 'AI 药物查询失败')
     const msg = chatList.value[lastIdx]
     if (msg) msg.content = '抱歉，查询失败，请稍后重试。'
   } finally {

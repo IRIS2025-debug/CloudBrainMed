@@ -1,9 +1,13 @@
 package com.cloudbrainmed.doctor.service.impl;
 
+import com.cloudbrainmed.api.feign.PaymentFeignClient;
 import com.cloudbrainmed.common.exception.BusinessException;
+import com.cloudbrainmed.common.result.Result;
 import com.cloudbrainmed.doctor.entity.ConsultRecord;
 import com.cloudbrainmed.doctor.mapper.ConsultMapper;
 import com.cloudbrainmed.doctor.service.ConsultService;
+import com.cloudbrainmed.payment.dto.UnifiedPayDto;
+import com.cloudbrainmed.payment.vo.PayResultVo;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -22,10 +26,13 @@ import java.util.stream.Collectors;
 public class ConsultServiceImpl implements ConsultService {
 
     private final ConsultMapper consultMapper;
+    private final PaymentFeignClient paymentFeignClient;
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
-    public ConsultServiceImpl(ConsultMapper consultMapper) {
+    public ConsultServiceImpl(ConsultMapper consultMapper,
+                              PaymentFeignClient paymentFeignClient) {
         this.consultMapper = consultMapper;
+        this.paymentFeignClient = paymentFeignClient;
     }
 
     @Override
@@ -45,9 +52,13 @@ public class ConsultServiceImpl implements ConsultService {
     }
 
     @Override
-    public void saveDraft(String registerId, String recordDesc) {
+    public void saveDraft(String doctorId, String registerId, String recordDesc) {
         ConsultRecord detail = consultMapper.findDetail(registerId);
         if (detail == null) throw new BusinessException("就诊记录不存在");
+        ensureDoctorCanEdit(doctorId, detail);
+        if ("COMPLETED".equals(detail.getConsultStatus())) {
+            throw new BusinessException("接诊已完成，不能继续修改病历");
+        }
 
         String recordId = consultMapper.findRecordId(registerId);
         if (recordId == null) {
@@ -70,16 +81,20 @@ public class ConsultServiceImpl implements ConsultService {
     }
 
     @Override
-    public void confirmRecord(String registerId, String recordDesc) {
-        saveDraft(registerId, recordDesc);
+    public void confirmRecord(String doctorId, String registerId, String recordDesc) {
+        saveDraft(doctorId, registerId, recordDesc);
         consultMapper.markRecordConfirmed(registerId);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void createExamOrder(String registerId, String checkItemList, String urgencyLevel) {
+    public void createExamOrder(String doctorId, String registerId, String checkItemList, String urgencyLevel) {
         ConsultRecord detail = consultMapper.findDetail(registerId);
         if (detail == null) throw new BusinessException("就诊记录不存在");
+        ensureDoctorCanEdit(doctorId, detail);
+        if ("COMPLETED".equals(detail.getConsultStatus())) {
+            throw new BusinessException("接诊已完成，不能继续开具检查检验申请");
+        }
 
         // ----- 解析前端传来的检查项目 JSON -----
         if (checkItemList == null || checkItemList.trim().isEmpty()) {
@@ -112,6 +127,11 @@ public class ConsultServiceImpl implements ConsultService {
                 }
             }
         }
+        for (String itemName : itemNames) {
+            if (!dictMap.containsKey(itemName)) {
+                throw new BusinessException("medical item not found: " + itemName);
+            }
+        }
 
         // ----- 写入主表 -----
         String orderId = "CHK" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
@@ -119,6 +139,7 @@ public class ConsultServiceImpl implements ConsultService {
                 detail.getDoctorId(), checkItemList, urgencyLevel);
 
         // ----- 逐项写入子表 -----
+        BigDecimal totalAmount = BigDecimal.ZERO;
         for (Map<String, String> item : items) {
             String itemName = item.get("itemName");
             if (itemName == null || itemName.trim().isEmpty()) continue;
@@ -126,20 +147,40 @@ public class ConsultServiceImpl implements ConsultService {
             Map<String, Object> dict = dictMap.get(itemName);
 
             String orderItemId = "CHKI" + UUID.randomUUID().toString().replace("-", "").substring(0, 14);
-            if (dict == null) {
-                consultMapper.insertOrderItem(orderItemId, orderId, null, null,
-                        itemName, "EXAM", item.get("dept"), urgencyLevel, BigDecimal.ZERO);
-            } else {
-                consultMapper.insertOrderItem(orderItemId, orderId,
-                        (String) dict.get("item_id"),
-                        (String) dict.get("item_code"),
-                        (String) dict.get("item_name"),
-                        (String) dict.get("item_category"),
-                        item.get("dept") != null ? item.get("dept") : (String) dict.get("dept_id"),
-                        urgencyLevel,
-                        toBigDecimal(dict.get("price")));
-            }
+            BigDecimal price = toBigDecimal(dict.get("price"));
+            consultMapper.insertOrderItem(orderItemId, orderId,
+                    (String) dict.get("item_id"),
+                    (String) dict.get("item_code"),
+                    (String) dict.get("item_name"),
+                    (String) dict.get("item_category"),
+                    item.get("dept") != null ? item.get("dept") : (String) dict.get("dept_id"),
+                    urgencyLevel,
+                    price);
+            totalAmount = totalAmount.add(price);
         }
+        createPayOrder(orderId, detail, totalAmount);
+    }
+
+    private void createPayOrder(
+            String orderId, ConsultRecord detail, BigDecimal totalAmount) {
+        UnifiedPayDto dto = new UnifiedPayDto();
+        dto.setPatientId(detail.getPatientId());
+        dto.setPatientName(patientName(detail));
+        dto.setOrderType("MEDICAL");
+        dto.setBusinessId(orderId);
+        dto.setDescription("医技检查检验费");
+        dto.setAmount(totalAmount == null ? BigDecimal.ZERO : totalAmount);
+        Result<PayResultVo> result = paymentFeignClient.createPayOrder(dto);
+        if (result == null || result.getCode() == null || result.getCode() != 200) {
+            throw new BusinessException("create medical pay order failed");
+        }
+    }
+
+    private String patientName(ConsultRecord detail) {
+        if (detail.getPatientName() != null && !detail.getPatientName().isBlank()) {
+            return detail.getPatientName();
+        }
+        return detail.getName();
     }
 
     private static BigDecimal toBigDecimal(Object val) {
@@ -154,7 +195,19 @@ public class ConsultServiceImpl implements ConsultService {
     }
 
     @Override
-    public void completeConsult(String registerId) {
+    public void completeConsult(String doctorId, String registerId) {
+        ConsultRecord detail = consultMapper.findDetail(registerId);
+        if (detail == null) throw new BusinessException("就诊记录不存在");
+        ensureDoctorCanEdit(doctorId, detail);
+        if (!"RECORD_CONFIRMED".equals(detail.getConsultStatus())) {
+            throw new BusinessException("请先确认病历后再完成接诊");
+        }
         consultMapper.completeConsult(registerId);
+    }
+
+    private void ensureDoctorCanEdit(String doctorId, ConsultRecord detail) {
+        if (!doctorId.equals(detail.getDoctorId())) {
+            throw new BusinessException("无权操作该接诊记录");
+        }
     }
 }

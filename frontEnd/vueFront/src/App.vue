@@ -57,6 +57,7 @@ import {
   Cpu,
   Camera,
   HomeFilled,
+  Monitor,
   SwitchButton,
 } from '@element-plus/icons-vue'
 
@@ -85,21 +86,31 @@ const iconMap: Record<string, any> = {
   CollectionTag,
   Cpu,
   Camera,
+  Monitor,
 }
 
 // ==================== 菜单配置（包含首页概览）====================
 const doctorMenus = [
+  // ====== 检查医生专属（type=2） ======
+  { path: '/examination-doctor/home', title: '检查工作台', icon: 'List', group: '检查医生' },
+  { path: '/examination-doctor/application', title: '查看检查申请', icon: 'List', group: '检查医生' },
+  { path: '/examination-doctor/upload', title: '影像上传', icon: 'Camera', group: '检查医生' },
+  { path: '/examination-doctor/report', title: '生成检查报告', icon: 'CollectionTag', group: '检查医生' },
   { path: '/', title: '首页概览', icon: 'HomeFilled', group: '医生端' },
   { path: '/doctor/profile', title: '医生个人信息', icon: 'UserFilled', group: '医生端' },
   { path: '/doctor/consult', title: '接诊工作台', icon: 'List', group: '医生端' },
+  { path: '/doctor/ai-exam-generate', title: 'AI检查检验项目生成', icon: 'DataAnalysis', group: '医生端' },
   { path: '/doctor/ai-medicine', title: 'AI 药物推荐', icon: 'DataAnalysis', group: '医生端' },
   { path: '/doctor/schedule', title: '值班查询', icon: 'List', group: '医生端' },
-  { path: '/inspection-doctor/order-list', title: '查看检验申请', icon: 'List', group: '检验医生' },
-  // ====== 检查医生专属（type=2） ======
-  { path: '/examination-doctor/home', title: '检查工作台', icon: 'List', group: '检查医生' },
-  { path: '/examination-doctor/upload', title: '影像上传', icon: 'Camera', group: '检查医生' },
-  { path: '/examination-doctor/analysis', title: '影像分析', icon: 'DataAnalysis', group: '检查医生' },
-  { path: '/examination-doctor/report', title: 'AI生成报告', icon: 'CollectionTag', group: '检查医生' },
+  { path: '/doctor/workbench', title: '检查检验工作台', icon: 'Monitor', group: '医生端' },
+  { path: '/doctor/queue', title: '检查检验队列', icon: 'List', group: '医生端' },
+  // ====== 检验医生（type=3）======
+  { path: '/inspection-doctor/home', title: '检验工作台', icon: 'HomeFilled', group: '检验医生' },
+  { path: '/inspection-doctor/order-list', title: '查看检查/检验申请', icon: 'List', group: '检验医生' },
+  // ====== 检查医生（type=2）======
+  { path: '/examination-doctor/home', title: '检查工作台', icon: 'HomeFilled', group: '检查医生' },
+  { path: '/inspection-doctor/order-list', title: '查看检查/检验申请', icon: 'List', group: '检查医生' },
+  { path: '/examination-doctor/ct-inference', title: 'CT 伪影检测', icon: 'Camera', group: '检查医生' },
 ]
 
 const adminMenus = [
@@ -111,7 +122,6 @@ const adminMenus = [
   { path: '/admin/ml/dashboard', title: 'AI 推理看板', icon: 'DataAnalysis', group: '管理员端' },
   { path: '/admin/ml/samples', title: '样本标注', icon: 'CollectionTag', group: '管理员端' },
   { path: '/admin/ml/models', title: '模型管理', icon: 'Cpu', group: '管理员端' },
-  { path: '/admin/ml/ct-inference', title: 'CT 伪影检测', icon: 'Camera', group: '管理员端' },
 ]
 
 // ==================== 角色判断（从 sessionStorage 获取）====================
@@ -157,26 +167,43 @@ const menuItems = computed(() => {
     // 根据医生类型确定首页路径
     let homePath = '/'
     if (dt === 2) homePath = '/examination-doctor/home'
-    else if (dt === 3) homePath = '/inspection-doctor/order-list'
+    else if (dt === 3) homePath = '/inspection-doctor/home'
 
     return doctorMenus.filter(item => {
       // 接诊工作台：仅看诊医生（1）可见
       if (item.path === '/doctor/consult') return dt === 1
 
+      // AI检查检验：仅看诊医生（1）可见
+      if (item.path === '/doctor/ai-exam-generate') return dt === 1
+
       // 检查医生专属（type=2）
       if (item.group === '检查医生') return dt === 2
       
-      // 查看检验申请：仅检验医生（3）可见
-      if (item.path === '/inspection-doctor/order-list') return dt === 3
+      // 检验医生专属（type=3）
+      if (item.group === '检验医生') return dt === 3
 
       // Ai药物查询，仅看诊医生（1）可见与检验医生（3）可见
       if (item.path === '/doctor/ai-medicine') return dt === 1 || dt === 3
-      
+
+      // 检查检验工作台、队列：仅检验医生(3)可见
+      if (item.path === '/doctor/workbench' || item.path === '/doctor/queue') return dt === 3
+
+      // 首页概览，仅看诊医生（1）可见与检验医生（3）可见
+      if (item.path === '/') return dt === 1 || dt === 3
       // 其他菜单所有医生都可访问
       return true
     }).map(item => {
       // 将首页概览路径替换为对应医生类型的首页
       if (item.path === '/') return { ...item, path: homePath }
+      // 根据医生类型改标题：检查医生→检查工作台，检验医生→检验工作台
+      if (item.path === '/doctor/workbench') {
+        if (dt === 3) return { ...item, title: '检验工作台' }
+      }
+      // 根据医生类型改标题：检查医生→检查队列，检验医生→检验队列
+      if (item.path === '/doctor/queue') {
+        if (dt === 2) return { ...item, title: '检查队列' }
+        if (dt === 3) return { ...item, title: '检验队列' }
+      }
       return item
     })
   }
@@ -188,8 +215,18 @@ function showGroupLabel(item: { path: string; title: string; icon: string; group
   const items = menuItems.value
   const idx = items.findIndex(i => i.path === item.path)
   if (idx === -1) return false
-  return idx > 0 && items[idx - 1]!.group !== item.group
+
+  // 如果是第一项，显示标签
+  if (idx === 0) return true
+
+  // 增加空值判断，防止 undefined
+  const prevItem = items[idx - 1]
+  if (!prevItem) return false
+
+  // 如果与前一项分组不同，显示标签
+  return prevItem.group !== item.group
 }
+
 </script>
 
 <style>

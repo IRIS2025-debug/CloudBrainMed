@@ -1,0 +1,13 @@
+# backend/gateway-server/src/main/resources/application-dev.yml
+spring:
+  cloud:
+    nacos:
+      server-addr: ${NACOS_SERVER:127.0.0.1:8848}
+    sentinel:
+      transport:
+        dashboard: ${SENTINEL_DASHBOARD:localhost:8858}
+      eager: true
+
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG

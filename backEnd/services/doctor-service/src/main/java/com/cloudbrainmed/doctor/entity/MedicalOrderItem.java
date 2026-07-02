@@ -14,8 +14,11 @@ public class MedicalOrderItem {
     private String itemName;
     private String itemCategory;
     private String assignedDeptId;
+    private String assignedDoctorId;
     private String urgencyLevel;
     private BigDecimal price;
     private String status;
     private LocalDateTime createTime;
+    private LocalDateTime assignTime;
+    private LocalDateTime completeTime;
 }

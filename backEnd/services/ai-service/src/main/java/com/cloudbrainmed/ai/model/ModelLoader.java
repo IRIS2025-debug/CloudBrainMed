@@ -68,7 +68,11 @@ public class ModelLoader {
         modelVersionMapper.updateStatus(modelId, "ACTIVE");
 
         // 将之前激活的模型标记为 INACTIVE
-        ModelVersion previous = activeModel.getAndSet(mv);
+        ModelVersion previous = activeModel.get();
+        if (previous == null) {
+            previous = modelVersionMapper.selectActive();
+        }
+        activeModel.set(mv);
         if (previous != null && !previous.getModelId().equals(modelId)) {
             modelVersionMapper.updateStatus(previous.getModelId(), "INACTIVE");
         }

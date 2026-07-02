@@ -37,6 +37,9 @@ public interface AiInferenceLogMapper {
     @Select("SELECT COUNT(*) FROM ai_inference_log")
     int countAll();
 
+    @Select("SELECT COUNT(*) FROM ai_inference_log WHERE status = #{status}")
+    int countByStatus(@Param("status") String status);
+
     @Select("SELECT COUNT(*) FROM ai_inference_log WHERE created_at >= CURRENT_DATE")
     int countToday();
 

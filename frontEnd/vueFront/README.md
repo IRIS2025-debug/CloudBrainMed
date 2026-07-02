@@ -40,3 +40,13 @@ npm run dev
 ```sh
 npm run build
 ```
+
+## API Base URL
+
+By default, API requests use same-origin relative paths so the deployed frontend can be served behind the gateway.
+
+For a separate API gateway host, set `VITE_API_BASE_URL` before building:
+
+```sh
+VITE_API_BASE_URL=https://api.example.com npm run build
+```

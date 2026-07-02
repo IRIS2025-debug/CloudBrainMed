@@ -2,9 +2,11 @@ package com.cloudbrainmed.doctor.controller;
 
 import com.cloudbrainmed.common.result.Result;
 import com.cloudbrainmed.common.utils.DoctorJwtUtil;
+import com.cloudbrainmed.common.exception.BusinessException;
 import com.cloudbrainmed.doctor.dto.PrescriptionCreateDto;
 import com.cloudbrainmed.doctor.service.ConsultService;
 import com.cloudbrainmed.doctor.service.PrescriptionService;
+import com.cloudbrainmed.doctor.entity.ConsultRecord;
 import com.cloudbrainmed.doctor.entity.Prescription;
 import org.springframework.web.bind.annotation.*;
 
@@ -45,7 +47,8 @@ public class ConsultController {
     @PostMapping("/save-draft")
     public Result<?> saveDraft(@RequestHeader(value = "token", required = false) String token,
                                @RequestBody Map<String, String> body) {
-        service.saveDraft(body.get("registerId"), body.get("recordDesc"));
+        String doctorId = extractDoctorId(token);
+        service.saveDraft(doctorId, body.get("registerId"), body.get("recordDesc"));
         return Result.ok();
     }
 
@@ -53,7 +56,8 @@ public class ConsultController {
     @PostMapping("/confirm-record")
     public Result<?> confirmRecord(@RequestHeader(value = "token", required = false) String token,
                                    @RequestBody Map<String, String> body) {
-        service.confirmRecord(body.get("registerId"), body.get("recordDesc"));
+        String doctorId = extractDoctorId(token);
+        service.confirmRecord(doctorId, body.get("registerId"), body.get("recordDesc"));
         return Result.ok();
     }
 
@@ -61,7 +65,8 @@ public class ConsultController {
     @PostMapping("/create-exam-order")
     public Result<?> createExamOrder(@RequestHeader(value = "token", required = false) String token,
                                      @RequestBody Map<String, String> body) {
-        service.createExamOrder(body.get("registerId"),
+        String doctorId = extractDoctorId(token);
+        service.createExamOrder(doctorId, body.get("registerId"),
                 body.get("checkItemList"), body.get("urgencyLevel"));
         return Result.ok();
     }
@@ -72,13 +77,23 @@ public class ConsultController {
                                         @RequestBody PrescriptionCreateDto dto) {
         String doctorId = extractDoctorId(token);
         // 从前端的扩展获取 doctorName，此处暂时用 doctorId 作为 fallback
-        Prescription p = prescriptionService.create(dto, doctorId, doctorId);
+        ConsultRecord record = service.getDetail(doctorId, dto.getRegisterId());
+        if ("COMPLETED".equals(record.getConsultStatus())) {
+            throw new BusinessException("接诊已完成，不能继续开具处方");
+        }
+        String doctorName = record.getDoctorName() != null ? record.getDoctorName() : doctorId;
+        String patientName = record.getPatientName() != null ? record.getPatientName() : record.getName();
+        Prescription p = prescriptionService.create(dto, doctorId, doctorName,
+                record.getPatientId(), patientName);
         return Result.ok(p);
     }
 
     /** 按挂号ID查询已开处方 */
     @GetMapping("/prescription-list")
-    public Result<?> prescriptionList(@RequestParam String registerId) {
+    public Result<?> prescriptionList(@RequestHeader(value = "token", required = false) String token,
+                                      @RequestParam String registerId) {
+        String doctorId = extractDoctorId(token);
+        service.getDetail(doctorId, registerId);
         return Result.ok(prescriptionService.getByRegisterId(registerId));
     }
 
@@ -86,24 +101,35 @@ public class ConsultController {
     @PostMapping("/complete")
     public Result<?> complete(@RequestHeader(value = "token", required = false) String token,
                               @RequestBody Map<String, String> body) {
-        service.completeConsult(body.get("registerId"));
+        String doctorId = extractDoctorId(token);
+        service.completeConsult(doctorId, body.get("registerId"));
         return Result.ok();
     }
 
     /**
-     * 从 header 或 JWT 中提取 doctorId。
-     * 优先用 DoctorJwtUtil 解析 JWT 的 userId claim；
-     * 兼容旧版直传 doctorId 的场景。
+     * 从 JWT 中解析并校验接诊医生身份，返回 doctorId。
+     * 要求 roleType==2 且 doctorType==1（接诊医生）。
      */
     private String extractDoctorId(String token) {
         if (token == null || token.isBlank()) {
-            throw new RuntimeException("未登录，请先登录");
+            throw new BusinessException("未登录，请先登录");
         }
+        Integer roleType;
+        Integer doctorType;
+        String doctorId;
         try {
-            return DoctorJwtUtil.getUserId(token);
+            roleType = DoctorJwtUtil.getRoleType(token);
+            doctorType = DoctorJwtUtil.getDoctorType(token);
+            doctorId = DoctorJwtUtil.getUserId(token);
         } catch (Exception e) {
-            // 兼容直接传 doctorId 的场景
-            return token;
+            throw new BusinessException("医生登录凭证无效");
         }
+        if (!Integer.valueOf(2).equals(roleType)) {
+            throw new BusinessException("仅医生可访问接诊功能");
+        }
+        if (!Integer.valueOf(1).equals(doctorType)) {
+            throw new BusinessException("仅接诊医生可访问接诊功能");
+        }
+        return doctorId;
     }
 }

@@ -1,8 +1,0 @@
-com\cloudbrainmed\api\fallback\PatientFeignFallback.class
-com\cloudbrainmed\api\feign\DoctorFeignClient.class
-com\cloudbrainmed\api\fallback\AiFeignFallback.class
-com\cloudbrainmed\api\feign\AdminFeignClient.class
-com\cloudbrainmed\api\feign\AiFeignClient.class
-com\cloudbrainmed\api\feign\PatientFeignClient.class
-com\cloudbrainmed\api\feign\PaymentFeignClient.class
-com\cloudbrainmed\api\fallback\DoctorFeignFallback.class

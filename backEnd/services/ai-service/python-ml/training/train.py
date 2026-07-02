@@ -130,10 +130,10 @@ def set_seed(seed):
 def main():
     # 检查 GPU
     if torch.cuda.is_available():
-        logger.info(f"✅ GPU 可用: {torch.cuda.get_device_name(0)}")
+        logger.info(f"GPU 可用: {torch.cuda.get_device_name(0)}")
         logger.info(f"   显存: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
     else:
-        logger.warning("⚠️  GPU 不可用，使用 CPU 训练")
+        logger.warning("GPU 不可用，使用 CPU 训练")
 
     args = parse_args()
     config = load_config(args)
@@ -184,11 +184,8 @@ def main():
     )
 
     # 正负样本比例
-    from training.dataset import compute_pos_weight
-    all_files = sorted([
-        f for f in os.listdir(data_cfg["ct_dir"])
-        if f.lower().endswith(".dcm")
-    ])
+    from training.dataset import compute_pos_weight, list_paired_training_files
+    all_files = list_paired_training_files(data_cfg["ct_dir"], data_cfg["mask_dir"])
     compute_pos_weight(all_files, data_cfg["mask_dir"])
 
     # 创建训练器
@@ -197,7 +194,7 @@ def main():
     # 开始训练
     history = trainer.run(train_loader, val_loader, config)
 
-    logger.info("\n✅ 训练完成！")
+    logger.info("\n训练完成！")
     logger.info(f"   实验目录: {exp_dir}")
     logger.info(f"   最优 Dice: {trainer.best_dice:.4f}")
 
@@ -209,9 +206,9 @@ def main():
             model_weight_path=os.path.join(exp_dir, "best.pth"),
             model_type=model_type,
         )
-        logger.info("✅ 推理链路验证通过")
+        logger.info("推理链路验证通过")
     except Exception as e:
-        logger.info(f"⚠️  推理链路验证失败（不影响训练）: {e}")
+        logger.info(f"推理链路验证失败（不影响训练）: {e}")
 
 
 if __name__ == "__main__":

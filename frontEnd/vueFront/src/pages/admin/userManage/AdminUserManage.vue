@@ -16,7 +16,7 @@
           v-model="searchKeyword"
           placeholder="搜索医生姓名 / 手机号…"
           clearable
-          prefix-icon="Search"
+          :prefix-icon="Search"
           class="search-input"
           @input="handleSearch"
         />
@@ -205,7 +205,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   UserFilled, Plus, User, CircleCheckFilled, CircleCloseFilled,
-  InfoFilled
+  InfoFilled, Search
 } from '@element-plus/icons-vue'
 import { getDoctorList, addDoctor, updateDoctor, deleteDoctor } from '@/api/admin/doctor'
 import { getDeptList } from '@/api/admin/dept'
@@ -329,10 +329,10 @@ async function handleSubmit() {
   submitting.value = true
   try {
     if (isEdit.value) {
-      await updateDoctor({ ...form, status: 1 })
+      await updateDoctor({ ...form, status: 1, gender: form.gender ?? 0 })
       ElMessage.success({ message: '医生信息已更新', icon: '✅' })
     } else {
-      await addDoctor(form)
+      await addDoctor({ ...form, gender: form.gender ?? 0 })
       ElMessage.success({ message: '医生账号已创建（默认密码: 123456）', icon: '✅' })
     }
     dialogVisible.value = false

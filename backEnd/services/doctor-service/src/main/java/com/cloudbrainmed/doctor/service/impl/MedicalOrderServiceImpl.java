@@ -1,8 +1,10 @@
 package com.cloudbrainmed.doctor.service.impl;
 
+import com.cloudbrainmed.api.feign.PaymentFeignClient;
 import com.cloudbrainmed.common.constant.MedicalItemCodeEnum;
 import com.cloudbrainmed.common.constant.UrgencyLevelEnum;
 import com.cloudbrainmed.common.exception.BusinessException;
+import com.cloudbrainmed.common.result.Result;
 import com.cloudbrainmed.doctor.dto.MedicalOrderConfirmRequest;
 import com.cloudbrainmed.doctor.dto.MedicalOrderConfirmResponse;
 import com.cloudbrainmed.doctor.dto.MedicalOrderItemRequest;
@@ -15,6 +17,8 @@ import com.cloudbrainmed.doctor.mapper.MedicalItemMapper;
 import com.cloudbrainmed.doctor.mapper.MedicalOrderMapper;
 import com.cloudbrainmed.doctor.service.MedicalOrderService;
 import com.cloudbrainmed.doctor.vo.InspectionOrderVo;
+import com.cloudbrainmed.payment.dto.UnifiedPayDto;
+import com.cloudbrainmed.payment.vo.PayResultVo;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
@@ -35,16 +39,19 @@ public class MedicalOrderServiceImpl implements MedicalOrderService {
     private final ConsultMapper consultMapper;
     private final MedicalItemMapper medicalItemMapper;
     private final MedicalOrderMapper medicalOrderMapper;
+    private final PaymentFeignClient paymentFeignClient;
     private final ObjectMapper objectMapper;
 
     public MedicalOrderServiceImpl(
             ConsultMapper consultMapper,
             MedicalItemMapper medicalItemMapper,
             MedicalOrderMapper medicalOrderMapper,
+            PaymentFeignClient paymentFeignClient,
             ObjectMapper objectMapper) {
         this.consultMapper = consultMapper;
         this.medicalItemMapper = medicalItemMapper;
         this.medicalOrderMapper = medicalOrderMapper;
+        this.paymentFeignClient = paymentFeignClient;
         this.objectMapper = objectMapper;
     }
 
@@ -57,7 +64,7 @@ public class MedicalOrderServiceImpl implements MedicalOrderService {
     public MedicalOrder getByOrderId(String orderId) {
         return medicalOrderMapper.selectByOrderId(orderId);
     }
-
+/*
     @Override
     @Transactional
     public MedicalOrderConfirmResponse confirm(
@@ -140,6 +147,137 @@ public class MedicalOrderServiceImpl implements MedicalOrderService {
         }
         return consult;
     }
+*/
+    @Override
+    @Transactional
+    public MedicalOrderConfirmResponse confirm(
+            MedicalOrderConfirmRequest request, String doctorId) {
+        ConsultRecord consult = requireOwnedConsult(
+                request.getRegisterId(), doctorId);
+        String requestedOrderUrgency =
+                parseUrgency(request.getUrgencyLevel());
+        List<ResolvedItem> resolvedItems = resolveItems(
+                request.getItems(), requestedOrderUrgency);
+        String orderUrgency = highestUrgency(
+                requestedOrderUrgency, resolvedItems);
+        LocalDateTime now = LocalDateTime.now();
+        String orderId = newId("MO", 30);
+        boolean aiAssisted = hasText(request.getAiTraceId());
+        String aiTraceId = aiAssisted
+                ? request.getAiTraceId().trim() : null;
+        if (aiAssisted) {
+            validateAiRecommendation(
+                    aiTraceId, consult, resolvedItems);
+        }
+
+        MedicalOrder order = new MedicalOrder();
+        order.setOrderId(orderId);
+        order.setPatientId(consult.getPatientId());
+        order.setRegisterId(consult.getRegisterId());
+        order.setDoctorId(doctorId);
+        order.setClinicalSummary(request.getClinicalSummary().trim());
+        order.setUrgencyLevel(orderUrgency);
+        order.setSourceType(aiAssisted ? "AI_ASSISTED" : "MANUAL");
+        order.setAiTraceId(aiTraceId);
+        order.setStatus("WAITING_ASSIGN");
+        order.setPayStatus("WAITING");
+        order.setConfirmedTime(now);
+        order.setCreateTime(now);
+        medicalOrderMapper.insertOrder(order);
+
+        BigDecimal totalAmount = BigDecimal.ZERO;
+        for (ResolvedItem resolved : resolvedItems) {
+            MedicalItem source = resolved.item();
+            MedicalOrderItem orderItem = new MedicalOrderItem();
+            orderItem.setOrderItemId(newId("MOI", 29));
+            orderItem.setOrderId(orderId);
+            orderItem.setItemId(source.getItemId());
+            orderItem.setItemCode(source.getItemCode());
+            orderItem.setItemName(source.getItemName());
+            orderItem.setItemCategory(source.getItemCategory());
+            orderItem.setAssignedDeptId(source.getDeptId());
+            orderItem.setUrgencyLevel(resolved.urgencyLevel());
+            orderItem.setPrice(source.getPrice() == null
+                    ? BigDecimal.ZERO : source.getPrice());
+            orderItem.setStatus("WAITING_ASSIGN");
+            orderItem.setCreateTime(now);
+            medicalOrderMapper.insertOrderItem(orderItem);
+            totalAmount = totalAmount.add(orderItem.getPrice());
+        }
+
+        if (medicalOrderMapper.keepConsultInProgress(
+                consult.getRegisterId(), doctorId) != 1) {
+            throw new BusinessException("Failed to update consult status");
+        }
+        createPayOrder(order, consult, totalAmount);
+        return new MedicalOrderConfirmResponse(
+                orderId,
+                order.getSourceType(),
+                resolvedItems.size(),
+                totalAmount);
+    }
+
+    @Override
+    @Transactional
+    public MedicalOrder assignOrder(String orderId, String assignedRoom) {
+        MedicalOrder order = medicalOrderMapper.selectByOrderId(orderId);
+        if (order == null) {
+            throw new BusinessException("medical order not found");
+        }
+        if (!"PAID".equals(order.getPayStatus())) {
+            throw new BusinessException("medical order pay status is not PAID");
+        }
+        if (!"WAITING_ASSIGN".equals(order.getStatus())) {
+            throw new BusinessException("medical order is not waiting assignment");
+        }
+        if (!hasText(assignedRoom)) {
+            throw new BusinessException("assigned room is required");
+        }
+        String room = assignedRoom.trim();
+        if (medicalOrderMapper.assignOrder(orderId, room) != 1) {
+            throw new BusinessException("assign medical order failed");
+        }
+        order.setStatus("QUEUED");
+        order.setAssignedRoom(room);
+        return order;
+    }
+
+    private void createPayOrder(
+            MedicalOrder order, ConsultRecord consult, BigDecimal totalAmount) {
+        UnifiedPayDto dto = new UnifiedPayDto();
+        dto.setPatientId(order.getPatientId());
+        dto.setPatientName(patientName(consult));
+        dto.setOrderType("MEDICAL");
+        dto.setBusinessId(order.getOrderId());
+        dto.setDescription("医技检查检验费");
+        dto.setAmount(totalAmount == null ? BigDecimal.ZERO : totalAmount);
+        Result<PayResultVo> result = paymentFeignClient.createPayOrder(dto);
+        if (result == null || result.getCode() == null || result.getCode() != 200) {
+            throw new BusinessException("create medical pay order failed");
+        }
+    }
+
+    private String patientName(ConsultRecord consult) {
+        if (hasText(consult.getPatientName())) {
+            return consult.getPatientName();
+        }
+        return consult.getName();
+    }
+
+    private ConsultRecord requireOwnedConsult(
+            String registerId, String doctorId) {
+        ConsultRecord consult = consultMapper.findDetail(registerId);
+        if (consult == null) {
+            throw new BusinessException("Consult record not found");
+        }
+        if (!hasText(doctorId) || !doctorId.equals(consult.getDoctorId())) {
+            throw new BusinessException("无权 create medical order");
+        }
+        if ("COMPLETED".equals(consult.getConsultStatus())) {
+            throw new BusinessException("Consult already completed");
+        }
+        return consult;
+    }
 
     private void validateAiRecommendation(
             String traceId,
@@ -184,7 +322,6 @@ public class MedicalOrderServiceImpl implements MedicalOrderService {
             throw new BusinessException("AI检查检验推荐记录格式错误");
         }
     }
-
     private List<ResolvedItem> resolveItems(
             List<MedicalOrderItemRequest> requests,
             String orderUrgency) {

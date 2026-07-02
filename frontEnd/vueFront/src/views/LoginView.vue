@@ -38,10 +38,17 @@
 
         <el-form :model="loginForm" class="login-form">
           <el-form-item>
+            <el-select v-model="loginForm.identity" placeholder="选择身份" style="width:100%" size="large">
+              <el-option label="医生" value="doctor" />
+              <el-option label="管理员" value="admin" />
+            </el-select>
+          </el-form-item>
+
+          <el-form-item>
             <el-input
                 v-model="loginForm.phone"
                 placeholder="手机号"
-                prefix-icon="User"
+                :prefix-icon="User"
                 size="large"
                 clearable
             />
@@ -51,18 +58,11 @@
             <el-input
                 v-model="loginForm.password"
                 placeholder="密码"
-                prefix-icon="Lock"
+                :prefix-icon="Lock"
                 show-password
                 size="large"
                 clearable
             />
-          </el-form-item>
-
-          <el-form-item>
-            <el-select v-model="loginForm.roleType" placeholder="选择身份" style="width:100%" size="large">
-              <el-option label="医生" :value="2" />
-              <el-option label="管理员" :value="3" />
-            </el-select>
           </el-form-item>
 
           <el-form-item>
@@ -83,22 +83,29 @@ import { ref } from 'vue'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
-import { Check, DataAnalysis, Lock } from '@element-plus/icons-vue'
+import { Check, DataAnalysis, Lock, User } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const loading = ref(false)
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
 
 interface LoginForm {
   phone: string
   password: string
-  roleType: number
+  identity: string
 }
 
 const loginForm = ref<LoginForm>({
   phone: '',
   password: '',
-  roleType: 3
+  identity: 'doctor'
 })
+
+// 下拉框只区分顶层身份，医生子类型由后端根据账号匹配的 doctor_type 返回。
+function resolveIdentity(identity: string): { roleType: number } {
+  if (identity === 'admin') return { roleType: 3 }
+  return { roleType: 2 }
+}
 
 const handleLogin = async (): Promise<void> => {
   if (!loginForm.value.phone) {
@@ -116,40 +123,40 @@ const handleLogin = async (): Promise<void> => {
 
   loading.value = true
   try {
-    const res = await axios.post('/auth-service/login', {
+    const { roleType } = resolveIdentity(loginForm.value.identity)
+    const res = await axios.post(`${apiBaseUrl}/auth-service/login`, {
       phone: loginForm.value.phone,
       password: loginForm.value.password,
-      roleType: loginForm.value.roleType
+      roleType
     })
 
     const result = res.data
     if (result.code === 200 && result.data && result.data.token) {
       // result.data 是 { token: "xxx", roleType: N, doctorType: N }，取 token 字段
+      console.log("token"+result.data.token)
       sessionStorage.setItem('token', result.data.token)
-      // roleType 优先用后端返回值，兜底取表单里的
-      sessionStorage.setItem('roleType', String(result.data.roleType ?? loginForm.value.roleType))
-      // 存储 doctorType（医生类型：1看诊 2检查 3检验），后端没返回则默认1
+      // roleType 优先用后端返回值，兜底取解析出的身份
+      sessionStorage.setItem('roleType', String(result.data.roleType ?? roleType))
+      // 存储 doctorType（医生类型：1看诊 2检查 3检验），后端没返回则默认接诊医生
       sessionStorage.setItem('doctorType', String(result.data.doctorType ?? 1))
       // 同时设置 userRole 供 App.vue 侧边栏角色判断使用
-      const role = result.data.roleType ?? loginForm.value.roleType
+      const role = result.data.roleType ?? roleType
       sessionStorage.setItem('userRole', role === 3 ? 'admin' : 'doctor')
 
       ElMessage.success('登录成功')
 
       // 根据角色类型和医生类型跳转不同页面
-      if (loginForm.value.roleType === 2) {
+      if (role === 2) {
         // 医生：根据 doctorType 跳转
-        const doctorType = result.data.doctorType || 1
-        if (doctorType === 1) {
-          // 看诊医生 → 医生首页
-          await router.push({ name: 'DoctorHome' })
-        } else if (doctorType === 2) {
+        const doctorType = result.data.doctorType ?? 1
+        if (doctorType === 2) {
           // 检查医生 → 检查医生首页
           await router.push({ name: 'ExaminationHome' })
         } else if (doctorType === 3) {
-          // 检验医生 → 检验申请列表
-          await router.push({ name: 'inspectionOrderList' })
+          // 检验医生 → 检验医生工作台
+          await router.push({ name: 'InspectionHome' })
         } else {
+          // 接诊医生 → 医生首页
           await router.push({ name: 'DoctorHome' })
         }
       } else {
@@ -189,6 +196,31 @@ html, body, #app {
   background: transparent !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
+}
+
+.el-select-dropdown {
+  border: 1px solid #dbe3ee !important;
+  border-radius: 18px !important;
+  box-shadow: 0 18px 48px rgba(28, 44, 68, .16) !important;
+  overflow: hidden;
+}
+
+.el-select-dropdown__item {
+  height: 46px;
+  padding: 0 18px;
+  color: #516176;
+  font-weight: 700;
+}
+
+.el-select-dropdown__item.hover,
+.el-select-dropdown__item:hover {
+  background: #f0f6ff !important;
+  color: #315fbb !important;
+}
+
+.el-select-dropdown__item.is-selected {
+  background: #315fbb !important;
+  color: #fff !important;
 }
 
 /* 全局背景裁切，减少滤镜引起的合成问题 */
@@ -231,8 +263,8 @@ html, body, #app {
   width: 960px;
   height: 560px;
   background: #FFFFFF;
-  border-radius: 24px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.02);
+  border-radius: 30px;
+  box-shadow: 0 26px 54px rgba(28, 44, 68, 0.12), 0 0 0 1px rgba(78, 101, 132, 0.06);
   display: flex;
   overflow: hidden;
   position: relative;
@@ -243,7 +275,7 @@ html, body, #app {
 /* 左侧品牌栏 - 明确背景色与层级，避免黑色区域 */
 .brand-side {
   width: 38%;
-  background: linear-gradient(145deg, #2563eb 0%, #1d4ed8 100%);
+  background: linear-gradient(145deg, #315fbb 0%, #3f87dc 100%);
   background-color: #2563eb; /* 明确纯色后备，防止滤镜渲染异常 */
   display: flex;
   flex-direction: column;
@@ -365,40 +397,41 @@ html, body, #app {
 }
 
 .login-form :deep(.el-input__wrapper) {
-  border-radius: 12px;
+  min-height: 48px;
+  border-radius: 16px;
   transition: all 0.2s ease;
   box-shadow: 0 0 0 1px #E2E8F0 inset;
 }
 
 .login-form :deep(.el-input__wrapper:hover) {
-  box-shadow: 0 0 0 1px #2563eb inset;
+  box-shadow: 0 0 0 1px #315fbb inset;
 }
 
 .login-form :deep(.el-input__wrapper.is-focus) {
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2), 0 0 0 1px #2563eb inset;
+  box-shadow: 0 0 0 3px rgba(49, 95, 187, 0.14), 0 0 0 1px #315fbb inset;
 }
 
 .login-form :deep(.el-select .el-input__wrapper) {
-  border-radius: 12px;
+  border-radius: 16px;
 }
 
 .login-btn {
   width: 100%;
-  height: 48px;
-  background: linear-gradient(105deg, #2563eb 0%, #1d4ed8 100%);
+  height: 50px;
+  background: linear-gradient(105deg, #315fbb 0%, #3f87dc 100%);
   border: none;
-  border-radius: 12px;
+  border-radius: 16px;
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 800;
   margin-top: 12px;
   transition: all 0.2s ease;
-  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+  box-shadow: 0 12px 24px rgba(49, 95, 187, 0.24);
 }
 
 .login-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.3);
-  background: linear-gradient(105deg, #3b82f6 0%, #1d4ed8 100%);
+  box-shadow: 0 16px 28px rgba(49, 95, 187, 0.28);
+  background: linear-gradient(105deg, #3f87dc 0%, #315fbb 100%);
 }
 
 .login-btn:active {

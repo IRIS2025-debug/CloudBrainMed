@@ -20,11 +20,11 @@ public class ExamOrderController {
 
     /** 按挂号ID查询检查单 */
     @GetMapping("/list")
-    public Result<?> listByRegisterId(
-            @RequestHeader(value = "token", required = false) String token,
-            @RequestParam String registerId) {
-        return Result.ok(examOrderService.getByRegisterId(
-                registerId, extractDoctorId(token)));
+    public Result<?> listByRegisterId(@RequestHeader(value = "token", required = false) String token,
+                                      @RequestParam String registerId,
+                                      @RequestParam(required = false) String doctorId) {
+        doctorId = extractDoctorId(token);
+        return Result.ok(examOrderService.getByRegisterId(registerId, doctorId));
     }
 
     /** 查询我开出的所有检查单 */

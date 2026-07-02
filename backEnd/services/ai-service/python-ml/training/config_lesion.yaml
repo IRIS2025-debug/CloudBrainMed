@@ -1,0 +1,45 @@
+# CT lesion recognition/segmentation training config.
+# Prepare data first:
+#   python tools/prepare_msd_lesion_dataset.py --archive D:/datasets/Task10_Colon.tar --output-dir data/ct_lesion_dataset --max-cases 8
+
+data:
+  ct_dir: "data/ct_lesion_dataset/CT"
+  mask_dir: "data/ct_lesion_dataset/MASK"
+  val_split: 0.2
+  seed: 42
+
+training:
+  batch_size: 2
+  epochs: 100
+  learning_rate: 0.0001
+  optimizer: "adamw"
+  weight_decay: 0.00001
+  scheduler: "cosine"
+  gradient_accumulation: 4
+  early_stop_patience: 20
+  fp16: true
+
+model:
+  type: "attention"
+  in_channels: 1
+  out_channels: 1
+  deploy_filename: "best_lesion_attention.pth"
+
+loss:
+  dice_weight: 0.5
+  bce_weight: 0.5
+  pos_weight: 4.0
+
+augmentation:
+  enabled: true
+  hflip_prob: 0.5
+  vflip_prob: 0.3
+  rotate_limit: 20
+  elastic: true
+  gamma_range: [0.8, 1.2]
+  noise_std: 0.01
+
+logging:
+  experiment_root: "experiments-lesion"
+  viz_interval: 10
+  save_interval: 10

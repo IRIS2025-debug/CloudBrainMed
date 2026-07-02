@@ -8,9 +8,17 @@ import logging
 import os
 import random
 import numpy as np
-import SimpleITK as sitk
-import torch
-from torch.utils.data import Dataset, DataLoader
+
+try:
+    import torch
+    from torch.utils.data import Dataset, DataLoader
+except ImportError:
+    torch = None
+    DataLoader = None
+    Dataset = object
+
+
+SUPPORTED_SLICE_EXTENSIONS = (".dcm", ".npy")
 
 
 class CTArtifactDataset(Dataset):
@@ -37,9 +45,9 @@ class CTArtifactDataset(Dataset):
         ct_path = os.path.join(self.ct_dir, fname)
         mask_path = os.path.join(self.mask_dir, fname)
 
-        # 读 DCM
-        ct_img = sitk.GetArrayFromImage(sitk.ReadImage(ct_path)).astype(np.float32)
-        mask_img = sitk.GetArrayFromImage(sitk.ReadImage(mask_path)).astype(np.float32)
+        # 读 2D 切片；金属伪影数据使用 DCM，病灶公开数据预处理后使用 NPY。
+        ct_img = read_slice_array(ct_path).astype(np.float32)
+        mask_img = read_slice_array(mask_path).astype(np.float32)
 
         # 确保是 2D (H, W)
         if ct_img.ndim == 3:
@@ -60,6 +68,9 @@ class CTArtifactDataset(Dataset):
             ct_img = augmented["image"]
             mask_img = augmented["mask"]
 
+        if torch is None:
+            raise ImportError("PyTorch is required for dataset training")
+
         # 转成 Tensor: [1, H, W]
         ct_tensor = torch.from_numpy(ct_img).unsqueeze(0).float()
         mask_tensor = torch.from_numpy(mask_img).unsqueeze(0).float()
@@ -73,11 +84,10 @@ def build_dataloaders(ct_dir, mask_dir, val_split=0.2, batch_size=2,
     构建训练/验证 DataLoader
     返回: (train_loader, val_loader)
     """
-    all_files = sorted([
-        f for f in os.listdir(ct_dir)
-        if f.lower().endswith(".dcm")
-        and os.path.exists(os.path.join(mask_dir, f))
-    ])
+    if DataLoader is None:
+        raise ImportError("PyTorch is required for dataloader construction")
+
+    all_files = list_paired_training_files(ct_dir, mask_dir)
 
     logging.getLogger(__name__).info(f"共发现 {len(all_files)} 对 CT+Mask DCM 文件")
 
@@ -108,9 +118,28 @@ def compute_pos_weight(all_files, mask_dir):
     pos_pixels = 0
     neg_pixels = 0
     for fname in all_files:
-        mask = sitk.GetArrayFromImage(sitk.ReadImage(os.path.join(mask_dir, fname)))
+        mask = read_slice_array(os.path.join(mask_dir, fname))
         pos_pixels += (mask > 0.5).sum()
         neg_pixels += (mask <= 0.5).sum()
     ratio = neg_pixels / max(pos_pixels, 1)
     logging.getLogger(__name__).info(f"正像素: {pos_pixels}, 负像素: {neg_pixels}, 不平衡比: 1:{ratio:.0f}")
     return ratio
+
+
+def list_paired_training_files(ct_dir, mask_dir):
+    """Return sorted 2D slice filenames present in both CT and MASK folders."""
+    return sorted([
+        f for f in os.listdir(ct_dir)
+        if f.lower().endswith(SUPPORTED_SLICE_EXTENSIONS)
+        and os.path.exists(os.path.join(mask_dir, f))
+    ])
+
+
+def read_slice_array(path):
+    lower_path = str(path).lower()
+    if lower_path.endswith(".npy"):
+        return np.load(path)
+
+    import SimpleITK as sitk
+
+    return sitk.GetArrayFromImage(sitk.ReadImage(path))

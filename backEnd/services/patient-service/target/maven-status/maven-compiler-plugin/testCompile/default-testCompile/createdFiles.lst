@@ -1,0 +1,4 @@
+com\cloudbrainmed\patient\controller\MedicalRecordControllerTest.class
+com\cloudbrainmed\patient\controller\PatientMobileProfileControllerTest.class
+com\cloudbrainmed\patient\controller\PrescriptionControllerTest.class
+com\cloudbrainmed\patient\module5\service\impl\PatientProfileServiceImplTest.class

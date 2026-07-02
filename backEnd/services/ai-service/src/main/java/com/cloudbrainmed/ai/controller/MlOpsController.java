@@ -1,8 +1,11 @@
 package com.cloudbrainmed.ai.controller;
 
 import com.cloudbrainmed.ai.service.MlOpsService;
+import com.cloudbrainmed.common.exception.BusinessException;
 import com.cloudbrainmed.common.result.Result;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Map;
 
@@ -46,11 +49,26 @@ public class MlOpsController {
         return Result.ok(mlOpsService.getSampleList(page, limit));
     }
 
+    @GetMapping("/sample/list")
+    public Result<?> sampleListAlias(@RequestParam(defaultValue = "1") int page,
+                                     @RequestParam(defaultValue = "10") int limit) {
+        return sampleList(page, limit);
+    }
+
     /** 更新样本标注 */
     @PostMapping("/samples/update")
     public Result<?> updateSample(@RequestBody Map<String, String> body) {
         mlOpsService.updateSample(
                 body.get("sampleId"), body.get("label"), body.get("labelType"));
+        return Result.ok();
+    }
+
+    @PutMapping("/sample/label")
+    public Result<?> labelSample(@RequestBody Map<String, String> body) {
+        mlOpsService.updateSample(
+                body.get("sampleId"),
+                body.get("labelTag"),
+                body.getOrDefault("labelType", "MANUAL"));
         return Result.ok();
     }
 
@@ -60,10 +78,38 @@ public class MlOpsController {
         return Result.ok(mlOpsService.getModelList());
     }
 
+    @GetMapping("/model/list")
+    public Result<?> modelListAlias() {
+        return modelList();
+    }
+
     /** 触发模型训练 */
     @PostMapping("/models/train")
-    public Result<?> triggerTrain(@RequestBody Map<String, String> body) {
-        return Result.ok(mlOpsService.triggerTrain(body));
+    public Result<?> triggerTrain(@RequestBody(required = false) Map<String, String> body) {
+        return Result.ok(mlOpsService.triggerTrain(body != null ? body : Map.of()));
+    }
+
+    @PostMapping("/model/train")
+    public Result<?> triggerTrainAlias(@RequestBody(required = false) Map<String, String> body) {
+        return triggerTrain(body);
+    }
+
+    @PutMapping("/model/traffic")
+    public Result<?> setModelTraffic(@RequestBody Map<String, Object> body) {
+        String modelId = String.valueOf(body.get("modelId"));
+        int trafficPct = parseTrafficPct(body.get("trafficPct"));
+        return Result.ok(mlOpsService.setModelTraffic(modelId, trafficPct));
+    }
+
+    private int parseTrafficPct(Object value) {
+        if (value == null) {
+            throw new BusinessException("流量配置参数错误");
+        }
+        try {
+            return Integer.parseInt(String.valueOf(value));
+        } catch (NumberFormatException e) {
+            throw new BusinessException("流量配置参数错误");
+        }
     }
 
     /** 训练任务列表 */
@@ -76,5 +122,35 @@ public class MlOpsController {
     @GetMapping("/python/health")
     public Result<?> pythonHealth() {
         return Result.ok(mlOpsService.checkPythonService());
+    }
+
+    @PostMapping("/inference/ct-artifact")
+    public Result<?> predictCtArtifact(@RequestParam("file") MultipartFile file) throws Exception {
+        return Result.ok(mlOpsService.predictCtArtifact(file));
+    }
+
+    @GetMapping("/inference/ct-artifact/result/{maskFilename}")
+    public ResponseEntity<byte[]> downloadCtArtifactMask(@PathVariable String maskFilename) throws Exception {
+        return mlOpsService.downloadCtArtifactMask(maskFilename);
+    }
+
+    @GetMapping("/inference/ct-artifact/preview/{previewFilename}")
+    public ResponseEntity<byte[]> downloadCtArtifactPreview(@PathVariable String previewFilename) throws Exception {
+        return mlOpsService.downloadCtArtifactPreview(previewFilename);
+    }
+
+    @PostMapping("/inference/ct-lesion")
+    public Result<?> predictCtLesion(@RequestParam("file") MultipartFile file) throws Exception {
+        return Result.ok(mlOpsService.predictCtLesion(file));
+    }
+
+    @GetMapping("/inference/ct-lesion/result/{maskFilename}")
+    public ResponseEntity<byte[]> downloadCtLesionMask(@PathVariable String maskFilename) throws Exception {
+        return mlOpsService.downloadCtLesionMask(maskFilename);
+    }
+
+    @GetMapping("/inference/ct-lesion/preview/{previewFilename}")
+    public ResponseEntity<byte[]> downloadCtLesionPreview(@PathVariable String previewFilename) throws Exception {
+        return mlOpsService.downloadCtLesionPreview(previewFilename);
     }
 }

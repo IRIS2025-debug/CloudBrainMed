@@ -54,56 +54,83 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import { getConsultList } from '@/api/doctor/consult'
+import { ElMessage } from 'element-plus'
 const list = ref<any[]>([]); const loading = ref(false); const page = ref(1); const total = ref(0)
 const filters = reactive({ consultStatus: '', date: '' })
 
-// Mock 数据 —— API 不可达时作为开发测试数据
-const mockList = [
-  { registerId: 'REG-20260612-001', name: '陈建国', gender: 1, patientAge: 45, chiefComplaint: '反复头痛、眩晕一周，加重两天', consultStatus: 'PENDING', visitDate: '2026-06-12' },
-  { registerId: 'REG-20260612-002', name: '林美娟', gender: 2, patientAge: 32, chiefComplaint: '右下腹持续性隐痛三天，伴恶心', consultStatus: 'IN_PROGRESS', visitDate: '2026-06-12' },
-  { registerId: 'REG-20260612-003', name: '黄志强', gender: 1, patientAge: 58, chiefComplaint: '胸闷气短两周，夜间加重', consultStatus: 'RECORD_CONFIRMED', visitDate: '2026-06-11' },
-  { registerId: 'REG-20260612-004', name: '赵小燕', gender: 2, patientAge: 27, chiefComplaint: '咳嗽咳痰五天，发热一天，体温38.2℃', consultStatus: 'COMPLETED', visitDate: '2026-06-11' },
-  { registerId: 'REG-20260612-005', name: '周文博', gender: 1, patientAge: 66, chiefComplaint: '双下肢水肿一周，既往高血压病史10年', consultStatus: 'PENDING', visitDate: '2026-06-12' },
-]
 
 async function fetchList() {
   loading.value = true
   try {
-    const res = await getConsultList({ ...filters, page: page.value, limit: 10 })
-    list.value = res.data || []
+    const res = await getConsultList({
+      consultStatus: filters.consultStatus,
+      date: formatDate(filters.date),
+      page: page.value,
+      limit: 10
+    })
+    const data = res.data
+    list.value = Array.isArray(data) ? data : (data?.list || [])
+    total.value = Number(data?.total ?? list.value.length)
   } catch {
-    // API 不可达时使用 mock 数据进行开发测试
-    list.value = mockList
+    list.value = []
+    total.value = 0
+    ElMessage.error('接诊列表加载失败，请稍后重试')
   } finally { loading.value = false }
 }
 function statusLabel(s: string) {
   const m: Record<string, string> = { PENDING: '待接诊', IN_PROGRESS: '接诊中', RECORD_CONFIRMED: '已确认', COMPLETED: '已完成' }
   return m[s] || s
 }
+
+function formatDate(value: string | Date) {
+  if (!value) return ''
+  if (value instanceof Date) {
+    const month = String(value.getMonth() + 1).padStart(2, '0')
+    const day = String(value.getDate()).padStart(2, '0')
+    return `${value.getFullYear()}-${month}-${day}`
+  }
+  return value
+}
 fetchList()
 </script>
 
 <style scoped>
-.page { padding: 28px 36px; }
+.page { padding: 30px 38px; background: #f4f7fb; min-height: calc(100vh - 64px); }
 .page-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
-.page-top h2 { font-size: 22px; font-weight: 700; color: #0f172a; }
+.page-top h2 { font-size: 24px; font-weight: 800; color: #0f172a; margin: 0; }
 .top-sub { font-size: 13px; color: #94a3b8; margin-top: 4px; }
 .filter-bar { display: flex; gap: 10px; }
-.card { background: #fff; border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+.filter-bar :deep(.el-input__wrapper),
+.filter-bar :deep(.el-select__wrapper) { border-radius: 12px; box-shadow: 0 0 0 1px #dbe3ee inset; }
+.card { background: #fff; border: 1px solid #e3eaf3; border-radius: 18px; box-shadow: 0 18px 42px rgba(28, 44, 68, .08); overflow: hidden; }
 
-.consult-table :deep(th) { background: #f8fafc; color: #64748b; font-weight: 600; font-size: 13px; border-bottom: none; }
-.consult-table :deep(td) { font-size: 14px; }
+.consult-table :deep(th) { background: #f8fafc; color: #64748b; font-weight: 700; font-size: 13px; border-bottom: none; }
+.consult-table :deep(td) { font-size: 14px; padding: 18px 0; }
+.consult-table :deep(.el-table__row) { transition: background-color .18s ease; }
+.consult-table :deep(.el-table__row:hover) { background: #f7faff; }
 
 .patient-cell { display: flex; align-items: center; gap: 10px; }
-.pc-avatar { width: 32px; height: 32px; border-radius: 50%; background: #e0e7ff; color: #4338ca; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+.pc-avatar { width: 36px; height: 36px; border-radius: 12px; background: #e0e7ff; color: #315fbb; font-size: 13px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
 .pc-name { font-size: 14px; font-weight: 600; color: #1e293b; }
 .pc-meta { font-size: 12px; color: #94a3b8; }
 
-.status-tag { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 12px; }
+.status-tag { font-size: 12px; font-weight: 800; padding: 5px 12px; border-radius: 999px; }
 .st-PENDING { background: #fef3c7; color: #b45309; }
 .st-IN_PROGRESS { background: #dbeafe; color: #1d4ed8; }
 .st-RECORD_CONFIRMED { background: #d1fae5; color: #065f46; }
 .st-COMPLETED { background: #f1f5f9; color: #64748b; }
+.consult-table :deep(.el-button.is-link) {
+  min-width: 72px;
+  height: 34px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: #315fbb;
+  color: #fff;
+  font-weight: 800;
+  box-shadow: 0 8px 18px rgba(49, 95, 187, .18);
+}
+.consult-table :deep(.el-button.is-link:hover),
+.consult-table :deep(.el-button.is-link:focus) { background: #3f87dc; color: #fff; }
 
 .table-footer { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-top: 1px solid #f1f5f9; }
 .tf-total { font-size: 13px; color: #94a3b8; }

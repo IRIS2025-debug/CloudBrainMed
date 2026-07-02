@@ -1,5 +1,9 @@
 ﻿# CT 金属伪影检测 — AI 训练与推理
 
+> Note: training data, six experiment outputs, and defense evidence have been
+> moved to `../../../../project-materials/ct-model-defense-traces/`. This backend
+> folder keeps only runtime inference code and deployed weights.
+
 ## 项目结构
 
 ```
@@ -57,6 +61,31 @@ python-ml/
 cd backEnd/services/ai-service/python-ml
 python -m training.train
 ```
+
+### 病灶识别/分割训练
+
+默认推荐公开数据集：Medical Segmentation Decathlon `Task10_Colon.tar`，下载地址：
+
+```text
+https://msd-for-monai.s3.us-west-2.amazonaws.com/Task10_Colon.tar
+```
+
+该数据集为 CT 肿瘤分割任务，`labelsTr` 中前景标签可直接作为病灶 mask。先抽取少量病例并转换成现有 2D 训练格式：
+
+```bash
+python tools/prepare_msd_lesion_dataset.py \
+  --archive D:/datasets/Task10_Colon.tar \
+  --output-dir data/ct_lesion_dataset \
+  --max-cases 8
+```
+
+然后使用病灶配置训练 Attention U-Net：
+
+```bash
+python -m training.train --config training/config_lesion.yaml
+```
+
+`training/config_lesion.yaml` 会把最佳权重同步到 `Model/weights/best_lesion_attention.pth`。推理服务默认通过 `LESION_MODEL_PATH` 加载该权重；如果权重还不存在，`/predict-ct-lesion` 会返回 `fallback=true`，表示当前只是启发式候选结果，不能当作训练模型诊断结论。
 
 ### 2. 指定参数运行
 
@@ -135,17 +164,13 @@ experiments/
 生成对比表：
 
 ```bash
-for d in experiments/*/; do
-  name=$(basename $d)
-  if [ -f "${d}metrics.json" ]; then
-    python -c "
-import json, sys
-d = json.load(open('${d}metrics.json'))
-print(f'$name | Dice={d[\"best_dice\"]:.4f} | F1={d[\"best_metrics\"][\"f1\"]:.4f}')
-"
-  fi
-done
+python tools/summarize_experiments.py
 ```
+
+脚本会生成：
+
+- `docs/generated/experiment-summary.md`：可直接复制进报告的对比表、最优模型建议和留痕完整性检查。
+- `docs/generated/experiment-summary.csv`：便于在 Excel/WPS 中继续整理。
 
 ### 直接用在报告中
 
@@ -180,23 +205,11 @@ cd /root/autodl-tmp
 ```bash
 cd /root/autodl-tmp/python-ml
 
-# E1: UNet + AdamW（基线）
-python -m training.train --model unet --optimizer adamw --epochs 100 --batch-size 8 --fp16
+# 先检查将要执行的六条训练命令
+python tools/run_six_experiments.py --dry-run
 
-# E2: UNet + Adam
-python -m training.train --model unet --optimizer adam --epochs 100 --batch-size 8 --fp16
-
-# E3: UNet + SGD
-python -m training.train --model unet --optimizer sgd --epochs 100 --batch-size 8 --fp16 --lr 1e-3
-
-# E4: AttentionUNet + AdamW
-python -m training.train --model attention --optimizer adamw --epochs 100 --batch-size 8 --fp16
-
-# E5: UNet + AdamW 大学习率
-python -m training.train --model unet --optimizer adamw --epochs 100 --batch-size 8 --fp16 --lr 5e-4
-
-# E6: UNet + AdamW 大 batch
-python -m training.train --model unet --optimizer adamw --epochs 100 --batch-size 16 --fp16
+# 确认参数无误后正式顺序运行 E1-E6，并在结束后生成汇总表
+python tools/run_six_experiments.py
 ```
 
 **⑤ 下载结果**
@@ -253,3 +266,28 @@ HTTP POST /admin-service/ml/models/train
 | 实验方案 | `docs/02-Experiment-Plan.md` |
 | 报告框架 | `docs/03-Report-Framework.md` |
 | Java 训练接口 | `../src/.../model/ModelTrainer.java` |
+
+---
+
+## 本地服务端口
+
+Python AI 服务默认监听 `http://localhost:8010`，Java 后端默认通过 `AI_PYTHON_SERVICE_URL` 调用该地址。
+
+不要把 Python AI 服务放在 `8000` 端口；本项目 `admin-service` 默认使用 `8000`。如需自定义端口：
+
+```bash
+PORT=8010 python CTDetectionServer.py
+```
+
+Windows PowerShell：
+
+```powershell
+$env:PORT="8010"
+python CTDetectionServer.py
+```
+
+同时让 Java 后端使用同一个地址：
+
+```bash
+AI_PYTHON_SERVICE_URL=http://localhost:8010
+```
