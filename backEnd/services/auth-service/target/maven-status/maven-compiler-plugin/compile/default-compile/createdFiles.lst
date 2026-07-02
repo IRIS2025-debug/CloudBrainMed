@@ -1,5 +1,4 @@
 com\cloudbrainmed\auth\mapper\PatientUserMapper.class
-com\cloudbrainmed\auth\handler\GlobalExceptionHandler.class
 com\cloudbrainmed\auth\service\AuthService.class
 com\cloudbrainmed\auth\entity\User.class
 com\cloudbrainmed\auth\dto\authLoginDto.class
