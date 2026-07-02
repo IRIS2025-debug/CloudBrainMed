@@ -3,10 +3,7 @@ package com.cloudbrainmed.api.feign;
 import com.cloudbrainmed.api.fallback.DoctorFeignFallback;
 import com.cloudbrainmed.api.dto.ReportContextDto;
 import org.springframework.cloud.openfeign.FeignClient;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
@@ -34,4 +31,8 @@ public interface DoctorFeignClient {
             @RequestParam("registerId") String registerId,
             @RequestHeader("X-Doctor-Id") String doctorId,
             @RequestHeader("X-Internal-Service-Key") String serviceKey);
+
+    /** 支付成功回调 — 触发 medical_order_item 入队 */
+    @PostMapping("/doctor-service/internal/medical-order/payment-success/{orderId}")
+    Map<String, Object> onPaymentSuccess(@PathVariable("orderId") String orderId);
 }

@@ -34,4 +34,9 @@ public class DoctorFeignFallback implements DoctorFeignClient {
         context.setRegisterId(registerId);
         return context;
     }
+
+    @Override
+    public Map<String, Object> onPaymentSuccess(String orderId) {
+        return Map.of("success", false, "error", "doctor-service 暂不可用");
+    }
 }
