@@ -1,0 +1,21 @@
+spring:
+  main:
+    web-application-type: reactive
+  profiles:
+    include: route
+  application:
+    name: gateway-server
+  config:
+    import: optional:nacos:gateway-server.yml   # ⬅️ 加上 optional:
+  cloud:
+    nacos:
+      discovery:
+        enabled: true
+        register-enabled: true
+        server-addr: 172.29.64.1:8848
+    sentinel:
+      transport:
+        dashboard: sentinel:8858
+      eager: true
+server:
+  port: 80

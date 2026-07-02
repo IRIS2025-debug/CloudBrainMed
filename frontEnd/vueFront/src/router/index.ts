@@ -146,6 +146,36 @@ const router = createRouter({
       component: () => import('@/pages/examination/CTInference.vue'),
       meta: { requiresAuth: true, role: 2, doctorType: 2 }
     },
+    {
+      path: '/examination-doctor/application',
+      name: 'ApplicationList',
+      component: () => import('@/pages/examination/application/ApplicationList.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/examination-doctor/upload',
+      name: 'ImageUpload',
+      component: () => import('@/pages/examination/upload/ImageUpload.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/examination-doctor/analysis',
+      name: 'ImageAnalysis',
+      component: () => import('@/pages/examination/analysis/ImageAnalysis.vue'),
+      meta: { requiresAuth: true }
+    },
+    // {
+    //   path: '/examination-doctor/report',
+    //   name: 'ReportPreview',
+    //   component: () => import('@/pages/examination/report/ReportPreview.vue'),
+    //   meta: { requiresAuth: true }
+    // },
+    {
+      path: '/examination-doctor/report',
+      name: 'ReportGeneration',
+      component: () => import('@/pages/examination/report/ReportGeneration.vue'),
+      meta: { requiresAuth: true }
+    },
   ],
 })
 

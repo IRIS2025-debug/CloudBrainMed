@@ -133,6 +133,7 @@ const handleLogin = async (): Promise<void> => {
     const result = res.data
     if (result.code === 200 && result.data && result.data.token) {
       // result.data 是 { token: "xxx", roleType: N, doctorType: N }，取 token 字段
+      console.log("token"+result.data.token)
       sessionStorage.setItem('token', result.data.token)
       // roleType 优先用后端返回值，兜底取解析出的身份
       sessionStorage.setItem('roleType', String(result.data.roleType ?? roleType))

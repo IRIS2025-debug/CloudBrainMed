@@ -1,0 +1,24 @@
+# backend/gateway-server/src/main/resources/application.yml
+spring:
+  main:
+    web-application-type: reactive
+  profiles:
+    include: route   # 引入 route 配置文件
+  application:
+    name: gateway-server
+  config:
+    import: optional:nacos:gateway-server.yml
+  cloud:
+    nacos:
+      discovery:
+        enabled: true           # 启用了服务发现
+        register-enabled: true  # 允许注册
+        server-addr: host.docker.internal:8848   # ✅ 正确：必须写在 discovery 下面
+        config:
+          server-addr: nacos:8848   # 如果需要配置中心，也分开写
+    sentinel:
+      transport:
+        dashboard: sentinel:8858
+      eager: true
+server:
+  port: 80
