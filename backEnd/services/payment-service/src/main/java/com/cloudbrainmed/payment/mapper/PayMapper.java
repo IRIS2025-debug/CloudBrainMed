@@ -28,11 +28,38 @@ public interface PayMapper {
                          @Param("payTime") LocalDateTime payTime);
 
     /**
-     * 更新支付状态
+     * 按当前状态条件更新支付状态，避免并发覆盖状态迁移。
      */
-    @Update("UPDATE pay SET pay_status = #{payStatus} WHERE pay_id = #{payId}")
-    int updatePayStatus(@Param("payId") String payId,
-                        @Param("payStatus") String payStatus);
+    @Update("UPDATE pay SET pay_status = #{payStatus} " +
+            "WHERE pay_id = #{payId} AND pay_status = #{expectedStatus}")
+    int updatePayStatusFrom(@Param("payId") String payId,
+                            @Param("payStatus") String payStatus,
+                            @Param("expectedStatus") String expectedStatus);
+
+    default int updateBusinessPayStatus(String orderType, String businessId, String payStatus) {
+        if ("MEDICAL".equals(orderType)) {
+            return updateMedicalOrderPayStatus(businessId, payStatus);
+        }
+        if ("PRESCRIPTION".equals(orderType)) {
+            return updatePrescriptionPayStatus(businessId, payStatus);
+        }
+        if ("REGISTER".equals(orderType)) {
+            return updateRegistrationPayStatus(businessId, payStatus);
+        }
+        return 0;
+    }
+
+    @Update("UPDATE medical_order SET pay_status = #{payStatus} WHERE order_id = #{businessId}")
+    int updateMedicalOrderPayStatus(@Param("businessId") String businessId,
+                                    @Param("payStatus") String payStatus);
+
+    @Update("UPDATE prescription SET pay_status = #{payStatus} WHERE prescription_id = #{businessId}")
+    int updatePrescriptionPayStatus(@Param("businessId") String businessId,
+                                    @Param("payStatus") String payStatus);
+
+    @Update("UPDATE registration SET pay_status = #{payStatus} WHERE register_id = #{businessId}")
+    int updateRegistrationPayStatus(@Param("businessId") String businessId,
+                                    @Param("payStatus") String payStatus);
 
     /**
      * 根据支付ID查询
@@ -57,11 +84,15 @@ public interface PayMapper {
     /**
      * 分页查询
      */
-    @Select("SELECT * FROM pay WHERE 1=1 " +
-            "<if test='patientId != null and patientId != \"\"'>AND patient_id = #{patientId}</if>" +
-            "<if test='payStatus != null and payStatus != \"\"'>AND pay_status = #{payStatus}</if>" +
-            "<if test='orderType != null and orderType != \"\"'>AND order_type = #{orderType}</if>" +
-            "ORDER BY pay_time DESC LIMIT #{offset}, #{pageSize}")
+    @Select("""
+        <script>
+        SELECT * FROM pay WHERE 1=1
+        <if test='patientId != null and patientId != ""'>AND patient_id = #{patientId}</if>
+        <if test='payStatus != null and payStatus != ""'>AND pay_status = #{payStatus}</if>
+        <if test='orderType != null and orderType != ""'>AND order_type = #{orderType}</if>
+        ORDER BY pay_time DESC LIMIT #{pageSize} OFFSET #{offset}
+        </script>
+        """)
     List<Pay> selectPage(@Param("patientId") String patientId,
                          @Param("payStatus") String payStatus,
                          @Param("orderType") String orderType,
@@ -71,10 +102,14 @@ public interface PayMapper {
     /**
      * 统计数量
      */
-    @Select("SELECT COUNT(*) FROM pay WHERE 1=1 " +
-            "<if test='patientId != null and patientId != \"\"'>AND patient_id = #{patientId}</if>" +
-            "<if test='payStatus != null and payStatus != \"\"'>AND pay_status = #{payStatus}</if>" +
-            "<if test='orderType != null and orderType != \"\"'>AND order_type = #{orderType}</if>")
+    @Select("""
+        <script>
+        SELECT COUNT(*) FROM pay WHERE 1=1
+        <if test='patientId != null and patientId != ""'>AND patient_id = #{patientId}</if>
+        <if test='payStatus != null and payStatus != ""'>AND pay_status = #{payStatus}</if>
+        <if test='orderType != null and orderType != ""'>AND order_type = #{orderType}</if>
+        </script>
+        """)
     Long countByPatientId(@Param("patientId") String patientId,
                           @Param("payStatus") String payStatus,
                           @Param("orderType") String orderType);

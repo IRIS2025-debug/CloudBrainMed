@@ -36,4 +36,17 @@ class PrescriptionControllerTest {
                 .isInstanceOf(RuntimeException.class)
                 .hasMessage("未登录，请先登录");
     }
+    @Test
+    void listByRegisterIdUsesPatientIdFromToken() {
+        PrescriptionService prescriptionService = mock(PrescriptionService.class);
+        JwtUtil jwtUtil = mock(JwtUtil.class);
+        PrescriptionController controller = new PrescriptionController(
+                prescriptionService, jwtUtil);
+        when(jwtUtil.getPatientIdFromToken("token-p001")).thenReturn("P001");
+        when(prescriptionService.getByRegisterId("R001", "P001")).thenReturn(List.of());
+
+        controller.listByRegisterId("token-p001", "R001");
+
+        verify(prescriptionService).getByRegisterId("R001", "P001");
+    }
 }

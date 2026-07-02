@@ -14,11 +14,11 @@ public interface MedicalOrderMapper {
         INSERT INTO medical_order (
             order_id, patient_id, register_id, doctor_id, clinical_summary,
             urgency_level, source_type, ai_trace_id, status, pay_status,
-            confirmed_time, create_time
+            assigned_room, confirmed_time, create_time
         ) VALUES (
             #{orderId}, #{patientId}, #{registerId}, #{doctorId},
             #{clinicalSummary}, #{urgencyLevel}, #{sourceType}, #{aiTraceId},
-            #{status}, #{payStatus}, #{confirmedTime}, #{createTime}
+            #{status}, #{payStatus}, #{assignedRoom}, #{confirmedTime}, #{createTime}
         )
         """)
     int insertOrder(MedicalOrder order);
@@ -83,13 +83,12 @@ public interface MedicalOrderMapper {
             "EXTRACT(YEAR FROM AGE(CURRENT_DATE, p.birthday)) AS age, " +
             "mo.register_id, mo.doctor_id, mo.clinical_summary, " +
             "mi.item_name, mi.item_code, moi.item_category, " +
-            "mo.urgency_level, mo.source_type, mo.status, mo.pay_status, " +
-            "mo.confirmed_time, mo.create_time " +
+            "mo.urgency_level, mo.source_type, mo.status, mo.pay_status, mo.assigned_room, " +
+            "mo.confirmed_time::timestamp AS confirmed_time, mo.create_time::timestamp AS create_time " +
             "FROM medical_order mo " +
             "JOIN patient p ON mo.patient_id = p.patient_id " +
             "JOIN medical_order_item moi ON mo.order_id = moi.order_id " +
             "LEFT JOIN medical_item mi ON moi.item_id = mi.item_id " +
-            "WHERE moi.item_category = 'LAB' " +
             "ORDER BY mo.create_time DESC")
     @Results({
         @Result(column = "order_id", property = "orderId"),
@@ -107,13 +106,17 @@ public interface MedicalOrderMapper {
         @Result(column = "source_type", property = "sourceType"),
         @Result(column = "status", property = "status"),
         @Result(column = "pay_status", property = "payStatus"),
+        @Result(column = "assigned_room", property = "assignedRoom"),
         @Result(column = "confirmed_time", property = "confirmedTime"),
         @Result(column = "create_time", property = "createTime")
     })
     List<InspectionOrderVo> selectAllLabOrders();
 
     /** 按订单ID查单条检验申请详情 */
-    @Select("SELECT * FROM medical_order WHERE order_id = #{orderId}")
+    @Select("SELECT order_id, patient_id, register_id, doctor_id, clinical_summary, urgency_level, " +
+            "source_type, ai_trace_id, status, pay_status, assigned_room, confirmed_time::timestamp AS confirmed_time, " +
+            "create_time::timestamp AS create_time, update_time::timestamp AS update_time " +
+            "FROM medical_order WHERE order_id = #{orderId}")
     @Results({
         @Result(column = "order_id", property = "orderId"),
         @Result(column = "patient_id", property = "patientId"),
@@ -125,9 +128,21 @@ public interface MedicalOrderMapper {
         @Result(column = "ai_trace_id", property = "aiTraceId"),
         @Result(column = "status", property = "status"),
         @Result(column = "pay_status", property = "payStatus"),
+        @Result(column = "assigned_room", property = "assignedRoom"),
         @Result(column = "confirmed_time", property = "confirmedTime"),
         @Result(column = "create_time", property = "createTime"),
         @Result(column = "update_time", property = "updateTime")
     })
     MedicalOrder selectByOrderId(@Param("orderId") String orderId);
+
+    @Update("""
+        UPDATE medical_order
+        SET status = 'QUEUED',
+            assigned_room = #{assignedRoom}
+        WHERE order_id = #{orderId}
+          AND status = 'WAITING_ASSIGN'
+          AND pay_status = 'PAID'
+        """)
+    int assignOrder(@Param("orderId") String orderId,
+                    @Param("assignedRoom") String assignedRoom);
 }

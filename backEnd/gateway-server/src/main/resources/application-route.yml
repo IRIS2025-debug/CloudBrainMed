@@ -10,6 +10,12 @@ spring:
             - Path=/doctor-service/exam/ct-artifact,/doctor-service/exam/ct-artifact/**
           filters:
             - RewritePath=/doctor-service/exam/ct-artifact(?<segment>.*), /admin-service/ml/inference/ct-artifact${segment}
+        - id: doctor-ct-lesion-route
+          uri: lb://ai-service
+          predicates:
+            - Path=/doctor-service/exam/ct-lesion,/doctor-service/exam/ct-lesion/**
+          filters:
+            - RewritePath=/doctor-service/exam/ct-lesion(?<segment>.*), /admin-service/ml/inference/ct-lesion${segment}
         - id: ai-service-ml-route
           uri: lb://ai-service
           predicates:
@@ -52,6 +58,12 @@ spring:
             - Path=/api/patient/**
           filters:
             - RewritePath=/api/patient(?<segment>.*), /patient-service${segment}
+        - id: payment-api-route
+          uri: lb://payment-service
+          predicates:
+            - Path=/api/payment/**
+          filters:
+            - RewritePath=/api/payment(?<segment>.*), /payment-service/pay${segment}
         - id: patient-service-route
           uri: lb://patient-service
           predicates:

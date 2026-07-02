@@ -17,8 +17,8 @@ public class PrescriptionServiceImpl implements PrescriptionService {
     }
 
     @Override
-    public List<Prescription> getByRegisterId(String registerId) {
-        return mapper.selectByRegisterId(registerId);
+    public List<Prescription> getByRegisterId(String registerId, String patientId) {
+        return mapper.selectByRegisterId(registerId, patientId);
     }
 
     @Override

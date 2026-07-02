@@ -10,6 +10,96 @@ export default defineConfig({
     vue(),
     vueDevTools(),
   ],
+  build: {
+    rolldownOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return null
+          if (id.includes('/vue/') || id.includes('/vue-router/') || id.includes('/pinia/')) {
+            return 'vue-vendor'
+          }
+          if (id.includes('/@vueuse/')) {
+            return 'vueuse-vendor'
+          }
+          if (
+            id.includes('/@floating-ui/') ||
+            id.includes('/@popperjs/') ||
+            id.includes('/@sxzz/')
+          ) {
+            return 'floating-vendor'
+          }
+          if (
+            id.includes('/async-validator/') ||
+            id.includes('/dayjs/') ||
+            id.includes('/lodash') ||
+            id.includes('/lodash-unified/') ||
+            id.includes('/memoize-one/') ||
+            id.includes('/normalize-wheel-es/') ||
+            id.includes('/@ctrl/tinycolor/')
+          ) {
+            return 'element-utils-vendor'
+          }
+          if (id.includes('/@element-plus/icons-vue/')) {
+            return 'element-icons-vendor'
+          }
+          if (
+            id.includes('/element-plus/es/components/table') ||
+            id.includes('/element-plus/es/components/table-column') ||
+            id.includes('/element-plus/es/components/pagination')
+          ) {
+            return 'element-table-vendor'
+          }
+          if (
+            id.includes('/element-plus/es/components/form') ||
+            id.includes('/element-plus/es/components/form-item') ||
+            id.includes('/element-plus/es/components/input') ||
+            id.includes('/element-plus/es/components/input-number') ||
+            id.includes('/element-plus/es/components/select') ||
+            id.includes('/element-plus/es/components/option') ||
+            id.includes('/element-plus/es/components/checkbox') ||
+            id.includes('/element-plus/es/components/checkbox-group') ||
+            id.includes('/element-plus/es/components/radio') ||
+            id.includes('/element-plus/es/components/date-picker') ||
+            id.includes('/element-plus/es/components/time-picker') ||
+            id.includes('/element-plus/es/components/slider') ||
+            id.includes('/element-plus/es/components/upload')
+          ) {
+            return 'element-form-vendor'
+          }
+          if (
+            id.includes('/element-plus/es/components/dialog') ||
+            id.includes('/element-plus/es/components/dropdown') ||
+            id.includes('/element-plus/es/components/dropdown-item') ||
+            id.includes('/element-plus/es/components/dropdown-menu') ||
+            id.includes('/element-plus/es/components/popconfirm') ||
+            id.includes('/element-plus/es/components/message') ||
+            id.includes('/element-plus/es/components/message-box') ||
+            id.includes('/element-plus/es/components/popper') ||
+            id.includes('/element-plus/es/components/tooltip')
+          ) {
+            return 'element-overlay-vendor'
+          }
+          if (id.includes('/element-plus/')) {
+            return 'element-vendor'
+          }
+          if (id.includes('/axios/')) {
+            return 'network-vendor'
+          }
+          return 'vendor'
+        },
+      },
+      onLog(level, log, defaultHandler) {
+        if (
+          level === 'warn' &&
+          log.code === 'INVALID_ANNOTATION' &&
+          log.message.includes('@vueuse/core')
+        ) {
+          return
+        }
+        defaultHandler(level, log)
+      },
+    },
+  },
   server: {
     // 开发时将 /auth-service, /admin-service 等转发到后端网关，避免跨域问题
     proxy: {
@@ -22,6 +112,11 @@ export default defineConfig({
         target: 'http://localhost:8001',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/doctor-service\/exam\/ct-artifact/, '/admin-service/ml/inference/ct-artifact'),
+      },
+      '/doctor-service/exam/ct-lesion': {
+        target: 'http://localhost:8001',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/doctor-service\/exam\/ct-lesion/, '/admin-service/ml/inference/ct-lesion'),
       },
       '/doctor-service': {
         target: 'http://localhost:8003',

@@ -49,11 +49,13 @@
 </template>
 
 <script setup lang="ts">
+import { ArrowRight, Camera, Check, Cpu, List } from '@element-plus/icons-vue'
+
 const stats = [
-  { label: '今日检查', value: '--', icon: 'Camera', color: '#2563eb' },
-  { label: '待处理影像', value: '--', icon: 'List', color: '#9c27b0' },
-  { label: '已完成', value: '--', icon: 'Check', color: '#22c55e' },
-  { label: 'AI 辅助', value: '--', icon: 'Cpu', color: '#f59e0b' },
+  { label: '今日检查', value: '--', icon: Camera, color: '#2563eb' },
+  { label: '待处理影像', value: '--', icon: List, color: '#9c27b0' },
+  { label: '已完成', value: '--', icon: Check, color: '#22c55e' },
+  { label: 'AI 辅助', value: '--', icon: Cpu, color: '#f59e0b' },
 ]
 
 const modules = [
@@ -61,7 +63,7 @@ const modules = [
     path: '/examination-doctor/ct-inference',
     title: 'CT 伪影检测',
     desc: '上传 CT 影像，U-Net 3D 模型自动检测伪影区域',
-    icon: 'Camera',
+    icon: Camera,
     color: '#2563eb',
   },
 ]

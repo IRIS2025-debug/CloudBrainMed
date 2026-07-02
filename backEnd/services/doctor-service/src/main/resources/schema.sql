@@ -33,3 +33,6 @@ CREATE INDEX IF NOT EXISTS idx_register_report_patient_id_visit_date
 
 ALTER TABLE prescription
     ADD COLUMN IF NOT EXISTS medicine_id VARCHAR(32);
+
+ALTER TABLE medical_order
+    ADD COLUMN IF NOT EXISTS assigned_room VARCHAR(100);

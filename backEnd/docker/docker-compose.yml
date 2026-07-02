@@ -133,6 +133,7 @@ services:
       SPRING_REDIS_LETTUCE_POOL_MAX-ACTIVE: 8
       SPRING_REDIS_LETTUCE_POOL_MAX-IDLE: 8
       SPRING_REDIS_LETTUCE_POOL_MIN-IDLE: 0
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY}
     depends_on:
       nacos:
         condition: service_healthy
@@ -193,6 +194,7 @@ services:
       SPRING_REDIS_LETTUCE_POOL_MAX-ACTIVE: 8
       SPRING_REDIS_LETTUCE_POOL_MAX-IDLE: 8
       SPRING_REDIS_LETTUCE_POOL_MIN-IDLE: 0
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY}
     depends_on:
       nacos:
         condition: service_healthy

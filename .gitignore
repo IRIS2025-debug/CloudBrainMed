@@ -111,3 +111,9 @@ project-materials/restored-reference-materials/temp_share.js
 !project-materials/**/*.md
 !project-materials/**/README.md
 !project-materials/ct-model-defense-traces/python-ml-docs/docs/generated/*.csv
+
+# Local CT inference/training data and generated outputs.
+backEnd/services/ai-service/python-ml/uploads/
+backEnd/services/ai-service/python-ml/results/
+backEnd/services/ai-service/python-ml/previews/
+backEnd/services/ai-service/python-ml/data/

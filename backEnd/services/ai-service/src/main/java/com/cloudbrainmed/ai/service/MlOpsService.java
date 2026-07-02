@@ -27,4 +27,8 @@ public interface MlOpsService {
     Map<String, Object> checkPythonService();
     Map<String, Object> predictCtArtifact(MultipartFile file) throws Exception;
     ResponseEntity<byte[]> downloadCtArtifactMask(String maskFilename) throws Exception;
+    ResponseEntity<byte[]> downloadCtArtifactPreview(String previewFilename) throws Exception;
+    Map<String, Object> predictCtLesion(MultipartFile file) throws Exception;
+    ResponseEntity<byte[]> downloadCtLesionMask(String maskFilename) throws Exception;
+    ResponseEntity<byte[]> downloadCtLesionPreview(String previewFilename) throws Exception;
 }

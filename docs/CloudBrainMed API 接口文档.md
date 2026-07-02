@@ -33,7 +33,7 @@
 |auth\-service|8002|/api/auth/**、/auth\-service/**|
 |doctor\-service|8003|/doctor\-service/**、/inspection\-doctor/**、/internal/doctor/**|
 |patient\-service|8004|/api/patient/**、/patient\-service/**|
-|payment\-service|8005|/api/payment/\*\*（当前网关未配置）|
+|payment\-service|8005|/api/payment/\*\*、/payment-service/pay/\*\*|
 
 
 
@@ -2044,7 +2044,7 @@ GET /patient-service/register/detail/{registerId}
 |接口地址|`/api/patient/medical/list`|
 |请求方式|`GET`|
 |请求头|JSON|
-|权限说明|患者本人/医生|
+|权限说明|患者本人；当前实现从患者 token 解析 patientId，并仅返回该患者名下 registerId 对应的病历|
 
 
 
@@ -2073,7 +2073,7 @@ GET /patient-service/register/detail/{registerId}
 
 
 ```HTTP
-GET /api/patient/medical/list
+GET /api/patient/medical/list?registerId=REG001
 无请求体
 ```
 
@@ -2202,7 +2202,7 @@ GET /api/patient/medical/my-list
 |接口地址|`/api/patient/prescription/list`|
 |请求方式|`GET`|
 |请求头|JSON|
-|权限说明|患者本人/医生|
+|权限说明|患者本人；当前实现从患者 token 解析 patientId，并仅返回该患者名下 registerId 对应的处方|
 
 
 
@@ -2231,7 +2231,7 @@ GET /api/patient/medical/my-list
 
 
 ```HTTP
-GET /api/patient/prescription/list
+GET /api/patient/prescription/list?registerId=REG001
 无请求体
 ```
 
@@ -2513,7 +2513,7 @@ GET /api/patient/prescription/my-list
 |---|---|
 |接口地址|`/doctor-service/profile/info`|
 |请求方式|`GET`|
-|请求头|token: 医生JWT（必填；当前代码兼容直接传doctorId，仅限开发）|
+|请求头|token: 医生JWT（必填）|
 |权限说明|医生本人|
 
 
@@ -3157,7 +3157,7 @@ GET /doctor-service/consult/detail
 |---|---|
 |接口地址|`/doctor-service/consult/create-prescription`|
 |请求方式|`POST`|
-|请求头|token: 医生JWT（必填；当前代码兼容直接传doctorId，仅限开发）|
+|请求头|token: 医生JWT（必填）|
 |权限说明|记录所属医生；已完成接诊不能继续开具处方|
 
 
@@ -3236,7 +3236,7 @@ GET /doctor-service/consult/detail
 
 
 
-**业务规则：** 当前实现创建处方并将 `payStatus` 固定为 `WAITING`，返回体会回填 `payStatus` 和 `createTime`；`medicineId` 为兼容新增字段，传入时写入 `prescription.medicine_id`，旧调用不传仍可创建处方；开方本身不扣减药品库存。
+**业务规则：** 当前实现创建处方并将 `payStatus` 固定为 `WAITING`，同时同步调用 payment-service 创建 `orderType=PRESCRIPTION`、`businessId=prescriptionId` 的待支付订单，支付金额按单价 `price` × 数量 `num` 计算；返回体会回填 `payStatus` 和 `createTime`；后端从所属接诊记录回填 `patientId`、`patientName` 和 `doctorName`，不信任前端传入这些展示字段；`medicineId` 为兼容新增字段，传入时写入 `prescription.medicine_id`，旧调用不传仍可创建处方；开方本身不扣减药品库存。
 
 
 
@@ -3331,8 +3331,8 @@ GET /doctor-service/consult/prescription-list?registerId=REG001
 |---|---|
 |接口地址|`/doctor-service/exam-order/list`|
 |请求方式|`GET`|
-|请求头|JSON|
-|权限说明|医生|
+|请求头|token: 医生JWT（必填）|
+|权限说明|医生本人；doctorId 从 token 解析，客户端传入 doctorId 会被忽略|
 
 
 
@@ -3361,7 +3361,7 @@ GET /doctor-service/consult/prescription-list?registerId=REG001
 
 
 ```HTTP
-GET /doctor-service/exam-order/list?registerId=REG001&doctorId=DOC001
+GET /doctor-service/exam-order/list?registerId=REG001
 无请求体
 ```
 
@@ -4321,6 +4321,10 @@ data: [后续文本片段]
 |Python推理服务健康检查|`GET`|`/api/admin/ml/python/health`|
 |CT伪影检测推理|`POST`|`/admin-service/ml/inference/ct-artifact`|
 |CT伪影检测结果掩膜下载|`GET`|`/admin-service/ml/inference/ct-artifact/result/{maskFilename}`|
+|CT伪影检测预览图下载|`GET`|`/admin-service/ml/inference/ct-artifact/preview/{previewFilename}`|
+|CT病灶识别与分割推理|`POST`|`/admin-service/ml/inference/ct-lesion`|
+|CT病灶识别与分割结果掩膜下载|`GET`|`/admin-service/ml/inference/ct-lesion/result/{maskFilename}`|
+|CT病灶识别与分割预览图下载|`GET`|`/admin-service/ml/inference/ct-lesion/preview/{previewFilename}`|
 
 > **四角色拆分（CT 归属检查医生）**：CT 伪影检测虽物理上仍由 `ai-service` 的 `MlOpsController` 实现，但业务上归**检查医生（roleType=2, doctorType=2）**，不再属于管理员 MLOps。网关新增 doctor 向语义别名，前端检查医生页面应调用别名路径：
 >
@@ -4328,8 +4332,12 @@ data: [后续文本片段]
 > |---|---|
 > | `POST /doctor-service/exam/ct-artifact` | `POST /admin-service/ml/inference/ct-artifact` |
 > | `GET /doctor-service/exam/ct-artifact/result/{maskFilename}` | `GET /admin-service/ml/inference/ct-artifact/result/{maskFilename}` |
+> | `GET /doctor-service/exam/ct-artifact/preview/{previewFilename}` | `GET /admin-service/ml/inference/ct-artifact/preview/{previewFilename}` |
+> | `POST /doctor-service/exam/ct-lesion` | `POST /admin-service/ml/inference/ct-lesion` |
+> | `GET /doctor-service/exam/ct-lesion/result/{maskFilename}` | `GET /admin-service/ml/inference/ct-lesion/result/{maskFilename}` |
+> | `GET /doctor-service/exam/ct-lesion/preview/{previewFilename}` | `GET /admin-service/ml/inference/ct-lesion/preview/{previewFilename}` |
 >
-> 路由 `doctor-ct-artifact-route` 置于通用 `/doctor-service/**` 路由之前（`gateway-server/application-route.yml`），通过 `RewritePath` 完成路径重写。原 `/admin-service/ml/inference/ct-artifact` 路径仍可用（向后兼容），但管理员端前端已移除 CT 入口。
+> 路由 `doctor-ct-artifact-route`、`doctor-ct-lesion-route` 置于通用 `/doctor-service/**` 路由之前（`gateway-server/application-route.yml`），通过 `RewritePath` 完成路径重写。原 `/admin-service/ml/inference/ct-artifact`、`/admin-service/ml/inference/ct-lesion` 路径仍可用（向后兼容），但检查医生端前端应优先调用 doctor 语义路径。
 
 
 
@@ -4398,6 +4406,10 @@ data: [后续文本片段]
 |spacing|Double\[\]|像素间距|
 |origin|Double\[\]|影像原点|
 |downloadUrl|String|掩膜下载路径；前端应通过 Java 代理下载|
+|artifactSliceIndices|Integer\[\]|存在伪影阳性像素/体素的 Z 轴切片索引|
+|previewSliceIndex|Integer|用于前端预览的 Z 轴切片索引；优先选择伪影像素最多的切片|
+|previewImageFile|String|生成的 2D 预览 PNG 文件名|
+|previewImageUrl|String|2D 预览 PNG 下载路径；前端应通过 Java 代理下载|
 |artifactDetected|Boolean|是否检测到金属伪影|
 |positivePixels|Integer|伪影阳性像素/体素数|
 |totalPixels|Integer|总像素/体素数|
@@ -4415,10 +4427,51 @@ data: [后续文本片段]
 |---|---|---|
 |task|String|固定为 CT_ARTIFACT_REPORT|
 |modality|String|固定为 CT|
-|finding|Object|artifactDetected、positivePixels、totalPixels、artifactRatio、maskFile|
+|finding|Object|artifactDetected、positivePixels、totalPixels、artifactRatio、maskFile、artifactSliceIndices、previewSliceIndex、previewImageFile、previewImageUrl|
 |imageMeta|Object|shape、spacing、origin|
 |model|Object|modelType、modelVersion|
 |summary|String|可直接交给大语言模型参考的摘要|
+
+##### `CtLesionInferenceResult`
+
+|字段|类型|说明|
+|---|---|---|
+|status|String|Python 推理状态，成功为 success|
+|message|String|推理结果提示|
+|originalFile|String|原始上传文件名|
+|maskFile|String|生成的病灶候选区掩膜文件名|
+|shape|Integer\[\]|影像维度|
+|spacing|Double\[\]|像素间距|
+|origin|Double\[\]|影像原点|
+|downloadUrl|String|掩膜下载路径；前端应通过 Java 代理下载|
+|lesionSliceIndices|Integer\[\]|存在病灶候选像素/体素的 Z 轴切片索引|
+|previewSliceIndex|Integer|用于前端预览的 Z 轴切片索引；优先选择病灶候选像素最多的切片|
+|previewImageFile|String|生成的 2D 预览 PNG 文件名|
+|previewImageUrl|String|2D 预览 PNG 下载路径；前端应通过 Java 代理下载|
+|lesionDetected|Boolean|是否检测到病灶候选区|
+|lesionPixels|Integer|病灶候选阳性像素/体素数|
+|totalPixels|Integer|总像素/体素数|
+|lesionRatio|Double|病灶候选区占比，百分数|
+|lesionCount|Integer|按连通域统计的病灶候选区数量|
+|largestLesionPixels|Integer|最大病灶候选连通域像素/体素数|
+|fallback|Boolean|是否使用未加载训练权重时的启发式候选结果|
+|modelType|String|模型结构，当前默认 attention|
+|modelVersion|String|模型版本；未加载病灶权重时为 heuristic_no_weights|
+|summary|String|结构化摘要|
+|reportInput|CtLesionReportInput|给后续大语言模型生成文字描述/报告初稿的结构化输入|
+|logId|String|Java 侧推理日志ID|
+|latencyMs|Long|Java 调用 Python 总耗时毫秒|
+
+##### `CtLesionReportInput`
+
+|字段|类型|说明|
+|---|---|---|
+|task|String|固定为 CT_LESION_REPORT|
+|modality|String|固定为 CT|
+|finding|Object|lesionDetected、lesionPixels、totalPixels、lesionRatio、maskFile、lesionSliceIndices、lesionCount、largestLesionPixels、fallback、previewSliceIndex、previewImageFile、previewImageUrl|
+|imageMeta|Object|shape、spacing、origin|
+|model|Object|modelType、modelVersion|
+|summary|String|可直接交给大语言模型参考的摘要；LLM 不负责重新判断病灶区域|
 
 
 
@@ -5134,6 +5187,10 @@ multipart/form-data: file=<scan.nii.gz>
     "spacing": [0.5, 0.5, 1.0],
     "origin": [0.0, 0.0, 0.0],
     "downloadUrl": "/results/xxx_scan_mask.nii.gz",
+    "artifactSliceIndices": [42, 43, 44],
+    "previewSliceIndex": 43,
+    "previewImageFile": "xxx_scan_preview_z43.png",
+    "previewImageUrl": "/previews/xxx_scan_preview_z43.png",
     "artifactDetected": true,
     "positivePixels": 12034,
     "totalPixels": 31457280,
@@ -5149,7 +5206,11 @@ multipart/form-data: file=<scan.nii.gz>
         "positivePixels": 12034,
         "totalPixels": 31457280,
         "artifactRatio": 0.0383,
-        "maskFile": "xxx_scan_mask.nii.gz"
+        "maskFile": "xxx_scan_mask.nii.gz",
+        "artifactSliceIndices": [42, 43, 44],
+        "previewSliceIndex": 43,
+        "previewImageFile": "xxx_scan_preview_z43.png",
+        "previewImageUrl": "/previews/xxx_scan_preview_z43.png"
       },
       "imageMeta": {
         "shape": [512, 512, 120],
@@ -5170,7 +5231,7 @@ multipart/form-data: file=<scan.nii.gz>
 
 **错误码：** 400 文件格式不支持；500 Python 服务不可用或推理异常。
 
-**业务规则：** Python 服务生成掩膜和结构化统计；Java 后端追加 `logId`、`latencyMs` 并记录推理日志。`reportInput` 是后续大语言模型生成文字描述和报告初稿的输入，LLM 不负责重新判断伪影区域。
+**业务规则：** Python 服务生成 3D 掩膜、结构化统计和 2D PNG 预览图。预览图为选定 Z 轴 CT 灰度切片叠加红色伪影候选区，用于前端优先展示；完整 3D 掩膜仍通过下载接口保留。Java 后端追加 `logId`、`latencyMs` 并记录推理日志。`reportInput` 是后续大语言模型生成文字描述和报告初稿的输入，LLM 不负责重新判断伪影区域。
 
 ##### 2\.5\.1\.11 CT伪影检测结果掩膜下载
 
@@ -5203,11 +5264,147 @@ GET /doctor-service/exam/ct-artifact/result/xxx_scan_mask.nii.gz
 
 
 
+##### 2\.5\.1\.12 CT伪影检测预览图下载
+
+|项目|内容|
+|---|---|
+|接口地址|`/doctor-service/exam/ct-artifact/preview/{previewFilename}`（检查医生语义路径）|
+|兼容地址|`/admin-service/ml/inference/ct-artifact/preview/{previewFilename}`|
+|请求方式|`GET`|
+|请求头|JSON|
+|权限说明|业务上归检查医生；当前 Controller 未单独校验 doctorType|
+
+**请求参数**
+
+|参数名|位置|类型|必填|说明|
+|---|---|---|---|---|
+|previewFilename|path|String|是|推理返回的预览 PNG 文件名，不允许包含 `/` 或 `\`|
+
+**返回参数**
+
+二进制 PNG 图片，`Content-Type: image/png`。图片内容为 CT 灰度切片叠加红色金属伪影候选区。
+
+**请求示例**
+
+```HTTP
+GET /doctor-service/exam/ct-artifact/preview/xxx_scan_preview_z43.png
+无请求体
+```
+
+**业务规则：** 前端通过 Java 后端代理下载预览图，不直接暴露 Python 服务地址。该图只展示模型分割结果，医生仍需复核确认。
+
+
+
+##### 2\.5\.1\.13 CT病灶识别与分割推理
+|项目|内容|
+|---|---|
+|接口地址|`/doctor-service/exam/ct-lesion`（检查医生语义路径）|
+|兼容地址|`/admin-service/ml/inference/ct-lesion`|
+|请求方式|`POST`|
+|请求头|multipart/form-data|
+|权限说明|业务上归检查医生；当前 Controller 未单独校验 doctorType|
+
+**请求参数**
+
+|参数名|位置|类型|必填|说明|
+|---|---|---|---|---|
+|file|multipart|File|是|CT NIfTI 文件，仅支持 `.nii` 或 `.nii.gz`|
+
+**返回参数**
+
+|参数名|类型|说明|
+|---|---|---|
+|data|CtLesionInferenceResult|CT 病灶识别与分割结构化结果|
+
+**请求示例**
+
+```HTTP
+POST /doctor-service/exam/ct-lesion
+multipart/form-data: file=<scan.nii.gz>
+```
+
+**返回示例**
+
+```JSON
+{
+  "code": 200,
+  "msg": "成功",
+  "data": {
+    "status": "success",
+    "message": "CT病灶识别与分割完成",
+    "originalFile": "scan.nii.gz",
+    "maskFile": "xxx_scan_lesion_mask.nii.gz",
+    "lesionSliceIndices": [36, 37, 38],
+    "previewSliceIndex": 37,
+    "previewImageFile": "xxx_scan_lesion_preview_z37.png",
+    "previewImageUrl": "/previews/xxx_scan_lesion_preview_z37.png",
+    "lesionDetected": true,
+    "lesionPixels": 3264,
+    "totalPixels": 31457280,
+    "lesionRatio": 0.0104,
+    "lesionCount": 2,
+    "largestLesionPixels": 2140,
+    "fallback": false,
+    "modelType": "attention",
+    "modelVersion": "lesion_attention_v1",
+    "summary": "检测到CT病灶候选区2处，候选像素占比约0.0104%。",
+    "reportInput": {
+      "task": "CT_LESION_REPORT",
+      "modality": "CT"
+    },
+    "logId": "INF0123456789abcdef",
+    "latencyMs": 910
+  }
+}
+```
+
+**错误码：** 400 文件格式不支持；500 Python 服务不可用或推理异常。
+
+**业务规则：** Python 服务生成 3D 病灶候选掩膜、结构化统计和 2D PNG 预览图。预览图为选定 Z 轴 CT 灰度切片叠加红色病灶候选区，用于前端优先展示；完整 3D 掩膜仍通过下载接口保留。若 `LESION_MODEL_PATH` 未配置或权重不存在，Python 服务返回 `fallback=true` 且 `modelVersion=heuristic_no_weights`，仅表示服务链路可运行的启发式候选结果，不代表训练模型诊断。推荐使用公开带 mask 的 MSD Task10 Colon CT 肿瘤分割数据集，经 `tools/prepare_msd_lesion_dataset.py` 转为 2D `.npy` CT/MASK 切片后，用 `training/config_lesion.yaml` 训练 Attention U-Net；训练完成后将权重保存为 `Model/weights/best_lesion_attention.pth` 并通过 `LESION_MODEL_PATH` 加载。`reportInput` 是后续大语言模型生成文字描述和报告初稿的输入，LLM 不负责重新判断病灶区域。
+
+##### 2\.5\.1\.14 CT病灶识别与分割结果掩膜下载
+|项目|内容|
+|---|---|
+|接口地址|`/doctor-service/exam/ct-lesion/result/{maskFilename}`（检查医生语义路径）|
+|兼容地址|`/admin-service/ml/inference/ct-lesion/result/{maskFilename}`|
+|请求方式|`GET`|
+|请求头|JSON|
+|权限说明|业务上归检查医生；当前 Controller 未单独校验 doctorType|
+
+**请求参数**
+
+|参数名|位置|类型|必填|说明|
+|---|---|---|---|---|
+|maskFilename|path|String|是|推理返回的掩膜文件名，不允许包含 `/` 或 `\`|
+
+**返回参数**
+
+二进制 NIfTI 掩膜文件，`Content-Type: application/octet-stream`。
+
+##### 2\.5\.1\.15 CT病灶识别与分割预览图下载
+|项目|内容|
+|---|---|
+|接口地址|`/doctor-service/exam/ct-lesion/preview/{previewFilename}`（检查医生语义路径）|
+|兼容地址|`/admin-service/ml/inference/ct-lesion/preview/{previewFilename}`|
+|请求方式|`GET`|
+|请求头|JSON|
+|权限说明|业务上归检查医生；当前 Controller 未单独校验 doctorType|
+
+**请求参数**
+
+|参数名|位置|类型|必填|说明|
+|---|---|---|---|---|
+|previewFilename|path|String|是|推理返回的预览 PNG 文件名，不允许包含 `/` 或 `\`|
+
+**返回参数**
+
+二进制 PNG 图片，`Content-Type: image/png`。图片内容为 CT 灰度切片叠加红色病灶候选区。
+
 ### 2\.6 支付模块
 
 
 
-**模块职责：** 当前仅提供患者支付历史查询，统一支付下单能力尚未实现。
+**模块职责：** 提供统一支付订单创建、支付状态变更、业务支付状态联动和患者支付历史查询。
 
 
 
@@ -5334,7 +5531,7 @@ GET /api/payment/history/{patientId}
 
 
 
-**业务规则：** 网关当前未配置/api/payment/\*\*路由，/payment\-service/\*\*也不会自动去除前缀；通过网关调用前需修复路由。
+**业务规则：** 网关已配置 `/api/payment/**` 到 payment-service 的重写路由；服务内路径仍为 `/payment-service/pay/**`，服务间 Feign 调用继续使用该内部路径。
 
 
 
@@ -5495,7 +5692,7 @@ GET /internal/doctor/consult/context
 
 1. 实现 Gateway 全局过滤器，至少保证返回 `chain.filter(exchange)`，并完成 JWT 角色校验。
 
-2. 为 `/api/payment/**` 配置网关路由，或统一 Controller 与网关的 `/payment-service/**` 前缀并增加 `StripPrefix`。
+2. `/api/payment/**` 网关路由已配置；后续若新增支付接口，需要保持网关重写与 Controller 路径同步。
 
 3. 将患者病历/处方 `my-list` 接口改为从 token 读取 patientId，禁止客户端任意指定。
 
@@ -5506,3 +5703,42 @@ GET /internal/doctor/consult/context
 6. 完成头像文件持久化、短信验证码验证和医生资料相关 TODO 后，再补充对应正式接口。
 
 7. 统一 BusinessException 的业务 code 与 HTTP 状态，避免所有业务错误都表现为 code=500。
+
+## 4. 2026-07-02 医技检查/检验支付与分配补充
+
+### 4.1 开具检查/检验申请
+
+- 接诊医生通过 `/doctor-service/consult/create-exam-order` 开具检查/检验申请时，后端写入 `medical_order`、`medical_order_item`，并同步调用 `payment-service/pay/create` 创建 `orderType=MEDICAL` 的支付订单。
+- 检查/检验项目必须能在 `medical_item` 字典中匹配；未知项目会拒绝开单，不再以 0 元项目写入或创建支付订单。
+- 支付订单 `businessId` 等于 `medical_order.order_id`，初始 `payStatus=WAITING`。
+- `medical_order.pay_status` 初始为 `WAITING`，申请状态 `status` 初始为 `WAITING_ASSIGN`。
+
+### 4.2 支付状态联动
+
+- `POST /payment-service/pay/success/{payId}` 支付成功后，同步更新业务表支付状态；`MEDICAL` 更新 `medical_order.pay_status=PAID`，`PRESCRIPTION` 更新 `prescription.pay_status=PAID`，`REGISTER` 更新 `registration.pay_status=PAID`。
+- 取消和退款分别同步为 `CANCELLED`、`REFUNDED`；如果业务表未更新到对应记录，本次支付状态变更失败并回滚。
+
+### 4.3 检查/检验医生申请列表与分配
+
+| 接口名称 | 请求方式 | 接口地址 |
+|---|---|---|
+| 查询检查/检验申请列表 | `GET` | `/inspection-doctor/orders` |
+| 兼容旧地址 | `GET` | `/inspection-doctor/lab-orders` |
+| 分配检查/检验申请 | `POST` | `/inspection-doctor/order/{orderId}/assign` |
+
+`/inspection-doctor/orders` 返回全部 `EXAM` 和 `LAB` 医技申请，不再仅限 LAB。
+
+分配请求体：
+
+```JSON
+{
+  "assignedRoom": "CT-1"
+}
+```
+
+分配业务规则：
+
+- 仅检查/检验医生可调用。
+- 只有 `pay_status=PAID` 且 `status=WAITING_ASSIGN` 的申请可以分配。
+- `assignedRoom` 必须非空；分配成功后写入 `medical_order.assigned_room`，并将 `medical_order.status` 更新为 `QUEUED`。
+- 检查/检验医生工作台可按 `payStatus=PAID`、`status=QUEUED` 查找可以执行的患者。

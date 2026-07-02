@@ -62,6 +62,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { Check, DataAnalysis, Star, Timer } from '@element-plus/icons-vue'
 import { getInferenceStats, getModelList } from '@/api/admin/ml'
 
 const stats = ref<any>({})

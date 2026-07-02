@@ -1,6 +1,8 @@
 package com.cloudbrainmed.doctor.service.impl;
 
+import com.cloudbrainmed.api.feign.PaymentFeignClient;
 import com.cloudbrainmed.common.exception.BusinessException;
+import com.cloudbrainmed.common.result.Result;
 import com.cloudbrainmed.doctor.dto.MedicalOrderConfirmRequest;
 import com.cloudbrainmed.doctor.dto.MedicalOrderConfirmResponse;
 import com.cloudbrainmed.doctor.dto.MedicalOrderItemRequest;
@@ -12,6 +14,8 @@ import com.cloudbrainmed.doctor.mapper.ConsultMapper;
 import com.cloudbrainmed.doctor.mapper.MedicalItemMapper;
 import com.cloudbrainmed.doctor.mapper.MedicalOrderMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.cloudbrainmed.payment.dto.UnifiedPayDto;
+import com.cloudbrainmed.payment.vo.PayResultVo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -32,6 +36,7 @@ class MedicalOrderServiceImplTest {
     private ConsultMapper consultMapper;
     private MedicalItemMapper medicalItemMapper;
     private MedicalOrderMapper medicalOrderMapper;
+    private PaymentFeignClient paymentFeignClient;
     private MedicalOrderServiceImpl service;
 
     @BeforeEach
@@ -39,9 +44,10 @@ class MedicalOrderServiceImplTest {
         consultMapper = mock(ConsultMapper.class);
         medicalItemMapper = mock(MedicalItemMapper.class);
         medicalOrderMapper = mock(MedicalOrderMapper.class);
+        paymentFeignClient = mock(PaymentFeignClient.class);
         service = new MedicalOrderServiceImpl(
                 consultMapper, medicalItemMapper, medicalOrderMapper,
-                new ObjectMapper());
+                paymentFeignClient, new ObjectMapper());
     }
 
     @Test
@@ -68,6 +74,8 @@ class MedicalOrderServiceImplTest {
                 .thenReturn("{\"recommendations\":[{\"itemCode\":\"CRANIAL_CT_PLAIN\"}]}");
         when(medicalOrderMapper.keepConsultInProgress("REG001", "D001"))
                 .thenReturn(1);
+        when(paymentFeignClient.createPayOrder(any(UnifiedPayDto.class)))
+                .thenReturn(Result.ok(new PayResultVo()));
 
         MedicalOrderConfirmRequest request = request(
                 List.of(itemRequest("CRANIAL_CT_PLAIN", "URGENT")));
@@ -95,6 +103,46 @@ class MedicalOrderServiceImplTest {
         assertThat(response.getTotalAmount())
                 .isEqualByComparingTo("280.00");
         assertThat(response.getItemCount()).isEqualTo(1);
+    }
+
+    @Test
+    void confirmCreatesWaitingMedicalPayOrderForTotalAmount() {
+        ConsultRecord consult = new ConsultRecord();
+        consult.setRegisterId("REG001");
+        consult.setPatientId("P001");
+        consult.setPatientName("Alice");
+        consult.setDoctorId("D001");
+        when(consultMapper.findDetail("REG001")).thenReturn(consult);
+
+        MedicalItem item = new MedicalItem();
+        item.setItemId("ITEM001");
+        item.setItemCode("CRANIAL_CT_PLAIN");
+        item.setItemName("Cranial CT");
+        item.setItemCategory("EXAM");
+        item.setDeptId("DEPT001");
+        item.setPrice(new BigDecimal("280.00"));
+        when(medicalItemMapper.selectEnabledByCode("CRANIAL_CT_PLAIN"))
+                .thenReturn(item);
+        when(medicalOrderMapper.keepConsultInProgress("REG001", "D001"))
+                .thenReturn(1);
+        when(paymentFeignClient.createPayOrder(any(UnifiedPayDto.class)))
+                .thenReturn(Result.ok(new PayResultVo()));
+
+        service.confirm(request(List.of(itemRequest("CRANIAL_CT_PLAIN", null))), "D001");
+
+        ArgumentCaptor<MedicalOrder> orderCaptor =
+                ArgumentCaptor.forClass(MedicalOrder.class);
+        ArgumentCaptor<UnifiedPayDto> payCaptor =
+                ArgumentCaptor.forClass(UnifiedPayDto.class);
+        verify(medicalOrderMapper).insertOrder(orderCaptor.capture());
+        verify(paymentFeignClient).createPayOrder(payCaptor.capture());
+
+        UnifiedPayDto dto = payCaptor.getValue();
+        assertThat(dto.getPatientId()).isEqualTo("P001");
+        assertThat(dto.getPatientName()).isEqualTo("Alice");
+        assertThat(dto.getOrderType()).isEqualTo("MEDICAL");
+        assertThat(dto.getBusinessId()).isEqualTo(orderCaptor.getValue().getOrderId());
+        assertThat(dto.getAmount()).isEqualByComparingTo("280.00");
     }
 
     @Test
@@ -161,6 +209,54 @@ class MedicalOrderServiceImplTest {
                 .hasMessageContaining("不存在或已失效");
         verify(medicalOrderMapper, never())
                 .insertOrder(any(MedicalOrder.class));
+    }
+
+    @Test
+    void assignPaidWaitingOrderQueuesItWithRoom() {
+        MedicalOrder order = new MedicalOrder();
+        order.setOrderId("MO001");
+        order.setPayStatus("PAID");
+        order.setStatus("WAITING_ASSIGN");
+        when(medicalOrderMapper.selectByOrderId("MO001"))
+                .thenReturn(order);
+        when(medicalOrderMapper.assignOrder("MO001", "CT-1"))
+                .thenReturn(1);
+
+        MedicalOrder result = service.assignOrder("MO001", "CT-1");
+
+        verify(medicalOrderMapper).assignOrder("MO001", "CT-1");
+        assertThat(result.getStatus()).isEqualTo("QUEUED");
+        assertThat(result.getAssignedRoom()).isEqualTo("CT-1");
+    }
+
+    @Test
+    void assignRejectsUnpaidOrder() {
+        MedicalOrder order = new MedicalOrder();
+        order.setOrderId("MO001");
+        order.setPayStatus("WAITING");
+        order.setStatus("WAITING_ASSIGN");
+        when(medicalOrderMapper.selectByOrderId("MO001"))
+                .thenReturn(order);
+
+        assertThatThrownBy(() -> service.assignOrder("MO001", "CT-1"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("pay");
+        verify(medicalOrderMapper, never()).assignOrder(any(), any());
+    }
+
+    @Test
+    void assignRejectsBlankRoom() {
+        MedicalOrder order = new MedicalOrder();
+        order.setOrderId("MO001");
+        order.setPayStatus("PAID");
+        order.setStatus("WAITING_ASSIGN");
+        when(medicalOrderMapper.selectByOrderId("MO001"))
+                .thenReturn(order);
+
+        assertThatThrownBy(() -> service.assignOrder("MO001", "  "))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("room");
+        verify(medicalOrderMapper, never()).assignOrder(any(), any());
     }
 
     private MedicalOrderConfirmRequest request(

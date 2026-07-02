@@ -95,11 +95,12 @@ const doctorMenus = [
   { path: '/doctor/ai-exam-generate', title: 'AI检查检验', icon: 'DataAnalysis', group: '医生端' },
   { path: '/doctor/ai-medicine', title: 'AI 药物推荐', icon: 'DataAnalysis', group: '医生端' },
   { path: '/doctor/schedule', title: '值班查询', icon: 'List', group: '医生端' },
-  // ====== 检验医生专属（type=3）======
+  // ====== 检验医生（type=3）======
   { path: '/inspection-doctor/home', title: '检验工作台', icon: 'HomeFilled', group: '检验医生' },
-  { path: '/inspection-doctor/order-list', title: '查看检验申请', icon: 'List', group: '检验医生' },
-  // ====== 检查医生专属（type=2）======
+  { path: '/inspection-doctor/order-list', title: '查看检查/检验申请', icon: 'List', group: '检验医生' },
+  // ====== 检查医生（type=2）======
   { path: '/examination-doctor/home', title: '检查工作台', icon: 'HomeFilled', group: '检查医生' },
+  { path: '/inspection-doctor/order-list', title: '查看检查/检验申请', icon: 'List', group: '检查医生' },
   { path: '/examination-doctor/ct-inference', title: 'CT 伪影检测', icon: 'Camera', group: '检查医生' },
 ]
 

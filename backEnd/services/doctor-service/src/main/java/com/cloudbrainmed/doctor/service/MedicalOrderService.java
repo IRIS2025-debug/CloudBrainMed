@@ -12,4 +12,5 @@ public interface MedicalOrderService {
     MedicalOrder getByOrderId(String orderId);
     MedicalOrderConfirmResponse confirm(
             MedicalOrderConfirmRequest request, String doctorId);
+    MedicalOrder assignOrder(String orderId, String assignedRoom);
 }

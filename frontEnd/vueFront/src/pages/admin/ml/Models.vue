@@ -116,6 +116,7 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
+import { Cpu } from '@element-plus/icons-vue'
 import { triggerTraining, setModelTraffic, getModelList, getTrainingTasks } from '@/api/admin/ml'
 
 const models = ref<any[]>([])
