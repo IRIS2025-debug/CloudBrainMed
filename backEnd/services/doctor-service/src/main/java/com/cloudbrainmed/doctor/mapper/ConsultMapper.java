@@ -46,9 +46,11 @@ public interface ConsultMapper {
                                   @Param("offset") int offset,
                                   @Param("limit") int limit);
 
-    @Select("SELECT r.*, m.record_id, m.doctor_name, m.patient_name, m.visit_age, m.description, " +
+    @Select("SELECT r.*, m.record_id, COALESCE(m.doctor_name, d.name) AS doctor_name, " +
+        "m.patient_name, m.visit_age, m.description, m.create_time AS record_create_time, " +
         "EXTRACT(YEAR FROM AGE(NOW(), r.birthday)) AS patient_age " +
         "FROM registration r LEFT JOIN register_report m ON r.register_id = m.register_id " +
+        "LEFT JOIN doctor d ON r.doctor_id = d.doctor_id " +
         "WHERE r.register_id = #{registerId}")
     @Results({
         @Result(column = "register_id", property = "registerId"),
@@ -72,8 +74,11 @@ public interface ConsultMapper {
     @Select("SELECT record_id FROM register_report WHERE register_id = #{registerId}")
     String findRecordId(@Param("registerId") String registerId);
 
-    @Insert("INSERT INTO register_report (record_id, patient_id, doctor_id, register_id, doctor_name, patient_name, visit_age, description, visit_date, pay_status) " +
-        "VALUES (#{recordId}, #{patientId}, #{doctorId}, #{registerId}, #{doctorName}, #{patientName}, #{visitAge}, #{description}, #{visitDate}, 'UNPAID')")
+    @Select("SELECT name FROM doctor WHERE doctor_id = #{doctorId}")
+    String findDoctorName(@Param("doctorId") String doctorId);
+
+    @Insert("INSERT INTO register_report (record_id, patient_id, doctor_id, register_id, doctor_name, patient_name, visit_age, description, visit_date, pay_status, create_time) " +
+        "VALUES (#{recordId}, #{patientId}, #{doctorId}, #{registerId}, #{doctorName}, #{patientName}, #{visitAge}, #{description}, #{visitDate}, #{payStatus}, #{createTime})")
     int insertRecord(ConsultRecord r);
 
     @Update("UPDATE register_report SET description=#{description} WHERE register_id=#{registerId}")

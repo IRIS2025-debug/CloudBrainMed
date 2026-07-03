@@ -3,16 +3,19 @@ package com.cloudbrainmed.ai.service.impl;
 import com.cloudbrainmed.ai.dto.AiAssistantChatRequest;
 import com.cloudbrainmed.ai.dto.AiAssistantChatResponse;
 import com.cloudbrainmed.ai.dto.AiRecordGenerateRequest;
+import com.cloudbrainmed.ai.dto.PrescriptionReviewMedicineRequest;
 import com.cloudbrainmed.ai.dto.PrescriptionReviewRequest;
+import com.cloudbrainmed.ai.entity.Medicine;
 import com.cloudbrainmed.ai.enums.AiAssistantResponseStatusEnum;
 import com.cloudbrainmed.ai.enums.AiAssistantIntentEnum;
 import com.cloudbrainmed.ai.enums.AiHandledModuleEnum;
+import com.cloudbrainmed.ai.mapper.MedicineMapper;
 import com.cloudbrainmed.ai.service.AiAssistantChatService;
 import com.cloudbrainmed.ai.service.AiMedicalRecordService;
+import com.cloudbrainmed.ai.service.AiPrescriptionDraftService;
 import com.cloudbrainmed.ai.service.AiPrescriptionReviewService;
 import com.cloudbrainmed.api.dto.ReportContextDto;
 import com.cloudbrainmed.api.feign.DoctorFeignClient;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
@@ -20,21 +23,27 @@ import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.document.Document;
+import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * AI辅助接诊聊天服务实现。
  *
- * <p>本类负责医生AI对话框的核心编排：
- * 先读取doctor-service提供的可信患者上下文，再识别医生问题意图。
- * 问诊补全、信息缺失、上下文整理、诊断辅助由本类构造Prompt直接调用大模型；
- * 病历生成、处方审核则复用对应专业服务，避免重复实现专业能力。</p>
+ * <p>本类负责医生统一AI聊天框的核心编排：
+ * 前端通过actionType显式选择能力；辅助接诊、聊天和辅助诊断统一由
+ * RECEPTION_ASSISTANT处理，并会结合患者接诊上下文、医生输入和药品知识库；
+ * 病历生成和处方审核则委派给对应专业服务。</p>
  */
 @Service
 public class AiAssistantChatServiceImpl implements AiAssistantChatService {
@@ -43,27 +52,33 @@ public class AiAssistantChatServiceImpl implements AiAssistantChatService {
             AiAssistantChatServiceImpl.class);
 
     private final ChatClient chatClient;
-    private final ObjectMapper objectMapper;
     private final DoctorFeignClient doctorFeignClient;
     private final AiMedicalRecordService aiMedicalRecordService;
+    private final AiPrescriptionDraftService aiPrescriptionDraftService;
     private final AiPrescriptionReviewService aiPrescriptionReviewService;
+    private final MedicineMapper medicineMapper;
+    private final VectorStore vectorStore;
     private final String modelName;
     private final String internalServiceKey;
 
     public AiAssistantChatServiceImpl(
             ChatClient.Builder chatClientBuilder,
-            ObjectMapper objectMapper,
             DoctorFeignClient doctorFeignClient,
             AiMedicalRecordService aiMedicalRecordService,
+            AiPrescriptionDraftService aiPrescriptionDraftService,
             AiPrescriptionReviewService aiPrescriptionReviewService,
+            MedicineMapper medicineMapper,
+            VectorStore vectorStore,
             @Value("${spring.ai.openai.chat.options.model:deepseek-v4-flash}")
             String modelName,
             @Value("${internal.service-key:}") String internalServiceKey) {
         this.chatClient = chatClientBuilder.build();
-        this.objectMapper = objectMapper;
         this.doctorFeignClient = doctorFeignClient;
         this.aiMedicalRecordService = aiMedicalRecordService;
+        this.aiPrescriptionDraftService = aiPrescriptionDraftService;
         this.aiPrescriptionReviewService = aiPrescriptionReviewService;
+        this.medicineMapper = medicineMapper;
+        this.vectorStore = vectorStore;
         this.modelName = modelName;
         this.internalServiceKey = internalServiceKey;
     }
@@ -71,38 +86,13 @@ public class AiAssistantChatServiceImpl implements AiAssistantChatService {
     @Override
     public AiAssistantChatResponse chat(
             AiAssistantChatRequest request, String doctorId) {
-        AiAssistantIntentEnum intent = resolveIntent(request);
+        AiAssistantIntentEnum intent = resolveSelectedAbility(request);
 
-        // 不属于辅助接诊自身处理的意图，转交给已有专业AI模块。
         if (!intent.isAssistantHandled()) {
             return delegateToSpecializedModule(intent, request, doctorId);
         }
 
-        try {
-            // 辅助接诊自身处理的意图统一通过聊天模型生成可展示文本。
-            ReportContextDto context = getContext(request, doctorId);
-            String answer = chatClient.prompt(new Prompt(buildMessages(
-                    request, context, intent))).call().content();
-            AiAssistantChatResponse response = new AiAssistantChatResponse();
-            response.setIntent(intent.name());
-            response.setAnswer(normalizeAnswer(answer));
-            response.setStatus(AiAssistantResponseStatusEnum.SUCCESS.name());
-            response.setModelVersion(modelName);
-            response.setHandledByAssistant(true);
-            response.setFallback(false);
-            return response;
-        } catch (Exception exception) {
-            // 模型异常不能阻断医生接诊，返回可展示的降级提示。
-            AiAssistantChatResponse fallback = new AiAssistantChatResponse();
-            fallback.setIntent(intent.name());
-            fallback.setAnswer("AI辅助接诊暂不可用，请继续根据患者主诉、现病史和既往资料手工完成问诊。");
-            fallback.setStatus(AiAssistantResponseStatusEnum.FAILED.name());
-            fallback.setModelVersion(modelName);
-            fallback.setHandledByAssistant(true);
-            fallback.setFallback(true);
-            log.warn("AI辅助接诊聊天失败", exception);
-            return fallback;
-        }
+        return handleReceptionAssistant(request, doctorId, intent);
     }
 
     private ReportContextDto getContext(
@@ -123,44 +113,47 @@ public class AiAssistantChatServiceImpl implements AiAssistantChatService {
     }
 
     /**
-     * 识别医生问题意图。
+     * 解析前端统一聊天框选择的AI能力。
      *
-     * <p>快捷按钮传入的actionType优先级最高；自由文本则用关键词做保守匹配。
-     * 未命中的问题作为CONTEXT_QA，由辅助接诊模块基于当前上下文回答。</p>
+     * <p>后端不再根据医生文本关键词自动切换能力，避免“病历”“处方”等
+     * 普通讨论误触发专业模块。未传或无法识别时默认走辅助接诊。</p>
      */
-    private AiAssistantIntentEnum resolveIntent(AiAssistantChatRequest request) {
-        AiAssistantIntentEnum actionIntent =
+    private AiAssistantIntentEnum resolveSelectedAbility(
+            AiAssistantChatRequest request) {
+        AiAssistantIntentEnum selectedAbility =
                 AiAssistantIntentEnum.fromActionType(request.getActionType());
-        if (actionIntent != AiAssistantIntentEnum.UNKNOWN) {
-            return actionIntent;
-        }
+        return selectedAbility == AiAssistantIntentEnum.UNKNOWN
+                ? AiAssistantIntentEnum.RECEPTION_ASSISTANT
+                : selectedAbility;
+    }
 
-        String message = request.getMessage() == null
-                ? "" : request.getMessage().trim().toLowerCase();
-        if (containsAny(message, "病历", "病历草稿", "现病史", "主诉病史")) {
-            return AiAssistantIntentEnum.MEDICAL_RECORD_DRAFT;
+    private AiAssistantChatResponse handleReceptionAssistant(
+            AiAssistantChatRequest request,
+            String doctorId,
+            AiAssistantIntentEnum intent) {
+        try {
+            ReportContextDto context = getContext(request, doctorId);
+            String answer = chatClient.prompt(new Prompt(buildMessages(
+                    request, context, intent))).call().content();
+            AiAssistantChatResponse response = new AiAssistantChatResponse();
+            response.setIntent(intent.name());
+            response.setAnswer(normalizeAnswer(answer));
+            response.setStatus(AiAssistantResponseStatusEnum.SUCCESS.name());
+            response.setModelVersion(modelName);
+            response.setHandledByAssistant(true);
+            response.setFallback(false);
+            return response;
+        } catch (Exception exception) {
+            AiAssistantChatResponse fallback = new AiAssistantChatResponse();
+            fallback.setIntent(intent.name());
+            fallback.setAnswer("AI辅助接诊暂不可用，请继续根据患者主诉、现病史和既往资料手工完成问诊。");
+            fallback.setStatus(AiAssistantResponseStatusEnum.FAILED.name());
+            fallback.setModelVersion(modelName);
+            fallback.setHandledByAssistant(true);
+            fallback.setFallback(true);
+            log.warn("AI辅助接诊聊天失败", exception);
+            return fallback;
         }
-        if (containsAny(message, "用药", "处方", "药物", "药品", "青霉素",
-                "过敏", "禁忌", "相互作用")) {
-            return AiAssistantIntentEnum.PRESCRIPTION_REVIEW;
-        }
-        if (containsAny(message, "什么病", "可能是什么", "可能是",
-                "诊断", "鉴别诊断", "诊断依据")) {
-            return AiAssistantIntentEnum.DIAGNOSIS_ASSISTANT;
-        }
-        if (containsAny(message, "问哪些", "还需要问", "追问",
-                "问诊建议", "问诊重点", "继续问")) {
-            return AiAssistantIntentEnum.FOLLOW_UP_QUESTION;
-        }
-        if (containsAny(message, "缺哪些", "缺少", "不完整",
-                "补充哪些", "待确认")) {
-            return AiAssistantIntentEnum.MISSING_INFORMATION;
-        }
-        if (containsAny(message, "整理", "总结", "已知信息",
-                "历史资料", "注意信息", "上下文")) {
-            return AiAssistantIntentEnum.CONTEXT_SUMMARY;
-        }
-        return AiAssistantIntentEnum.CONTEXT_QA;
     }
 
     /**
@@ -190,6 +183,16 @@ public class AiAssistantChatServiceImpl implements AiAssistantChatService {
                             : AiAssistantResponseStatusEnum.DELEGATED.name());
                     response.setAnswer("已调用AI病历自动生成模块生成病历草稿。");
                 }
+                case PRESCRIPTION_DRAFT -> {
+                    response.setHandledModule(
+                            AiHandledModuleEnum.PRESCRIPTION_DRAFT.code());
+                    var draft = aiPrescriptionDraftService.generate(
+                            request, doctorId);
+                    response.setModuleResult(draft);
+                    response.setStatus(resolveDelegatedStatus(
+                            draft.getStatus(), draft.isFallback()));
+                    response.setAnswer("已调用AI处方草稿模块生成处方草稿，请医生审核后再提交正式处方。");
+                }
                 case PRESCRIPTION_REVIEW -> {
                     response.setHandledModule(
                             AiHandledModuleEnum.PRESCRIPTION_REVIEW.code());
@@ -210,8 +213,7 @@ public class AiAssistantChatServiceImpl implements AiAssistantChatService {
                     }
                 }
                 default -> {
-                    response.setAnswer(unsupportedMessage(
-                            intent, request.getMessage()));
+                    response.setAnswer("当前AI能力不支持通过统一聊天框委派处理。");
                     response.setStatus(
                             AiAssistantResponseStatusEnum.UNSUPPORTED.name());
                 }
@@ -226,19 +228,16 @@ public class AiAssistantChatServiceImpl implements AiAssistantChatService {
         return response;
     }
 
-    /**
-     * 未支持意图的兜底提示。
-     */
-    private String unsupportedMessage(
-            AiAssistantIntentEnum intent, String message) {
-        return switch (intent) {
-            case MEDICAL_RECORD_DRAFT ->
-                    "该请求不由AI辅助接诊模块处理。请直接调用AI病历自动生成接口 /ai-service/reception/record/generate。";
-            case PRESCRIPTION_REVIEW ->
-                    "该请求不由AI辅助接诊模块处理。请直接调用AI处方审核接口 /ai-service/prescription/review。";
-            default ->
-                    "当前问题不属于AI辅助接诊模块可直接处理的范围：" + message;
-        };
+    private String resolveDelegatedStatus(
+            String moduleStatus, boolean fallback) {
+        if (fallback) {
+            return AiAssistantResponseStatusEnum.FAILED.name();
+        }
+        if (AiAssistantResponseStatusEnum.NEEDS_INPUT.name()
+                .equals(moduleStatus)) {
+            return AiAssistantResponseStatusEnum.NEEDS_INPUT.name();
+        }
+        return AiAssistantResponseStatusEnum.DELEGATED.name();
     }
 
     private AiRecordGenerateRequest toRecordGenerateRequest(
@@ -279,10 +278,11 @@ public class AiAssistantChatServiceImpl implements AiAssistantChatService {
             AiAssistantChatRequest request,
             ReportContextDto context,
             AiAssistantIntentEnum intent) {
-        String systemPrompt = buildSystemPrompt(intent);
+        String systemPrompt = buildSystemPrompt();
+        String medicineKnowledge = buildMedicineKnowledge(request);
 
         String userPrompt = """
-            意图：%s
+            当前AI能力：%s
             医生问题：%s
 
             患者年龄：%s
@@ -300,6 +300,9 @@ public class AiAssistantChatServiceImpl implements AiAssistantChatService {
 
             历史检查报告：
             %s
+
+            药品知识参考：
+            %s
             """.formatted(
                 intent.name(),
                 valueOrUnknown(request.getMessage()),
@@ -310,7 +313,8 @@ public class AiAssistantChatServiceImpl implements AiAssistantChatService {
                 joinAnswers(sanitizeFollowUpAnswers(
                         request.getFollowUpAnswers())),
                 joinHistory(context.getMedicalHistory()),
-                joinHistory(context.getPreviousReports()));
+                joinHistory(context.getPreviousReports()),
+                medicineKnowledge);
 
         return List.of(
                 new SystemMessage(systemPrompt),
@@ -318,35 +322,149 @@ public class AiAssistantChatServiceImpl implements AiAssistantChatService {
     }
 
     /**
-     * 根据意图选择系统Prompt。
+     * 构造辅助接诊系统Prompt。
      *
-     * <p>诊断辅助允许输出可能诊断和鉴别诊断；普通问诊Prompt禁止输出
-     * 诊断、病历、检查和处方内容，避免与专业模块混淆。</p>
+     * <p>辅助接诊、普通聊天和辅助诊断共用同一份可信上下文，因此统一在
+     * RECEPTION_ASSISTANT能力中处理。</p>
      */
-    private String buildSystemPrompt(AiAssistantIntentEnum intent) {
-        if (intent == AiAssistantIntentEnum.DIAGNOSIS_ASSISTANT) {
-            return """
-                你是医生接诊过程中的AI诊断辅助工具，回答对象是执业医生。
-                你可以基于当前患者上下文输出诊断结论、疑似诊断或鉴别诊断建议，但必须遵守：
-                1. 只能使用输入中明确存在的信息，不得编造症状、体征、病史、检查结果或过敏史；
-                2. 信息不足时明确写出“依据不足”以及需要补充的关键信息；
-                3. 输出应包含：可能诊断、支持依据、反对或不足依据、需要排除的高风险情况、建议下一步确认问题；
-                4. 不生成病历草稿、检查检验项目清单、处方、用药方案或用药风险审核结论；
-                5. 结论供医生参考，最终诊断由医生结合查体和检查结果确认。
-                回答应简洁、分点、可直接展示在医生对话框中。
-                """;
-        }
+    private String buildSystemPrompt() {
         return """
-            你是医生接诊过程中的AI辅助问诊助手，只允许做三类事情：
-            1. 根据当前患者上下文，提示医生还需要追问哪些信息；
-            2. 指出当前问诊信息缺失或需要确认的内容；
-            3. 整理当前患者上下文中的已知信息和待确认信息。
+            你是医生接诊过程中的AI辅助接诊助手，回答对象是执业医生。
+            你可以基于当前患者上下文、医生提供的信息和药品知识参考帮助医生完成：
+            1. 生成下一步追问问题；
+            2. 判断当前问诊信息缺失或需要确认的内容；
+            3. 整理已知信息、历史资料和待确认事项；
+            4. 基于当前接诊上下文回答普通接诊问题；
+            5. 当医生明确询问诊断、疑似诊断、鉴别诊断或诊断依据时，提供辅助诊断分析；
+            6. 当医生询问药品用法、注意事项、禁忌或副作用时，结合药品知识参考回答。
 
-            禁止输出病历草稿、现病史成文、正式诊断、疑似诊断、鉴别诊断、检查检验项目清单、
-            处方、用药方案、用药风险审核结论。遇到这类需求时，只说明应使用对应专业模块。
-            不得编造患者没有提供的症状、体征、病史、检查结果、过敏史或治疗经过。
+            必须遵守：
+            1. 只能使用输入中明确存在的信息，不得编造症状、体征、病史、检查结果、过敏史或治疗经过；
+            2. 进行辅助诊断时必须说明可能诊断、支持依据、反对或不足依据、需排除的高风险情况；
+            3. 信息不足时明确说明依据不足，并指出需要补充的关键信息；
+            4. 可回答药品知识和用药注意事项，但不得直接生成处方、替医生决定具体治疗方案或替代药师审核；
+            5. 遇到病历生成、处方审核等专业模块需求时，只说明应切换到对应AI能力按钮；
+            6. 所有结论仅供医生参考，最终诊断由医生结合查体和检查结果确认。
             回答应面向医生，简洁、分点、可执行。
             """;
+    }
+
+    private String buildMedicineKnowledge(AiAssistantChatRequest request) {
+        List<String> sections = new ArrayList<>();
+
+        List<Medicine> medicines = resolveReferencedMedicines(request);
+        if (!medicines.isEmpty()) {
+            sections.add("【药品数据库信息】\n" + medicines.stream()
+                    .map(this::formatMedicine)
+                    .collect(Collectors.joining("\n\n")));
+        }
+
+        String query = buildMedicineSearchQuery(request, medicines);
+        if (StringUtils.hasText(query)) {
+            String vectorContext = searchMedicineKnowledge(query);
+            if (StringUtils.hasText(vectorContext)) {
+                sections.add("【药品说明书/知识库检索】\n" + vectorContext);
+            }
+        }
+
+        return sections.isEmpty() ? "无" : String.join("\n\n", sections);
+    }
+
+    private List<Medicine> resolveReferencedMedicines(
+            AiAssistantChatRequest request) {
+        List<Medicine> result = new ArrayList<>();
+        Set<String> seenIds = new LinkedHashSet<>();
+
+        addMedicineById(request.getMedicineId(), result, seenIds);
+        if (request.getMedicines() != null) {
+            for (PrescriptionReviewMedicineRequest medicineRequest
+                    : request.getMedicines()) {
+                addMedicineById(medicineRequest.getMedicineId(),
+                        result, seenIds);
+            }
+        }
+
+        if (result.isEmpty() && hasText(request.getMessage())) {
+            try {
+                Medicine medicine = medicineMapper.findByKeyword(
+                        request.getMessage().trim());
+                if (medicine != null && seenIds.add(
+                        medicine.getMedicineId())) {
+                    result.add(medicine);
+                }
+            } catch (Exception exception) {
+                log.warn("药品关键词查询失败", exception);
+            }
+        }
+
+        return result;
+    }
+
+    private void addMedicineById(
+            String medicineId,
+            List<Medicine> result,
+            Set<String> seenIds) {
+        if (!hasText(medicineId) || !seenIds.add(medicineId.trim())) {
+            return;
+        }
+        try {
+            Medicine medicine = medicineMapper.selectById(medicineId.trim());
+            if (medicine != null) {
+                result.add(medicine);
+            }
+        } catch (Exception exception) {
+            log.warn("药品ID查询失败: {}", medicineId, exception);
+        }
+    }
+
+    private String buildMedicineSearchQuery(
+            AiAssistantChatRequest request,
+            List<Medicine> medicines) {
+        List<String> parts = new ArrayList<>();
+        if (hasText(request.getMessage())) {
+            parts.add(request.getMessage().trim());
+        }
+        for (Medicine medicine : medicines) {
+            if (hasText(medicine.getName())) {
+                parts.add(medicine.getName());
+            }
+        }
+        return String.join(" ", parts);
+    }
+
+    private String searchMedicineKnowledge(String query) {
+        try {
+            List<Document> documents = vectorStore.similaritySearch(query);
+            if (documents == null || documents.isEmpty()) {
+                return "";
+            }
+            return documents.stream()
+                    .limit(3)
+                    .map(Document::getText)
+                    .filter(StringUtils::hasText)
+                    .map(value -> truncate(value.trim(), 2000))
+                    .collect(Collectors.joining("\n---\n"));
+        } catch (Exception exception) {
+            log.warn("药品知识库检索失败", exception);
+            return "";
+        }
+    }
+
+    private String formatMedicine(Medicine medicine) {
+        return """
+            药品ID：%s
+            药品名称：%s
+            规格：%s
+            用法用量：%s
+            适应症：%s
+            注意事项：%s
+            """.formatted(
+                valueOrUnknown(medicine.getMedicineId()),
+                valueOrUnknown(medicine.getName()),
+                valueOrUnknown(medicine.getSpec()),
+                valueOrUnknown(medicine.getUsage()),
+                valueOrUnknown(medicine.getIndication()),
+                valueOrUnknown(medicine.getAttention())).trim();
     }
 
     private Map<String, String> sanitizeFollowUpAnswers(
@@ -402,15 +520,6 @@ public class AiAssistantChatServiceImpl implements AiAssistantChatService {
         return truncate(answer.trim(), 4000);
     }
 
-    private boolean containsAny(String value, String... keywords) {
-        for (String keyword : keywords) {
-            if (value.contains(keyword)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     /**
      * 从多个候选文本中取第一个非空值，用于补齐专业模块必需的输入文本。
      */
@@ -432,14 +541,6 @@ public class AiAssistantChatServiceImpl implements AiAssistantChatService {
                     "INTERNAL_SERVICE_KEY is not configured");
         }
         return internalServiceKey;
-    }
-
-    private String toJson(Object value) {
-        try {
-            return objectMapper.writeValueAsString(value);
-        } catch (Exception exception) {
-            return "{}";
-        }
     }
 
     private Object valueOrUnknown(Object value) {
