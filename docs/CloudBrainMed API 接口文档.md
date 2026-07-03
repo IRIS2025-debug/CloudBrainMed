@@ -2938,7 +2938,7 @@ GET /doctor-service/consult/detail
 
 
 
-**业务规则：** 新增或更新病历，并将接诊状态标记为IN\_PROGRESS。
+**业务规则：** 校验当前医生拥有该就诊记录；新增病历时后端回填 `doctorName`、`patientName`、`visitAge`、`visitDate`、`payStatus` 和 `createTime`，其中 `doctorName` 来自接诊医生信息，`payStatus` 继承挂号记录支付状态；更新病历时仅更新病历内容；保存后将接诊状态标记为IN\_PROGRESS。
 
 
 
@@ -3007,7 +3007,7 @@ GET /doctor-service/consult/detail
 
 
 
-**业务规则：** 校验当前医生拥有该就诊记录；新增或更新病历；状态改为RECORD\_CONFIRMED。
+**业务规则：** 校验当前医生拥有该就诊记录；新增病历时后端回填 `doctorName`、`patientName`、`visitAge`、`visitDate`、`payStatus` 和 `createTime`，其中 `doctorName` 来自接诊医生信息，`payStatus` 继承挂号记录支付状态；更新病历时仅更新病历内容；确认后将接诊状态改为RECORD\_CONFIRMED。
 
 
 
