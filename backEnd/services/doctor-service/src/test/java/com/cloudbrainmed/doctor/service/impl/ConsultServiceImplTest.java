@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -45,6 +46,31 @@ class ConsultServiceImplTest {
 
         assertThrows(BusinessException.class,
                 () -> service.saveDraft("D001", "R001", "record"));
+    }
+
+    @Test
+    void saveDraftCreatesRecordWithDoctorSnapshotAndCreateTime() {
+        ConsultRecord record = consult("D001", "PENDING");
+        record.setPatientId("P001");
+        record.setName("Alice");
+        record.setPatientAge(35);
+        record.setVisitDate(LocalDate.of(2026, 7, 2));
+        record.setPayStatus("PAID");
+        when(mapper.findDetail("R001")).thenReturn(record);
+        when(mapper.findRecordId("R001")).thenReturn(null);
+        when(mapper.findDoctorName("D001")).thenReturn("Dr. Li");
+
+        service.saveDraft("D001", "R001", "record");
+
+        ArgumentCaptor<ConsultRecord> recordCaptor = ArgumentCaptor.forClass(ConsultRecord.class);
+        verify(mapper).insertRecord(recordCaptor.capture());
+        ConsultRecord inserted = recordCaptor.getValue();
+        assertThat(inserted.getDoctorName()).isEqualTo("Dr. Li");
+        assertThat(inserted.getCreateTime()).isNotNull();
+        assertThat(inserted.getPatientName()).isEqualTo("Alice");
+        assertThat(inserted.getDescription()).isEqualTo("record");
+        assertThat(inserted.getPayStatus()).isEqualTo("PAID");
+        verify(mapper).markInProgress("R001");
     }
 
     @Test

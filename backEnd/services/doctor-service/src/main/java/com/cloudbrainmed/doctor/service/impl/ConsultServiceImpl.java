@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -68,11 +69,13 @@ public class ConsultServiceImpl implements ConsultService {
             r.setPatientId(detail.getPatientId());
             r.setDoctorId(detail.getDoctorId());
             r.setRegisterId(registerId);
-            r.setDoctorName(detail.getDoctorName());
+            r.setDoctorName(resolveDoctorName(detail));
             r.setPatientName(detail.getPatientName() != null ? detail.getPatientName() : detail.getName());
             r.setVisitAge(detail.getPatientAge());
             r.setDescription(recordDesc);
             r.setVisitDate(detail.getVisitDate() != null ? detail.getVisitDate() : LocalDate.now());
+            r.setPayStatus(detail.getPayStatus());
+            r.setCreateTime(LocalDateTime.now());
             consultMapper.insertRecord(r);
         } else {
             consultMapper.updateRecordDesc(registerId, recordDesc);
@@ -181,6 +184,13 @@ public class ConsultServiceImpl implements ConsultService {
             return detail.getPatientName();
         }
         return detail.getName();
+    }
+
+    private String resolveDoctorName(ConsultRecord detail) {
+        if (detail.getDoctorName() != null && !detail.getDoctorName().isBlank()) {
+            return detail.getDoctorName();
+        }
+        return consultMapper.findDoctorName(detail.getDoctorId());
     }
 
     private static BigDecimal toBigDecimal(Object val) {
