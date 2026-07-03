@@ -13,6 +13,7 @@
     "pages/medical/PrescriptionHistory",
     "pages/medical/PrescriptionDetail",
     "pages/medical/MedicalOrderPage",
+    "pages/medical/MedicalOrderDetail",
     "pages/medicineAi/MedicineAiChatPage"
   ]
 }

@@ -3,7 +3,7 @@ import router from '@ohos.router';
 import { HttpUtil } from '../pages/common/HttpUtil';
 import { HomePage } from './HomePage';
 import { ConsultationAssistantPage } from './aiConsult/ConsultationAssistantPage';
-import { MedicalRecordsPage } from './medical/MedicalOrderPage';
+import { MedicalOrderPage } from './medical/MedicalOrderPage';
 import { PersonalCenter } from './profile/PersonalCenter';
 import { PatientInfo, PatientManager } from './common/PatientManager';
 
@@ -103,7 +103,7 @@ struct Index {
             userName: this.userName
           })
         } else if (this.currentTab === 2) {
-          MedicalRecordsPage({
+          MedicalOrderPage({
             patientId: this.patientId,
             userName: this.userName
           })
