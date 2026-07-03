@@ -14,9 +14,9 @@ import java.util.Map;
 /**
  * AI辅助接诊聊天请求。
  *
- * <p>该请求既支持医生自然语言提问，也支持快捷按钮通过actionType指定意图。
- * 病历生成、处方审核等专业模块所需的上下文字段也放在这里，
- * 便于聊天入口在识别意图后直接编排调用专业服务。</p>
+ * <p>该请求承载统一AI聊天框输入。前端通过actionType显式选择AI能力；
+ * 辅助接诊会同时结合接诊上下文、医生问题和可选药品知识，病历生成、
+ * 处方审核等专业模块所需字段也放在这里，便于统一入口编排调用。</p>
  */
 @Data
 public class AiAssistantChatRequest {
@@ -30,9 +30,13 @@ public class AiAssistantChatRequest {
     @Size(max = 2000)
     private String message;
 
-    /** 快捷按钮指定的意图；存在时优先于关键词识别。 */
+    /** 前端按钮选择的AI能力；为空时默认普通辅助接诊。 */
     @Size(max = 64)
     private String actionType;
+
+    /** 可选药品ID，用于辅助接诊聊天中补充药品知识上下文。 */
+    @Size(max = 32)
+    private String medicineId;
 
     /** 医生当前正在编辑的病历草稿，优先于数据库中的旧草稿。 */
     @Size(max = 10000)

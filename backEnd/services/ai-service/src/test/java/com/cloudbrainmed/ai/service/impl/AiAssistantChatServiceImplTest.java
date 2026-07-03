@@ -4,18 +4,21 @@ import com.cloudbrainmed.ai.dto.AiAssistantChatRequest;
 import com.cloudbrainmed.ai.dto.AiAssistantChatResponse;
 import com.cloudbrainmed.ai.dto.AiRecordGenerateRequest;
 import com.cloudbrainmed.ai.dto.AiRecordGenerateResponse;
+import com.cloudbrainmed.ai.dto.PrescriptionDraftResponse;
 import com.cloudbrainmed.ai.dto.PrescriptionReviewMedicineRequest;
 import com.cloudbrainmed.ai.dto.PrescriptionReviewRequest;
 import com.cloudbrainmed.ai.dto.PrescriptionReviewResponse;
+import com.cloudbrainmed.ai.mapper.MedicineMapper;
 import com.cloudbrainmed.ai.service.AiMedicalRecordService;
+import com.cloudbrainmed.ai.service.AiPrescriptionDraftService;
 import com.cloudbrainmed.ai.service.AiPrescriptionReviewService;
 import com.cloudbrainmed.api.dto.ReportContextDto;
 import com.cloudbrainmed.api.feign.DoctorFeignClient;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.vectorstore.VectorStore;
 
 import java.util.List;
 
@@ -31,7 +34,10 @@ class AiAssistantChatServiceImplTest {
 
     private DoctorFeignClient doctorClient;
     private AiMedicalRecordService medicalRecordService;
+    private AiPrescriptionDraftService prescriptionDraftService;
     private AiPrescriptionReviewService prescriptionReviewService;
+    private MedicineMapper medicineMapper;
+    private VectorStore vectorStore;
     private ChatClient chatClient;
     private AiAssistantChatServiceImpl service;
 
@@ -42,13 +48,18 @@ class AiAssistantChatServiceImplTest {
         when(builder.build()).thenReturn(chatClient);
         doctorClient = mock(DoctorFeignClient.class);
         medicalRecordService = mock(AiMedicalRecordService.class);
+        prescriptionDraftService = mock(AiPrescriptionDraftService.class);
         prescriptionReviewService = mock(AiPrescriptionReviewService.class);
+        medicineMapper = mock(MedicineMapper.class);
+        vectorStore = mock(VectorStore.class);
         service = new AiAssistantChatServiceImpl(
                 builder,
-                new ObjectMapper(),
                 doctorClient,
                 medicalRecordService,
+                prescriptionDraftService,
                 prescriptionReviewService,
+                medicineMapper,
+                vectorStore,
                 "test-model",
                 "internal-key");
     }
@@ -63,11 +74,11 @@ class AiAssistantChatServiceImplTest {
                 request("这个患者还需要问哪些问题？"), "D001");
 
         assertThat(response.isHandledByAssistant()).isTrue();
-        assertThat(response.getIntent()).isEqualTo("FOLLOW_UP_QUESTION");
+        assertThat(response.getIntent()).isEqualTo("RECEPTION_ASSISTANT");
         assertThat(response.getAnswer()).contains("发病时间");}
 
     @Test
-    void chatAnswersDiagnosisAssistantInsideAssistantBoundary() {
+    void chatAnswersDiagnosisQuestionsInsideReceptionAssistantBoundary() {
         prepareContext();
         when(chatClient.prompt(any(Prompt.class)).call().content())
                 .thenReturn("可能诊断：偏头痛。依据：头痛2天；仍需补充神经系统查体和伴随症状。");
@@ -76,24 +87,25 @@ class AiAssistantChatServiceImplTest {
                 request("根据目前信息可能是什么病？"), "D001");
 
         assertThat(response.isHandledByAssistant()).isTrue();
-        assertThat(response.getIntent()).isEqualTo("DIAGNOSIS_ASSISTANT");
+        assertThat(response.getIntent()).isEqualTo("RECEPTION_ASSISTANT");
         assertThat(response.getAnswer()).contains("可能诊断");
         assertThat(response.getModuleResult()).isNull();
         verify(medicalRecordService, never()).generate(any(), any());
+        verify(prescriptionDraftService, never()).generate(any(), any());
         verify(prescriptionReviewService, never()).review(any(), any());
     }
 
     @Test
-    void diagnosisAssistantFallsBackWhenConsultContextUnavailable() {
+    void receptionAssistantFallsBackWhenConsultContextUnavailable() {
         AiAssistantChatRequest request = request(null);
-        request.setActionType("DIAGNOSIS_ASSISTANT");
+        request.setActionType("RECEPTION_ASSISTANT");
         when(doctorClient.getConsultContext(
                 "REG001", "D001", "internal-key"))
                 .thenThrow(new IllegalStateException("context unavailable"));
 
         AiAssistantChatResponse response = service.chat(request, "D001");
 
-        assertThat(response.getIntent()).isEqualTo("DIAGNOSIS_ASSISTANT");
+        assertThat(response.getIntent()).isEqualTo("RECEPTION_ASSISTANT");
         assertThat(response.getStatus()).isEqualTo("FAILED");
         assertThat(response.isFallback()).isTrue();
         assertThat(response.isHandledByAssistant()).isTrue();
@@ -110,8 +122,10 @@ class AiAssistantChatServiceImplTest {
                 any(AiRecordGenerateRequest.class), any()))
                 .thenReturn(generated);
 
-        AiAssistantChatResponse response = service.chat(
-                request("帮我生成病历草稿"), "D001");
+        AiAssistantChatRequest request = request("帮我生成病历草稿");
+        request.setActionType("MEDICAL_RECORD_DRAFT");
+
+        AiAssistantChatResponse response = service.chat(request, "D001");
 
         assertThat(response.isHandledByAssistant()).isFalse();
         assertThat(response.getIntent()).isEqualTo("MEDICAL_RECORD_DRAFT");
@@ -155,6 +169,7 @@ class AiAssistantChatServiceImplTest {
                 .thenReturn(review);
         AiAssistantChatRequest request = request(
                 "这个患者青霉素过敏，用药需要注意什么？");
+        request.setActionType("PRESCRIPTION_REVIEW");
         PrescriptionReviewMedicineRequest medicine =
                 new PrescriptionReviewMedicineRequest();
         medicine.setMedicineId("MED001");
@@ -176,11 +191,35 @@ class AiAssistantChatServiceImplTest {
     }
 
     @Test
+    void chatDelegatesPrescriptionDraftWithoutCallingReceptionModel() {
+        PrescriptionDraftResponse draft = new PrescriptionDraftResponse();
+        draft.setStatus("SUCCESS");
+        draft.setSummary("建议处方草稿，需医生确认。");
+        when(prescriptionDraftService.generate(any(), any()))
+                .thenReturn(draft);
+        AiAssistantChatRequest request = request("根据当前病情生成处方草稿");
+        request.setActionType("PRESCRIPTION_DRAFT");
+
+        AiAssistantChatResponse response = service.chat(request, "D001");
+
+        assertThat(response.isHandledByAssistant()).isFalse();
+        assertThat(response.getIntent()).isEqualTo("PRESCRIPTION_DRAFT");
+        assertThat(response.getHandledModule())
+                .isEqualTo("AI_PRESCRIPTION_DRAFT");
+        assertThat(response.getStatus()).isEqualTo("DELEGATED");
+        assertThat(response.getModuleResult()).isSameAs(draft);
+        verify(prescriptionDraftService).generate(any(), any());
+        verify(chatClient, never()).prompt(any(Prompt.class));
+    }
+
+    @Test
     void prescriptionReviewNeedsMedicineListBeforeDelegation() {
         prepareContext();
 
-        AiAssistantChatResponse response = service.chat(
-                request("帮我审核这张处方有没有用药风险"), "D001");
+        AiAssistantChatRequest request = request("帮我审核这张处方有没有用药风险");
+        request.setActionType("PRESCRIPTION_REVIEW");
+
+        AiAssistantChatResponse response = service.chat(request, "D001");
 
         assertThat(response.isHandledByAssistant()).isFalse();
         assertThat(response.getIntent()).isEqualTo("PRESCRIPTION_REVIEW");
