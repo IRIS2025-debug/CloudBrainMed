@@ -59,7 +59,7 @@ export struct PayPage {
   @State payResult: PayResultVo | null = null;
   @State payStatus: string = 'WAITING';
 
-  private baseUrl: string = APIConfig.PAYMENT_SERVICE_URL;
+  private baseUrl: string = APIConfig.PATIENT_SERVICE_URL;
 
   aboutToAppear() {
     const params = router.getParams() as Record<string, string>;

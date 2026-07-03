@@ -35,23 +35,25 @@ export struct HomePage {
   @Prop userAge: number = 0;
   @State currentNoticeIndex: number = 0;
   @State notices: NoticeItem[] = [];
+  @State displayNotice: NoticeItem | null = null;  // 当前显示的资讯
   private timer: number = -1;
 
   private functions: FunctionItem[] = [
     { name: '预约挂号', icon: '🏥', route: 'pages/register/DeptListPage', bgColor: ['#E8F0FE', '#D4E4FF'] },
     { name: '在线问诊', icon: '💬', route: 'pages/aiConsult/AIConsultation', bgColor: ['#E6F7F0', '#C8F0E0'] },
-    { name: '检查报告', icon: '📊', route: 'pages/medical/MedicalReport', bgColor: ['#E6F3FA', '#C8E6F5'] },
+    { name: '检查报告', icon: '📊', route: 'pages/medical/MedicalOrderPage', bgColor: ['#E6F3FA', '#C8E6F5'] },
     { name: '中医外方', icon: '🌿', route: 'pages/medical/PrescriptionHistory', bgColor: ['#EEF7EC', '#DCEFD8'] },
     { name: '用药助手', icon: '💊', route: 'pages/medicineAi/MedicineAiChatPage', bgColor: ['#F5EEF8', '#EBDCF0'] },
     { name: '缴费服务', icon: '💳', route: 'pages/pay/PayHistory', bgColor: ['#FFF5E6', '#FFEBCD'] }
   ];
 
-  aboutToAppear() {
+  aboutToAppear(): void {
     console.info('HomePage接收参数: patientId=' + this.patientId + ', name=' + this.userName);
     this.loadNotices();
+    this.startNoticeCarousel();
   }
 
-  aboutToDisappear() {
+  aboutToDisappear(): void {
     if (this.timer !== -1) {
       clearInterval(this.timer);
       this.timer = -1;
@@ -60,18 +62,22 @@ export struct HomePage {
 
   private loadNotices(): void {
     try {
-      const data: NoticesData = noticesData as NoticesData;
-      this.notices = data.notices || [];
-      console.info('加载健康资讯成功，共 ' + this.notices.length + ' 条');
-      if (this.notices.length > 0) {
-        this.startNoticeCarousel();
+      const data = noticesData as NoticesData;
+      if (data && data.notices && data.notices.length > 0) {
+        this.notices = data.notices;
+        // 初始化显示第一条
+        this.displayNotice = this.notices[0];
+        console.info('加载健康资讯成功，共 ' + this.notices.length + ' 条');
+        console.info('第一条资讯: ' + JSON.stringify(this.notices[0]));
+      } else {
+        console.warn('noticesData 为空或格式不正确，使用默认数据');
+        this.notices = this.getDefaultNotices();
+        this.displayNotice = this.notices[0];
       }
     } catch (error) {
       console.error('加载健康资讯失败：' + JSON.stringify(error));
       this.notices = this.getDefaultNotices();
-      if (this.notices.length > 0) {
-        this.startNoticeCarousel();
-      }
+      this.displayNotice = this.notices[0];
     }
   }
 
@@ -86,10 +92,16 @@ export struct HomePage {
   private startNoticeCarousel(): void {
     if (this.timer !== -1) {
       clearInterval(this.timer);
+      this.timer = -1;
     }
+
     if (this.notices.length > 0) {
       this.timer = setInterval(() => {
+        // 计算下一个索引
         this.currentNoticeIndex = (this.currentNoticeIndex + 1) % this.notices.length;
+        // 更新显示的资讯
+        this.displayNotice = this.notices[this.currentNoticeIndex];
+        console.info('轮播切换: index=' + this.currentNoticeIndex + ', title=' + this.displayNotice.title);
       }, 4000);
     }
   }
@@ -115,9 +127,45 @@ export struct HomePage {
     }
   }
 
-  // ✅ @Builder 接收 item 参数，内部只有 UI 组件
+  private navigateTo(route: string): void {
+    try {
+      const params: Record<string, Object> = {
+        'patientId': this.patientId,
+        'userName': this.userName,
+        'userPhone': this.userPhone,
+        'userGender': this.userGender,
+        'userGenderText': this.userGenderText,
+        'userAge': this.userAge
+      };
+
+      console.info('跳转到: ' + route);
+
+      router.pushUrl({
+        url: route,
+        params: params
+      }).then(() => {
+        console.info('页面跳转成功: ' + route);
+      }).catch((err: Error) => {
+        console.error('页面跳转失败: ' + JSON.stringify(err));
+        promptAction.showToast({
+          message: '页面跳转失败，请稍后重试',
+          duration: 1500
+        });
+      });
+    } catch (error) {
+      console.error('导航异常: ' + JSON.stringify(error));
+      promptAction.showToast({
+        message: '页面跳转异常',
+        duration: 1500
+      });
+    }
+  }
+
+  /**
+   * 构建单个资讯项
+   */
   @Builder
-  NoticeItemBuilder(item: NoticeItem) {
+  buildNoticeItem(item: NoticeItem) {
     Column() {
       if (item.type && item.type.length > 0) {
         Text(item.type)
@@ -152,7 +200,6 @@ export struct HomePage {
     }
     .width('100%')
     .padding({ top: 4, bottom: 4 })
-    .transition(TransitionEffect.OPACITY.animation({ duration: 500 }))
   }
 
   build() {
@@ -306,15 +353,7 @@ export struct HomePage {
                 .width('100%')
                 .padding({ top: 2, bottom: 2 })
                 .onClick(() => {
-                  router.pushUrl({
-                    url: item.route,
-                    params: { patientId: this.patientId }
-                  }).catch(() => {
-                    promptAction.showToast({
-                      message: '页面跳转中...',
-                      duration: 1500
-                    });
-                  });
+                  this.navigateTo(item.route);
                 })
               }
             }, (item: FunctionItem) => item.name)
@@ -360,34 +399,63 @@ export struct HomePage {
           .width('100%')
           .margin({ bottom: 10 })
 
-          // ✅ build 中直接判断，然后传参给 @Builder
-          if (this.notices.length > 0) {
-            Stack() {
-              Column() {
-                this.NoticeItemBuilder(this.notices[this.currentNoticeIndex])
+          // ===== 资讯内容 =====
+          if (this.displayNotice) {
+            Column() {
+              // 类型标签
+              if (this.displayNotice.type && this.displayNotice.type.length > 0) {
+                Text(this.displayNotice.type)
+                  .fontSize(10)
+                  .fontColor('#FFFFFF')
+                  .backgroundColor('#2563EB')
+                  .padding({ left: 8, right: 8, top: 2, bottom: 2 })
+                  .borderRadius(10)
+                  .margin({ bottom: 6 })
+                  .alignSelf(ItemAlign.Start)
+              }
+
+              // 标题
+              Text(this.displayNotice.title)
+                .fontSize(14)
+                .fontColor('#1A1A1A')
+                .fontWeight(FontWeight.Medium)
+                .maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+                .width('100%')
+
+              // 底部：时间和查看详情
+              Row() {
+                Text(this.displayNotice.time)
+                  .fontSize(12)
+                  .fontColor('#999999')
+                Blank()
+                Text('查看详情 ›')
+                  .fontSize(12)
+                  .fontColor('#2563EB')
               }
               .width('100%')
-              .padding(14)
-              .backgroundColor('#F8FAFF')
-              .borderRadius(12)
-              .border({
-                width: 1,
-                color: '#EEF3FF'
-              })
+              .margin({ top: 4 })
             }
             .width('100%')
+            .padding(14)
+            .backgroundColor('#F8FAFF')
+            .borderRadius(12)
+            .border({
+              width: 1,
+              color: '#EEF3FF'
+            })
             .onClick(() => {
-              const currentItem: NoticeItem = this.notices[this.currentNoticeIndex];
-              if (currentItem) {
+              if (this.displayNotice) {
+                const detailParams: Record<string, Object> = {
+                  'id': this.displayNotice.id,
+                  'title': this.displayNotice.title,
+                  'time': this.displayNotice.time,
+                  'summary': this.displayNotice.summary || '',
+                  'type': this.displayNotice.type || ''
+                };
                 router.pushUrl({
                   url: 'pages/NoticeDetail',
-                  params: {
-                    id: currentItem.id,
-                    title: currentItem.title,
-                    time: currentItem.time,
-                    summary: currentItem.summary || '',
-                    type: currentItem.type || ''
-                  }
+                  params: detailParams
                 }).catch(() => {
                   promptAction.showToast({
                     message: '正在加载资讯详情...',

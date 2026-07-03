@@ -8,6 +8,11 @@
     "pages/register/OrderSuccessPage",
     "pages/register/RegisterHistoryPage",
     "pages/register/ScheduleSelectPage",
-    "pages/pay/PayPage"
+    "pages/pay/PayPage",
+    "pages/pay/PayHistory",
+    "pages/medical/PrescriptionHistory",
+    "pages/medical/PrescriptionDetail",
+    "pages/medical/MedicalOrderPage",
+    "pages/medicineAi/MedicineAiChatPage"
   ]
 }
