@@ -1,15 +1,21 @@
 // MedicalOrder.java
 package com.cloudbrainmed.patient.entity;
 
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+
 import java.time.LocalDateTime;
 
 /**
  * 医技申请主表 medical_order
  * 用途：保存一次脑科检查或检验申请的患者、挂号、申请医生、临床摘要和整体流程状态
  */
+@TableName("medical_order")  // 添加这个注解
 public class MedicalOrder {
 
     // ===== 字段 =====
+    @TableId(type = IdType.ASSIGN_ID)  // 添加这个注解，标记主键
     private String orderId;
     private String patientId;
     private String registerId;
