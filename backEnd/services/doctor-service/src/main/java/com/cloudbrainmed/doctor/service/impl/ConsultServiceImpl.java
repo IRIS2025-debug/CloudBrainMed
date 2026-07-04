@@ -37,9 +37,16 @@ public class ConsultServiceImpl implements ConsultService {
     }
 
     @Override
-    public List<ConsultRecord> getList(String doctorId, String consultStatus, String date, int page, int limit) {
+    public List<ConsultRecord> getList(
+            String doctorId,
+            String consultStatus,
+            String date,
+            boolean reportReturnedOnly,
+            int page,
+            int limit) {
         int offset = (page - 1) * limit;
-        return consultMapper.findList(doctorId, consultStatus, date, offset, limit);
+        return consultMapper.findList(
+                doctorId, consultStatus, date, reportReturnedOnly, offset, limit);
     }
 
     @Override

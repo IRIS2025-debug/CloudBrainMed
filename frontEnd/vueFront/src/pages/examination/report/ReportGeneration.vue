@@ -712,6 +712,7 @@ const applyPartialAccept = () => {
   // 隐藏该消息的操作按钮
   if (pendingMessageIndex.value >= 0 && pendingMessageIndex.value < chatMessages.value.length) {
     const msg = chatMessages.value[pendingMessageIndex.value]
+    if (!msg) return
     msg.showActions = false
     msg.applied = true
     chatMessages.value[pendingMessageIndex.value] = { ...msg }
@@ -725,6 +726,7 @@ const applyPartialAccept = () => {
 // 忽略消息
 const dismissMessage = (index: number) => {
   const msg = chatMessages.value[index]
+  if (!msg) return
   msg.showActions = false
   msg.applied = true
   chatMessages.value[index] = { ...msg }

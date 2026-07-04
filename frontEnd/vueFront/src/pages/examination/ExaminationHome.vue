@@ -28,12 +28,12 @@
             <span class="card-hint">点击进入 →</span>
           </div>
 
-          <div class="feature-card" @click="navigateTo('/examination-doctor/upload')">
+          <div class="feature-card" @click="navigateTo('/examination-doctor/ct-inference')">
             <div class="card-icon" style="background: #e6f7e6; color: #16a34a;">
               <i class="fas fa-cloud-upload-alt"></i>
             </div>
-            <h3>影像文件上传</h3>
-            <p>支持 DICOM / JPEG</p>
+            <h3>CT 模型推理</h3>
+            <p>金属伪影 / 病灶分割</p>
             <span class="card-hint">点击进入 →</span>
           </div>
 

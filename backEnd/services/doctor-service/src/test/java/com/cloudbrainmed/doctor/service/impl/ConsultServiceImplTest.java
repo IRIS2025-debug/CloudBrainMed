@@ -74,6 +74,13 @@ class ConsultServiceImplTest {
     }
 
     @Test
+    void getListPassesReportReturnedOnlyFilterToMapper() {
+        service.getList("D001", "", "", true, 2, 10);
+
+        verify(mapper).findList("D001", "", "", true, 10, 10);
+    }
+
+    @Test
     void completeRequiresConfirmedRecord() {
         ConsultRecord record = consult("D001", "IN_PROGRESS");
         when(mapper.findDetail("R001")).thenReturn(record);

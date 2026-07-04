@@ -1,12 +1,14 @@
 package com.cloudbrainmed.ai.dto;
 
 import java.util.List;
+import java.util.Map;
 
 public class ReportAnalysisDto {
     private String registerId;
     private String reportType;
     private String reportText;
     private List<IndicatorDto> indicators;
+    private Map<String, Object> reportInput;
 
     public String getRegisterId() { return registerId; }
     public void setRegisterId(String registerId) { this.registerId = registerId; }
@@ -16,6 +18,8 @@ public class ReportAnalysisDto {
     public void setReportText(String reportText) { this.reportText = reportText; }
     public List<IndicatorDto> getIndicators() { return indicators; }
     public void setIndicators(List<IndicatorDto> indicators) { this.indicators = indicators; }
+    public Map<String, Object> getReportInput() { return reportInput; }
+    public void setReportInput(Map<String, Object> reportInput) { this.reportInput = reportInput; }
 
     public static class IndicatorDto {
         private String name;

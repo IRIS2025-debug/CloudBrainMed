@@ -36,13 +36,24 @@ public class AiReportController {
         if (dto == null || !StringUtils.hasText(dto.getRegisterId())) {
             throw new BusinessException("挂号ID不能为空");
         }
-        ReportContextDto context = doctorFeignClient.getConsultContext(
-                dto.getRegisterId(), doctorId, internalServiceKey);
-        if (context == null || !context.isAvailable()) {
-            throw new BusinessException(context == null
-                    ? "无法获取患者接诊信息"
-                    : context.getErrorMessage());
+        if (!isCtStructuredReport(dto)) {
+            ReportContextDto context = doctorFeignClient.getConsultContext(
+                    dto.getRegisterId(), doctorId, internalServiceKey);
+            if (context == null || !context.isAvailable()) {
+                throw new BusinessException(context == null
+                        ? "无法获取患者接诊信息"
+                        : context.getErrorMessage());
+            }
         }
         return Result.ok(aiReportService.analyze(dto));
+    }
+
+    private boolean isCtStructuredReport(ReportAnalysisDto dto) {
+        if (dto.getReportInput() == null || dto.getReportInput().isEmpty()) {
+            return false;
+        }
+        String reportType = dto.getReportType();
+        return "CT_ARTIFACT_REPORT".equals(reportType)
+                || "CT_LESION_REPORT".equals(reportType);
     }
 }

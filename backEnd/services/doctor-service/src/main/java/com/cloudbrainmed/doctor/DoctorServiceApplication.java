@@ -5,7 +5,10 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 
 @SpringBootApplication
-@EnableFeignClients(basePackages = "com.cloudbrainmed.api.feign")
+@EnableFeignClients(basePackages = {
+        "com.cloudbrainmed.api.feign",
+        "com.cloudbrainmed.doctor.feign"
+})
 public class DoctorServiceApplication {
     public static void main(String[] args) {
         SpringApplication.run(DoctorServiceApplication.class, args);

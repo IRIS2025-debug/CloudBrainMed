@@ -217,6 +217,19 @@ environment:
   - SPRING_PROFILES_ACTIVE=prod
 ```
 
+### 4\.1\.1 AI 与医生接诊联调环境变量
+
+完整 Docker 联调时，`ai-service` 和 `doctor-service` 必须使用同一个 `INTERNAL_SERVICE_KEY`，否则 AI 病历、AI 处方审核等需要读取接诊上下文的接口会被 doctor-service 拒绝。该值通过 `backEnd/docker/.env` 传入两个服务。
+
+CT 伪影/病灶推理由 Python 服务提供，Java `ai-service` 通过 `AI_PYTHON_SERVICE_URL` 调用。Windows Docker Desktop 中如果 Python 服务运行在宿主机，推荐配置：
+
+```Bash
+INTERNAL_SERVICE_KEY=local-integration-key
+AI_PYTHON_SERVICE_URL=http://host.docker.internal:8010
+```
+
+模型厂商 API Key 只使用占位或本地私有值，不要提交真实密钥到团队仓库。
+
 
 
 ### 4\.2 重新构建镜像的场景
@@ -378,6 +391,5 @@ docker compose up -d
 
 
 如果你拿不准，每次都用 `docker compose up -d` 就行，Docker 会提示你“镜像已存在，直接启动”。只有当你明确改了代码，才主动加上 `--build`。😊
-
 
 

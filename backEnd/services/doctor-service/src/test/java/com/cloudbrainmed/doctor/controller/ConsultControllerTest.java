@@ -2,12 +2,18 @@ package com.cloudbrainmed.doctor.controller;
 
 import com.cloudbrainmed.common.exception.BusinessException;
 import com.cloudbrainmed.common.utils.DoctorJwtUtil;
+import com.cloudbrainmed.doctor.dto.MedicalOrderConfirmRequest;
+import com.cloudbrainmed.doctor.dto.MedicalOrderConfirmResponse;
+import com.cloudbrainmed.doctor.dto.MedicalOrderItemRequest;
 import com.cloudbrainmed.doctor.dto.PrescriptionCreateDto;
 import com.cloudbrainmed.doctor.entity.ConsultRecord;
 import com.cloudbrainmed.doctor.service.ConsultService;
+import com.cloudbrainmed.doctor.service.MedicalOrderService;
 import com.cloudbrainmed.doctor.service.PrescriptionService;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -20,7 +26,9 @@ class ConsultControllerTest {
 
     private final ConsultService consultService = mock(ConsultService.class);
     private final PrescriptionService prescriptionService = mock(PrescriptionService.class);
-    private final ConsultController controller = new ConsultController(consultService, prescriptionService);
+    private final MedicalOrderService medicalOrderService = mock(MedicalOrderService.class);
+    private final ConsultController controller = new ConsultController(
+            consultService, prescriptionService, medicalOrderService);
 
     @Test
     void createPrescriptionRejectsWhenDoctorDoesNotOwnRegistration() {
@@ -86,5 +94,27 @@ class ConsultControllerTest {
         controller.createExamOrder(token, body);
 
         verify(consultService).createExamOrder("D001", "R001", "[{\"itemName\":\"CT\"}]", "NORMAL");
+    }
+
+    @Test
+    void confirmMedicalOrderUsesTokenDoctorAndReturnsQueueStatus() {
+        MedicalOrderItemRequest item = new MedicalOrderItemRequest();
+        item.setItemCode("CRANIAL_CT_PLAIN");
+        MedicalOrderConfirmRequest request = new MedicalOrderConfirmRequest();
+        request.setRegisterId("R001");
+        request.setClinicalSummary("headache");
+        request.setUrgencyLevel("NORMAL");
+        request.setItems(List.of(item));
+        MedicalOrderConfirmResponse response = new MedicalOrderConfirmResponse(
+                "MO001", "MANUAL", 1, new BigDecimal("280.00"),
+                "QUEUED", "PAID", true, null);
+        when(medicalOrderService.confirm(request, "D001")).thenReturn(response);
+
+        String token = DoctorJwtUtil.createToken("D001", "11111111111", 2, 1);
+
+        Object result = controller.confirmMedicalOrder(token, request).getData();
+
+        verify(medicalOrderService).confirm(request, "D001");
+        org.assertj.core.api.Assertions.assertThat(result).isEqualTo(response);
     }
 }

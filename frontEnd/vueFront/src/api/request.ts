@@ -12,10 +12,26 @@ export interface ApiResponse<T = any> {
 }
 
 
- const request = axios.create({
-   baseURL: import.meta.env.PROD ? 'http://localhost:80' : '',
-   timeout: 60000,
- })
+const request = axios.create({
+  baseURL: import.meta.env.PROD ? 'http://localhost:80' : '',
+  timeout: 60000,
+})
+
+function isAuthFailure(data: ApiResponse) {
+  const message = data.msg || data.message || ''
+  return data.code === 401 || message.includes('未登录') || message.includes('凭证无效')
+}
+
+function redirectToLogin(message: string) {
+  ElMessage.error(message)
+  sessionStorage.removeItem('token')
+  sessionStorage.removeItem('roleType')
+  sessionStorage.removeItem('userRole')
+  sessionStorage.removeItem('doctorType')
+  if (window.location.pathname !== '/login') {
+    window.location.href = '/login'
+  }
+}
 
 request.interceptors.request.use((config) => {
   const token = sessionStorage.getItem('token')
@@ -33,12 +49,10 @@ request.interceptors.response.use(
     if (data.code === 0 || data.code === 200) {
       return data
     }
-    // 处理 401 未登录
-    if (data.code === 401) {
-      ElMessage.error('登录已过期，请重新登录')
-      sessionStorage.removeItem('token')
-      window.location.href = '/login'
-      return Promise.reject(new Error('登录已过期'))
+    if (isAuthFailure(data)) {
+      const message = data.msg || data.message || '登录已过期，请重新登录'
+      redirectToLogin(message)
+      return Promise.reject(new Error(message))
     }
     ElMessage.error(data.msg || data.message || '请求失败')
     return Promise.reject(new Error(data.msg || data.message))
@@ -47,9 +61,7 @@ request.interceptors.response.use(
     if (err.response) {
       const { status } = err.response
       if (status === 401) {
-        ElMessage.error('登录已过期，请重新登录')
-        sessionStorage.removeItem('token')
-        window.location.href = '/login'
+        redirectToLogin('登录已过期，请重新登录')
       } else if (status === 403) {
         ElMessage.error('没有权限访问')
       } else if (status >= 500) {

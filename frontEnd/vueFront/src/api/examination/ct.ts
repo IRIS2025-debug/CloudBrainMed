@@ -21,3 +21,11 @@ export function predictCtLesion(file: File) {
     headers: { 'Content-Type': 'multipart/form-data' },
   })
 }
+
+export function analyzeCtReportInput(data: {
+  registerId: string
+  reportType: string
+  reportInput: Record<string, any>
+}) {
+  return request.post('/ai-service/report/analyze', data, { timeout: 120000 })
+}

@@ -346,6 +346,16 @@ public class AiAssistantChatServiceImpl implements AiAssistantChatService {
             5. 遇到病历生成、处方审核等专业模块需求时，只说明应切换到对应AI能力按钮；
             6. 所有结论仅供医生参考，最终诊断由医生结合查体和检查结果确认。
             回答应面向医生，简洁、分点、可执行。
+            """ + plainTextOutputInstruction();
+    }
+
+    private String plainTextOutputInstruction() {
+        return """
+
+            输出格式要求：
+            只返回普通中文文本，不要使用 Markdown。
+            不要输出 #、###、-、*、**、反引号、表格或代码块。
+            如需分点，直接换行书写短句，不要添加项目符号或编号前缀。
             """;
     }
 
@@ -517,7 +527,29 @@ public class AiAssistantChatServiceImpl implements AiAssistantChatService {
         if (!hasText(answer)) {
             return "当前上下文不足，请继续补充患者主诉、症状经过和相关病史。";
         }
-        return truncate(answer.trim(), 4000);
+        return truncate(stripMarkdownFormatting(answer).trim(), 4000);
+    }
+
+    private String stripMarkdownFormatting(String answer) {
+        String normalized = answer.replace("\r\n", "\n")
+                .replace('\r', '\n')
+                .replace("**", "")
+                .replace("__", "")
+                .replace("`", "");
+        String[] lines = normalized.split("\n", -1);
+        List<String> cleanedLines = new ArrayList<>();
+        for (String line : lines) {
+            String cleaned = line
+                    .replaceFirst("^\\s{0,3}#{1,6}\\s*", "")
+                    .replaceFirst("^\\s*>\\s*", "")
+                    .replaceFirst("^\\s*[-*+]\\s+", "")
+                    .replaceFirst("^\\s*\\d+[.)]\\s+", "")
+                    .trim();
+            cleanedLines.add(cleaned);
+        }
+        return String.join("\n", cleanedLines)
+                .replaceAll("(?m)^\\s*[-*#]+\\s*$", "")
+                .replaceAll("\\n{3,}", "\n\n");
     }
 
     /**

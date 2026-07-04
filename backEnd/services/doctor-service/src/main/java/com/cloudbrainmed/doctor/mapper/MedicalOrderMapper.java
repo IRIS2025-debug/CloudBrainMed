@@ -2,7 +2,9 @@ package com.cloudbrainmed.doctor.mapper;
 
 import com.cloudbrainmed.doctor.entity.MedicalOrder;
 import com.cloudbrainmed.doctor.entity.MedicalOrderItem;
+import com.cloudbrainmed.doctor.entity.MedicalReport;
 import com.cloudbrainmed.doctor.vo.InspectionOrderVo;
+import com.cloudbrainmed.doctor.vo.MedicalReportVo;
 import lombok.Data;
 import org.apache.ibatis.annotations.*;
 
@@ -223,6 +225,50 @@ public interface MedicalOrderMapper {
     })
     List<QueuedTaskItem> findQueuedTasks(@Param("limit") int limit);
 
+    @Select("""
+        SELECT moi.order_item_id, moi.order_id, moi.item_code, moi.item_name,
+               moi.item_category, moi.urgency_level, moi.price,
+               moi.status, moi.create_time,
+               mo.patient_id, mo.register_id, mo.doctor_id AS requester_doctor_id,
+               p.name AS patient_name, p.gender,
+               EXTRACT(YEAR FROM AGE(CURRENT_DATE, p.birthday)) AS age
+        FROM medical_order_item moi
+        JOIN medical_order mo ON moi.order_id = mo.order_id
+        JOIN patient p ON mo.patient_id = p.patient_id
+        WHERE moi.status = 'QUEUED'
+          AND mo.pay_status = 'PAID'
+          AND moi.item_category = #{itemCategory}
+        ORDER BY
+            CASE moi.urgency_level
+                WHEN 'EMERGENCY' THEN 1
+                WHEN 'URGENT' THEN 2
+                WHEN 'NORMAL' THEN 3
+                ELSE 4
+            END,
+            moi.create_time ASC
+        LIMIT #{limit}
+        """)
+    @Results({
+        @Result(column = "order_item_id", property = "orderItemId"),
+        @Result(column = "order_id", property = "orderId"),
+        @Result(column = "item_code", property = "itemCode"),
+        @Result(column = "item_name", property = "itemName"),
+        @Result(column = "item_category", property = "itemCategory"),
+        @Result(column = "urgency_level", property = "urgencyLevel"),
+        @Result(column = "price", property = "price"),
+        @Result(column = "status", property = "status"),
+        @Result(column = "create_time", property = "createTime"),
+        @Result(column = "patient_id", property = "patientId"),
+        @Result(column = "register_id", property = "registerId"),
+        @Result(column = "requester_doctor_id", property = "requesterDoctorId"),
+        @Result(column = "patient_name", property = "patientName"),
+        @Result(column = "gender", property = "gender"),
+        @Result(column = "age", property = "age")
+    })
+    List<QueuedTaskItem> findQueuedTasksByCategory(
+            @Param("itemCategory") String itemCategory,
+            @Param("limit") int limit);
+
     /**
      * 更新检查项目状态
      */
@@ -302,6 +348,7 @@ public interface MedicalOrderMapper {
         SELECT moi.order_item_id, moi.order_id, moi.item_code, moi.item_name,
                moi.item_category, moi.urgency_level, moi.price,
                moi.status, moi.create_time, moi.assign_time, moi.complete_time,
+               moi.assigned_doctor_id,
                mo.patient_id, mo.register_id, mo.doctor_id AS requester_doctor_id,
                p.name AS patient_name, p.gender, p.birthday,
                EXTRACT(YEAR FROM AGE(CURRENT_DATE, p.birthday)) AS age,
@@ -323,6 +370,7 @@ public interface MedicalOrderMapper {
         @Result(column = "create_time", property = "createTime"),
         @Result(column = "assign_time", property = "assignTime"),
         @Result(column = "complete_time", property = "completeTime"),
+        @Result(column = "assigned_doctor_id", property = "assignedDoctorId"),
         @Result(column = "patient_id", property = "patientId"),
         @Result(column = "register_id", property = "registerId"),
         @Result(column = "requester_doctor_id", property = "requesterDoctorId"),
@@ -333,6 +381,66 @@ public interface MedicalOrderMapper {
         @Result(column = "clinical_summary", property = "clinicalSummary")
     })
     DoctorTaskDetailVo selectTaskDetailById(@Param("orderItemId") String orderItemId);
+
+    @Insert("""
+        INSERT INTO medical_report (
+            report_id, order_item_id, patient_id, item_category,
+            result_summary, conclusion, abnormal_flag, attachment_url,
+            report_doctor_id, status, performed_time, report_time,
+            create_time, update_time
+        ) VALUES (
+            #{reportId}, #{orderItemId}, #{patientId}, #{itemCategory},
+            #{resultSummary}, #{conclusion}, #{abnormalFlag}, #{attachmentUrl},
+            #{reportDoctorId}, #{status}, #{performedTime}, #{reportTime},
+            #{createTime}, #{updateTime}
+        )
+        ON CONFLICT (order_item_id) DO UPDATE SET
+            result_summary = EXCLUDED.result_summary,
+            conclusion = EXCLUDED.conclusion,
+            abnormal_flag = EXCLUDED.abnormal_flag,
+            attachment_url = EXCLUDED.attachment_url,
+            report_doctor_id = EXCLUDED.report_doctor_id,
+            status = EXCLUDED.status,
+            performed_time = EXCLUDED.performed_time,
+            report_time = EXCLUDED.report_time,
+            update_time = EXCLUDED.update_time
+        """)
+    int insertMedicalReport(MedicalReport report);
+
+    @Select("""
+        SELECT mr.report_id, mr.order_item_id, moi.order_id, mo.register_id,
+               mr.patient_id, moi.item_code, moi.item_name, mr.item_category,
+               mr.result_summary, mr.conclusion, mr.abnormal_flag,
+               mr.attachment_url, mr.report_doctor_id, mr.status,
+               mr.performed_time::timestamp AS performed_time,
+               mr.report_time::timestamp AS report_time
+        FROM medical_report mr
+        JOIN medical_order_item moi ON moi.order_item_id = mr.order_item_id
+        JOIN medical_order mo ON mo.order_id = moi.order_id
+        WHERE mo.register_id = #{registerId}
+          AND mr.status = 'PUBLISHED'
+        ORDER BY mr.report_time DESC NULLS LAST, mr.create_time DESC
+        """)
+    @Results({
+        @Result(column = "report_id", property = "reportId"),
+        @Result(column = "order_item_id", property = "orderItemId"),
+        @Result(column = "order_id", property = "orderId"),
+        @Result(column = "register_id", property = "registerId"),
+        @Result(column = "patient_id", property = "patientId"),
+        @Result(column = "item_code", property = "itemCode"),
+        @Result(column = "item_name", property = "itemName"),
+        @Result(column = "item_category", property = "itemCategory"),
+        @Result(column = "result_summary", property = "resultSummary"),
+        @Result(column = "conclusion", property = "conclusion"),
+        @Result(column = "abnormal_flag", property = "abnormalFlag"),
+        @Result(column = "attachment_url", property = "attachmentUrl"),
+        @Result(column = "report_doctor_id", property = "reportDoctorId"),
+        @Result(column = "status", property = "status"),
+        @Result(column = "performed_time", property = "performedTime"),
+        @Result(column = "report_time", property = "reportTime")
+    })
+    List<MedicalReportVo> findPublishedReportsByRegisterId(
+            @Param("registerId") String registerId);
 
     /**
      * 更新订单支付状态（幂等：只有 WAITING 状态才能更新为 PAID）
@@ -353,6 +461,17 @@ public interface MedicalOrderMapper {
     int enqueueOrderItems(@Param("orderId") String orderId);
 
     /**
+     * 支付成功后将申请主表从待分配推进到已排队。
+     */
+    @Update("""
+        UPDATE medical_order SET status = 'QUEUED', update_time = NOW()
+        WHERE order_id = #{orderId}
+          AND status = 'WAITING_ASSIGN'
+          AND pay_status = 'PAID'
+        """)
+    int enqueueOrder(@Param("orderId") String orderId);
+
+    /**
      * 统计排队中的任务数
      */
     @Select("""
@@ -361,6 +480,23 @@ public interface MedicalOrderMapper {
         WHERE moi.status = 'QUEUED' AND mo.pay_status = 'PAID'
         """)
     long countQueuedTasks();
+
+    @Select("""
+        SELECT COUNT(*) FROM medical_order_item moi
+        JOIN medical_order mo ON moi.order_id = mo.order_id
+        WHERE moi.status = 'QUEUED'
+          AND mo.pay_status = 'PAID'
+          AND moi.item_category = #{itemCategory}
+        """)
+    long countQueuedTasksByCategory(@Param("itemCategory") String itemCategory);
+
+    @Select("""
+        SELECT COUNT(*) FROM medical_report
+        WHERE order_item_id = #{orderItemId}
+          AND status = 'PUBLISHED'
+        """)
+    long countPublishedReportsByOrderItemId(
+            @Param("orderItemId") String orderItemId);
 
     @Data
     class QueuedTaskItem {
@@ -414,6 +550,7 @@ public interface MedicalOrderMapper {
         private LocalDateTime createTime;
         private LocalDateTime assignTime;
         private LocalDateTime completeTime;
+        private String assignedDoctorId;
         private String patientId;
         private String registerId;
         private String requesterDoctorId;

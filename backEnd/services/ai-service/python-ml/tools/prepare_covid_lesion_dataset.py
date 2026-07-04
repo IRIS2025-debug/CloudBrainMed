@@ -34,7 +34,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Prepare COVID CT infection lesion slices")
     parser.add_argument("--ct-zip", help="Local COVID-19-CT-Seg_20cases.zip path")
     parser.add_argument("--mask-zip", help="Local Infection_Mask.zip path")
-    parser.add_argument("--output-dir", default="data/ct_lesion_dataset", help="Output dataset root")
+    parser.add_argument("--output-dir", default="data/CT病灶数据集", help="Output dataset root")
     parser.add_argument("--max-cases", type=int, default=20)
     parser.add_argument("--max-positive-slices-per-case", type=int, default=80)
     parser.add_argument("--negative-slices-per-case", type=int, default=20)

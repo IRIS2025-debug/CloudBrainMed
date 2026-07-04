@@ -10,6 +10,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.prompt.Prompt;
 
+import java.util.Map;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
@@ -46,6 +48,39 @@ class AiReportServiceImplTest {
                         && "FALLBACK".equals(log.getStatus())
                         && log.getInputSummary().contains("LAB")
                         && log.getOutputSummary().contains("MEDIUM")));
+    }
+
+    @Test
+    void analyzeAcceptsStructuredCtReportInputWithoutReportTextOrIndicators() {
+        when(chatClient.prompt(any(Prompt.class)).call().content()).thenReturn("""
+                {
+                  "summary": "CT病灶候选区需结合原片复核。",
+                  "riskLevel": "MEDIUM",
+                  "abnormalIndicators": [],
+                  "suggestions": ["结合原始CT影像复核分割区域"],
+                  "followUpAdvice": "必要时复查CT。"
+                }
+                """);
+        ReportAnalysisDto dto = new ReportAnalysisDto();
+        dto.setRegisterId("REG001");
+        dto.setReportType("CT_LESION_REPORT");
+        dto.setReportInput(Map.of(
+                "task", "CT_LESION_REPORT",
+                "finding", Map.of(
+                        "lesionDetected", true,
+                        "lesionCount", 2,
+                        "lesionRatio", 0.0104),
+                "summary", "检测到CT病灶候选区2处，候选像素占比约0.0104%。"));
+
+        ReportAnalysisVo response = service.analyze(dto);
+
+        assertThat(response.getFallback()).isFalse();
+        assertThat(response.getSummary()).contains("CT病灶候选区");
+        verify(inferenceLogMapper).insert(argThat((AiInferenceLog log) ->
+                "REPORT_ANALYSIS".equals(log.getCallSource())
+                        && "REG001".equals(log.getTraceId())
+                        && "SUCCESS".equals(log.getStatus())
+                        && log.getInputSummary().contains("CT_LESION_REPORT")));
     }
 
     private ReportAnalysisDto request() {

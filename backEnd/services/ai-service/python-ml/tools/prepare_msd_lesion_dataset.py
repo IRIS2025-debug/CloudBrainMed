@@ -32,7 +32,7 @@ DEFAULT_MSD_URL = "https://msd-for-monai.s3.us-west-2.amazonaws.com/Task10_Colon
 def parse_args():
     parser = argparse.ArgumentParser(description="Prepare MSD CT lesion slices for U-Net training")
     parser.add_argument("--archive", required=True, help="Local MSD .tar archive path")
-    parser.add_argument("--output-dir", default="data/ct_lesion_dataset", help="Output dataset root")
+    parser.add_argument("--output-dir", default="data/CT病灶数据集", help="Output dataset root")
     parser.add_argument("--max-cases", type=int, default=8, help="Maximum paired cases to extract")
     parser.add_argument("--max-positive-slices-per-case", type=int, default=80)
     parser.add_argument("--negative-slices-per-case", type=int, default=20)
