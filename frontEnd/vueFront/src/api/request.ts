@@ -14,7 +14,7 @@ export interface ApiResponse<T = any> {
 
  const request = axios.create({
    baseURL: import.meta.env.PROD ? 'http://localhost:80' : '',
-   timeout: 15000,
+   timeout: 60000,
  })
 
 request.interceptors.request.use((config) => {

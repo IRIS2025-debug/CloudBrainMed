@@ -155,7 +155,7 @@ export default defineConfig({
         target: 'http://localhost:8003',
         changeOrigin: true,
       },
-      '/api/payment': {
+      '/payment-service': {
         target: 'http://localhost:8005',
         changeOrigin: true,
       },
