@@ -3,10 +3,10 @@ import request from '../request';
 
 export interface ExamOrderQueryParams {
   status?: string
-  urgency_level?: string
-  patient_id?: string
+  urgencyLevel?: string
+  patientId?: string
   page: number
-  page_size: number
+  pageSize: number
 }
 
 export interface ApiResponse<T = any> {
@@ -17,9 +17,12 @@ export interface ApiResponse<T = any> {
 
 export const examApi = {
   /**
-   * 获取检查申请列表（只调用这一个接口）
+   * 获取检查/检验申请列表。
+   *
+   * 后端当前统一使用 /inspection-doctor/orders 承载检查医生和检验医生的医技申请查询，
+   * 前端按 doctorType 或 itemCategory 再做视角过滤。
    */
-  getExamOrders(params: ExamOrderQueryParams): Promise<ApiResponse> {
-    return request.get('/exam-service/exam-orders/list', { params });
+  getExamOrders(_params?: Partial<ExamOrderQueryParams>): Promise<ApiResponse> {
+    return request.get('/inspection-doctor/orders');
   }
 };

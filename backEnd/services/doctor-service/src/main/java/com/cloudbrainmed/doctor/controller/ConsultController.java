@@ -3,11 +3,14 @@ package com.cloudbrainmed.doctor.controller;
 import com.cloudbrainmed.common.result.Result;
 import com.cloudbrainmed.common.utils.DoctorJwtUtil;
 import com.cloudbrainmed.common.exception.BusinessException;
+import com.cloudbrainmed.doctor.dto.MedicalOrderConfirmRequest;
 import com.cloudbrainmed.doctor.dto.PrescriptionCreateDto;
 import com.cloudbrainmed.doctor.service.ConsultService;
+import com.cloudbrainmed.doctor.service.MedicalOrderService;
 import com.cloudbrainmed.doctor.service.PrescriptionService;
 import com.cloudbrainmed.doctor.entity.ConsultRecord;
 import com.cloudbrainmed.doctor.entity.Prescription;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -18,10 +21,15 @@ public class ConsultController {
 
     private final ConsultService service;
     private final PrescriptionService prescriptionService;
+    private final MedicalOrderService medicalOrderService;
 
-    public ConsultController(ConsultService service, PrescriptionService prescriptionService) {
+    public ConsultController(
+            ConsultService service,
+            PrescriptionService prescriptionService,
+            MedicalOrderService medicalOrderService) {
         this.service = service;
         this.prescriptionService = prescriptionService;
+        this.medicalOrderService = medicalOrderService;
     }
 
     /** 4.4.2.1 查询接诊患者列表 */
@@ -29,10 +37,12 @@ public class ConsultController {
     public Result<?> list(@RequestHeader(value = "token", required = false) String token,
                           @RequestParam(required = false) String consultStatus,
                           @RequestParam(required = false) String date,
+                          @RequestParam(defaultValue = "false") boolean reportReturnedOnly,
                           @RequestParam(defaultValue = "1") int page,
                           @RequestParam(defaultValue = "10") int limit) {
         String doctorId = extractDoctorId(token);
-        return Result.ok(service.getList(doctorId, consultStatus, date, page, limit));
+        return Result.ok(service.getList(
+                doctorId, consultStatus, date, reportReturnedOnly, page, limit));
     }
 
     /** 4.4.2.2 获取接诊详情 */
@@ -69,6 +79,24 @@ public class ConsultController {
         service.createExamOrder(doctorId, body.get("registerId"),
                 body.get("checkItemList"), body.get("urgencyLevel"));
         return Result.ok();
+    }
+
+    @PostMapping("/medical-order/confirm")
+    public Result<?> confirmMedicalOrder(
+            @RequestHeader(value = "token", required = false) String token,
+            @Valid @RequestBody MedicalOrderConfirmRequest request) {
+        String doctorId = extractDoctorId(token);
+        return Result.ok(medicalOrderService.confirm(request, doctorId));
+    }
+
+    @GetMapping("/reports")
+    public Result<?> reports(
+            @RequestHeader(value = "token", required = false) String token,
+            @RequestParam String registerId) {
+        String doctorId = extractDoctorId(token);
+        service.getDetail(doctorId, registerId);
+        return Result.ok(
+                medicalOrderService.getPublishedReportsByRegisterId(registerId));
     }
 
     /** 开具处方 */

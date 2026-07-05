@@ -53,8 +53,8 @@
             <el-button v-if="row.status === 'QUEUED'" type="success" size="small" @click="handleStart(row)">
               开始
             </el-button>
-            <el-button v-if="row.status === 'IN_PROCESS'" type="warning" size="small" @click="handleComplete(row)">
-              完成
+            <el-button v-if="row.status === 'IN_PROCESS'" type="warning" size="small" @click="$router.push(`/doctor/task/${row.orderItemId}`)">
+              提交报告
             </el-button>
           </template>
         </el-table-column>
@@ -65,7 +65,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { getWorkbench, startTask, completeTask } from '@/api/doctor/task'
+import { getWorkbench, startTask } from '@/api/doctor/task'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { List, Refresh } from '@element-plus/icons-vue'
 
@@ -97,16 +97,6 @@ async function handleStart(row: any) {
   }
 }
 
-async function handleComplete(row: any) {
-  try {
-    await ElMessageBox.confirm(`确认完成「${row.itemName}」？`, '提示', { type: 'info' })
-    await completeTask(row.orderItemId)
-    ElMessage.success('任务已完成')
-    fetchTasks()
-  } catch (e: any) {
-    if (e !== 'cancel') ElMessage.error(e?.response?.data?.msg || '操作失败')
-  }
-}
 </script>
 
 <style scoped>

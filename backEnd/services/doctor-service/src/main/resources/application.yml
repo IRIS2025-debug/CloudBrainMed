@@ -6,6 +6,10 @@ spring:
     active: dev
   config:
     import: optional:nacos:doctor-service.yml
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
 
 server:
   port: 8003

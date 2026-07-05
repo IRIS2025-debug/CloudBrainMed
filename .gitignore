@@ -74,6 +74,7 @@ desktop.ini
 *.pyc
 *.pth
 !backEnd/services/ai-service/python-ml/Model/weights/best_attention_adamw.pth
+!backEnd/services/ai-service/python-ml/Model/weights/best_lesion_attention.pth
 *.egg-info/
 
 # 训练实验产出（需手动管理）
@@ -81,6 +82,8 @@ desktop.ini
 
 # 训练实验产出（太大，不提交 Git）
 experiments/
+/deliverables/
+/病灶CV模型/
 
 # Local restored/reference materials and CT evidence binaries.
 # Keep README/Markdown/CSV summaries trackable, but do not push large medical
@@ -90,6 +93,7 @@ project-materials/**/*.nii
 project-materials/**/*.nii.gz
 project-materials/**/*.mhd
 project-materials/**/*.raw
+project-materials/**/*.npy
 project-materials/**/*.gz
 project-materials/**/*.b64
 project-materials/**/*.html
@@ -117,3 +121,6 @@ backEnd/services/ai-service/python-ml/uploads/
 backEnd/services/ai-service/python-ml/results/
 backEnd/services/ai-service/python-ml/previews/
 backEnd/services/ai-service/python-ml/data/
+
+# BrainCT 数据集（医学影像，文件太大不提交）
+BrainCT/BrainCT/Datasets/

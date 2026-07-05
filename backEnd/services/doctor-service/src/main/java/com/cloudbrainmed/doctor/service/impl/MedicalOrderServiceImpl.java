@@ -17,10 +17,13 @@ import com.cloudbrainmed.doctor.mapper.MedicalItemMapper;
 import com.cloudbrainmed.doctor.mapper.MedicalOrderMapper;
 import com.cloudbrainmed.doctor.service.MedicalOrderService;
 import com.cloudbrainmed.doctor.vo.InspectionOrderVo;
+import com.cloudbrainmed.doctor.vo.MedicalReportVo;
 import com.cloudbrainmed.payment.dto.UnifiedPayDto;
 import com.cloudbrainmed.payment.vo.PayResultVo;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +37,7 @@ import java.util.Set;
 import java.util.UUID;
 
 @Service
+@Slf4j
 public class MedicalOrderServiceImpl implements MedicalOrderService {
 
     private final ConsultMapper consultMapper;
@@ -41,18 +45,22 @@ public class MedicalOrderServiceImpl implements MedicalOrderService {
     private final MedicalOrderMapper medicalOrderMapper;
     private final PaymentFeignClient paymentFeignClient;
     private final ObjectMapper objectMapper;
+    private final boolean devAutoQueueAfterConfirm;
 
     public MedicalOrderServiceImpl(
             ConsultMapper consultMapper,
             MedicalItemMapper medicalItemMapper,
             MedicalOrderMapper medicalOrderMapper,
             PaymentFeignClient paymentFeignClient,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            @Value("${cloudbrainmed.doctor.medical-order.dev-auto-queue-after-confirm:false}")
+            boolean devAutoQueueAfterConfirm) {
         this.consultMapper = consultMapper;
         this.medicalItemMapper = medicalItemMapper;
         this.medicalOrderMapper = medicalOrderMapper;
         this.paymentFeignClient = paymentFeignClient;
         this.objectMapper = objectMapper;
+        this.devAutoQueueAfterConfirm = devAutoQueueAfterConfirm;
     }
 
     @Override
@@ -209,12 +217,21 @@ public class MedicalOrderServiceImpl implements MedicalOrderService {
                 consult.getRegisterId(), doctorId) != 1) {
             throw new BusinessException("Failed to update consult status");
         }
-        createPayOrder(order, consult, totalAmount);
+        String paymentMessage = createPayOrder(order, consult, totalAmount);
+        if (devAutoQueueAfterConfirm) {
+            medicalOrderMapper.updatePayStatus(orderId);
+            medicalOrderMapper.enqueueOrder(orderId);
+            medicalOrderMapper.enqueueOrderItems(orderId);
+        }
         return new MedicalOrderConfirmResponse(
                 orderId,
                 order.getSourceType(),
                 resolvedItems.size(),
-                totalAmount);
+                totalAmount,
+                devAutoQueueAfterConfirm ? "QUEUED" : "WAITING_ASSIGN",
+                devAutoQueueAfterConfirm ? "PAID" : "WAITING",
+                devAutoQueueAfterConfirm,
+                paymentMessage);
     }
 
     @Override
@@ -242,7 +259,13 @@ public class MedicalOrderServiceImpl implements MedicalOrderService {
         return order;
     }
 
-    private void createPayOrder(
+    @Override
+    public List<MedicalReportVo> getPublishedReportsByRegisterId(
+            String registerId) {
+        return medicalOrderMapper.findPublishedReportsByRegisterId(registerId);
+    }
+
+    private String createPayOrder(
             MedicalOrder order, ConsultRecord consult, BigDecimal totalAmount) {
         UnifiedPayDto dto = new UnifiedPayDto();
         dto.setPatientId(order.getPatientId());
@@ -251,10 +274,30 @@ public class MedicalOrderServiceImpl implements MedicalOrderService {
         dto.setBusinessId(order.getOrderId());
         dto.setDescription("医技检查检验费");
         dto.setAmount(totalAmount == null ? BigDecimal.ZERO : totalAmount);
-        Result<PayResultVo> result = paymentFeignClient.createPayOrder(dto);
-        if (result == null || result.getCode() == null || result.getCode() != 200) {
-            throw new BusinessException("create medical pay order failed");
+        Result<PayResultVo> result;
+        try {
+            result = paymentFeignClient.createPayOrder(dto);
+        } catch (Exception exception) {
+            if (!devAutoQueueAfterConfirm) {
+                if (exception instanceof RuntimeException runtimeException) {
+                    throw runtimeException;
+                }
+                throw new BusinessException("create medical pay order failed");
+            }
+            log.warn("Medical order {} payment creation failed",
+                    order.getOrderId(), exception);
+            return "payment-service failed; dev flow queued the order";
         }
+        if (result == null || result.getCode() == null || result.getCode() != 200) {
+            String message = result == null ? null : result.getMsg();
+            if (!devAutoQueueAfterConfirm) {
+                throw new BusinessException("create medical pay order failed");
+            }
+            log.warn("Medical order {} payment creation failed: {}",
+                    order.getOrderId(), message);
+            return "payment-service returned non-success; dev flow queued the order";
+        }
+        return null;
     }
 
     private String patientName(ConsultRecord consult) {

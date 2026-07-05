@@ -185,16 +185,25 @@
           {{ examOrderCreated ? '检查单已生成' : '确认并生成检查单' }}
         </el-button>
         <el-button
-          type="danger"
+          type="info"
           @click="handleComplete"
-          :loading="completing"
           :disabled="!examOrderCreated || detail.consultStatus === 'COMPLETED'"
           size="large"
           plain
           class="action-btn"
         >
           <el-icon><Finished /></el-icon>
-          {{ detail.consultStatus === 'COMPLETED' ? '接诊已完成' : '完成接诊' }}
+          返回接诊工作台
+        </el-button>
+        <el-button
+          type="primary"
+          plain
+          @click="router.push(`/doctor/consult/${registerId}`)"
+          :disabled="!examOrderCreated"
+          size="large"
+          class="action-btn"
+        >
+          回到本次接诊
         </el-button>
       </div>
     </div>
@@ -204,9 +213,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { ArrowLeft, ArrowDown, Check, Checked, Document, Finished, MagicStick, User } from '@element-plus/icons-vue'
-import { getConsultDetail, createExamOrder, completeConsult } from '@/api/doctor/consult'
+import { getConsultDetail, createExamOrder } from '@/api/doctor/consult'
 
 const route = useRoute()
 const router = useRouter()
@@ -216,7 +225,6 @@ const examResult = ref<any>(null)
 const selectedChecks = ref<string[]>([])
 const generating = ref(false)
 const creating = ref(false)
-const completing = ref(false)
 const examOrderCreated = ref(false)
 const reasoningExpanded = ref(false)
 
@@ -225,15 +233,15 @@ const stepFlow = computed(() => {
   if (!examResult.value && !examOrderCreated.value) {
     steps.push({ label: 'AI 生成建议', done: false, active: true })
     steps.push({ label: '创建检查单', done: false, active: false })
-    steps.push({ label: '完成接诊', done: false, active: false })
+    steps.push({ label: '返回接诊', done: false, active: false })
   } else if (examResult.value && !examOrderCreated.value) {
     steps.push({ label: 'AI 生成建议', done: true, active: false })
     steps.push({ label: '创建检查单', done: false, active: true })
-    steps.push({ label: '完成接诊', done: false, active: false })
+    steps.push({ label: '返回接诊', done: false, active: false })
   } else if (examOrderCreated.value) {
     steps.push({ label: 'AI 生成建议', done: true, active: false })
     steps.push({ label: '创建检查单', done: true, active: false })
-    steps.push({ label: '完成接诊', done: false, active: true })
+    steps.push({ label: '返回接诊', done: false, active: true })
   }
   return steps
 })
@@ -322,26 +330,8 @@ async function handleCreateExamOrder() {
   }
 }
 
-async function handleComplete() {
-  try {
-    await ElMessageBox.confirm(
-      '确定完成本次接诊？完成后不可修改。',
-      '确认完成接诊',
-      { type: 'warning', confirmButtonText: '确认完成', cancelButtonText: '取消' }
-    )
-  } catch {
-    return
-  }
-  completing.value = true
-  try {
-    await completeConsult(registerId)
-    ElMessage.success('接诊已完成')
-    router.push({ name: 'doctorConsult' })
-  } catch {
-    ElMessage.error('接诊完成失败')
-  } finally {
-    completing.value = false
-  }
+function handleComplete() {
+  router.push({ name: 'doctorConsult' })
 }
 </script>
 

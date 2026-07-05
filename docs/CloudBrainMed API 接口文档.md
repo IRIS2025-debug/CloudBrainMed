@@ -52,7 +52,7 @@ Gateway 默认端口为 `80`，基地址为 `http://{gateway-host}`。
 |登录令牌|请求头 `token`；当前代码未使用 `Authorization: Bearer`|
 |成功响应|`{"code":200,"msg":"成功","data":...}`|
 |空数据|列表返回 `[]`；无业务数据通常返回 `null`|
-|流式响应|AI 药品问答返回 `text/event-stream`，不使用统一 Result 包裹|
+|特殊响应|AI 药品问答接口返回 `text/event-stream`，不使用统一 Result 包裹；其余当前 AI 对外业务接口通常使用统一 Result 包裹；MLOps 掩膜/预览下载接口返回二进制文件响应|
 |日期|Date 使用 `yyyy-MM-dd`；DateTime 使用 ISO\-8601 格式|
 
 
@@ -2383,11 +2383,14 @@ GET /api/patient/prescription/my-list
 |暂存病历草稿|`POST`|`/doctor-service/consult/save-draft`|
 |确认正式病历|`POST`|`/doctor-service/consult/confirm-record`|
 |创建检查申请单|`POST`|`/doctor-service/consult/create-exam-order`|
+|确认医技申请并进入队列|`POST`|`/doctor-service/consult/medical-order/confirm`|
+|查询本次检查/检验报告|`GET`|`/doctor-service/consult/reports`|
 |完成接诊|`POST`|`/doctor-service/consult/complete`|
 |开具处方|`POST`|`/doctor-service/consult/create-prescription`|
 |按挂号ID查询处方|`GET`|`/doctor-service/consult/prescription-list`|
 |按挂号ID查询检查单|`GET`|`/doctor-service/exam-order/list`|
 |查询当前医生开具的检查单|`GET`|`/doctor-service/exam-order/my-list`|
+|检查/检验医生提交报告|`POST`|`/doctor-service/task/report`|
 |查询医生周排班|`GET`|`/doctor-service/schedule/weekly`|
 |查询医生可选药品列表|`GET`|`/doctor-service/medicine/list`|
 |查询所有检验申请列表|`GET`<br>|`/inspection-doctor/lab-orders`|
@@ -2739,6 +2742,7 @@ GET /doctor-service/profile/setup-status
 |---|---|---|---|---|
 |consultStatus|query|String|否|接诊状态|
 |date|query|String|否|日期过滤|
+|reportReturnedOnly|query|Boolean|否|是否仅返回已有检查/检验报告回传的接诊记录，默认 false|
 |page|query|Integer|否|默认1|
 |limit|query|Integer|否|默认10|
 
@@ -2751,6 +2755,8 @@ GET /doctor-service/profile/setup-status
 |参数名|类型|说明|
 |---|---|---|
 |data|ConsultRecord\[\]|接诊列表|
+
+`ConsultRecord` 在接诊列表中额外返回 `reportCount`、`latestReportTime` 和 `hasReturnedReport`，用于接诊工作台展示“报告已回传/待复诊分析”提醒。`reportReturnedOnly=true` 时在服务端按已发布医技报告过滤后再分页。
 
 
 
@@ -3078,7 +3084,103 @@ GET /doctor-service/consult/detail
 
 
 
-**业务规则：** 生成CHK前缀检查单；checkType固定为“检查”，price固定0；urgencyLevel当前未持久化。
+**业务规则：** 该接口保留兼容旧前端。当前接诊主流程建议使用 `POST /doctor-service/consult/medical-order/confirm`，按 `medical_item.item_code` 确认正式医技申请并直接推进检查/检验队列。
+
+
+
+##### 2\.3\.2\.5A 确认医技申请并进入队列
+
+|项目|内容|
+|---|---|
+|接口地址|`/doctor-service/consult/medical-order/confirm`|
+|请求方式|`POST`|
+|请求头|token: 接诊医生JWT（必填）|
+|权限说明|仅接诊医生，且必须拥有该挂号记录|
+
+**请求参数**
+
+|参数名|位置|类型|必填|说明|
+|---|---|---|---|---|
+|registerId|body|String|是|挂号ID|
+|aiTraceId|body|String|否|AI检查/检验建议 traceId；传入时会校验提交项目来自本次AI建议|
+|clinicalSummary|body|String|是|临床摘要，可使用当前病历内容|
+|urgencyLevel|body|String|否|NORMAL、URGENT、EMERGENCY|
+|items|body|MedicalOrderItemRequest\[\]|是|待确认的正式医技项目，最多5项|
+|items\[\].itemCode|body|String|是|`medical_item.item_code`，必须在系统支持枚举中|
+|items\[\].urgencyLevel|body|String|否|单项目紧急程度；缺省继承主申请|
+
+**返回参数**
+
+|参数名|类型|说明|
+|---|---|---|
+|orderId|String|医技申请主单ID|
+|sourceType|String|AI_ASSISTED 或 MANUAL|
+|itemCount|Integer|项目数量|
+|totalAmount|Decimal|项目总金额|
+|status|String|当前开发联调流返回 QUEUED|
+|payStatus|String|当前开发联调流返回 PAID|
+|queueReady|Boolean|是否已进入检查/检验队列|
+|paymentMessage|String|支付服务不可用时的非阻断提示|
+
+**请求示例**
+
+```JSON
+{
+  "registerId": "REG001",
+  "aiTraceId": "AI202607050001",
+  "clinicalSummary": "患者头痛伴眩晕三天，需排除颅内病变。",
+  "urgencyLevel": "NORMAL",
+  "items": [
+    { "itemCode": "CRANIAL_CT_PLAIN", "urgencyLevel": "NORMAL" }
+  ]
+}
+```
+
+**返回示例**
+
+```JSON
+{
+  "code": 200,
+  "msg": "成功",
+  "data": {
+    "orderId": "MO...",
+    "sourceType": "AI_ASSISTED",
+    "itemCount": 1,
+    "totalAmount": 280.00,
+    "status": "QUEUED",
+    "payStatus": "PAID",
+    "queueReady": true,
+    "paymentMessage": null
+  }
+}
+```
+
+**业务规则：** 当前开发联调默认采用“生成即入队”：后端仍会尝试调用 payment-service 创建 `orderType=MEDICAL` 支付单，但支付服务失败或超时不阻断接诊主流程；doctor-service 会将 `medical_order.pay_status` 推进到 `PAID`，将 `medical_order.status` 与相关 `medical_order_item.status` 推进到 `QUEUED`，使检查/检验医生工作台可立即读取任务。支付失败只通过 `paymentMessage` 返回提示。
+
+
+
+##### 2\.3\.2\.5B 查询本次检查/检验报告
+
+|项目|内容|
+|---|---|
+|接口地址|`/doctor-service/consult/reports`|
+|请求方式|`GET`|
+|请求头|token: 接诊医生JWT（必填）|
+|权限说明|仅接诊医生，且必须拥有该挂号记录|
+
+**请求参数**
+
+|参数名|位置|类型|必填|说明|
+|---|---|---|---|---|
+|registerId|query|String|是|挂号ID|
+
+**返回参数**
+
+|参数名|类型|说明|
+|---|---|---|
+|data|MedicalReportVo\[\]|本次挂号已发布的检查/检验报告|
+
+**业务规则：** 仅返回 `medical_report.status=PUBLISHED` 的报告。接诊医生报告分析页优先读取该接口返回内容，仍可保留手动粘贴报告作为补充输入。
 
 
 
@@ -3742,19 +3844,23 @@ GET /inspection-doctor/order/MO202606160001
 
 
 
-**模块职责：** 提供医生辅助接诊分析、AI 采纳反馈、药品问答流式输出、AI智能问诊（给患者推荐科室和医生）、AI报告分析，以及模块3负责的AI生成检查/检验项目建议。
+**模块职责：** 提供统一 AI 聊天入口、AI 辅助接诊/辅助诊断、AI 病历草稿生成、AI 处方审核、AI 药品问答、AI 报告分析、AI 智能问诊推荐、AI 检查检验建议和 AI 智能排班。
 
 
 
-**路由范围：** `/ai-service/**`、`/api/ai/**`
+**路由范围：** `/ai-service/**`
 
 
 
-**权限说明：** 辅助接诊和报告分析接口仅医生使用；AI生成检查/检验项目建议由模块3维护；药品问答当前 Controller 尚未校验 token。
+**模型配置：** AI 聊天、接诊、病历生成、处方审核、报告分析、检查建议、药品问答和智能排班等大模型能力通过阿里云百炼 OpenAI 兼容接口调用 `deepseek-v4-flash`；接诊聊天和药品问答中的药品知识参考/PDF 知识库检索使用阿里云百炼向量模型 `text-embedding-v4`，维度配置为 `1024`。当前项目使用 Spring AI OpenAI 适配器，框架会自动追加 `/v1/chat/completions` 和 `/v1/embeddings`，因此后端配置为 `spring.ai.openai.base-url=``https://dashscope.aliyuncs.com/compatible-mode`、`spring.ai.openai.chat.options.model=deepseek-v4-flash`、`spring.ai.embedding.model=text-embedding-v4`，API Key 建议通过环境变量 `DASHSCOPE_API_KEY` 或 Nacos 的 `ai-service.yml` 下发。
 
 
 
-**接口数量：** 5
+**权限说明：** 辅助接诊、病历生成、处方审核和报告分析接口仅医生使用；AI 智能排班接口仅管理员使用；智能问诊推荐、检查建议和药品问答接口当前 Controller 未显式校验 token。AI 接诊类接口会通过 doctor\-service 内部接口校验医生与挂号记录归属。
+
+
+
+**接口数量： 11（服务间内部依赖接口见 2\.7 内部服务模块）**
 
 
 
@@ -3764,11 +3870,17 @@ GET /inspection-doctor/order/MO202606160001
 
 |接口名称|请求方式|接口地址|
 |---|---|---|
-|AI辅助接诊聊天|`POST`|`/ai-service/reception/chat`|
-|AI生成检查/检验项目建议|`POST`|`/ai-service/agent/exam/generate`|
+|统一AI聊天/辅助接诊/专业模块编排|`POST`|`/ai-service/reception/chat`|
+|AI病历草稿生成|`POST`|`/ai-service/reception/record/generate`|
+|AI药品问答流式输出|`POST`|`/ai-service/medicine/chat`|
+|AI处方审核|`POST`|`/ai-service/prescription/review`|
 |AI报告分析|`POST`|`/ai-service/report/analyze`|
-|药品问答流式输出|`POST`|`/api/ai/medicine/chat`|
-|AI智能问诊<br>（给患者推荐科室和医生）|`POST`<br>|`/api/ai/consult/recommend`|
+|AI智能问诊推荐|`POST`|`/ai-service/consult/recommend`|
+|获取推荐科室列表|`GET`|`/ai-service/consult/departments`|
+|AI检查检验建议生成|`POST`|`/ai-service/agent/exam/generate`|
+|AI排班预览|`POST`|`/ai-service/schedule/preview`|
+|AI排班冲突检查|`POST`|`/ai-service/schedule/conflict-check`|
+|AI排班发布|`POST`|`/ai-service/schedule/publish`|
 
 
 
@@ -3782,16 +3894,107 @@ GET /inspection-doctor/order/MO202606160001
 
 |字段|类型|说明|
 |---|---|---|
-|registerId|String|挂号ID，必填，最多32字符|
-|message|String|医生自然语言问题，最多2000字符；与actionType至少提供一项|
-|actionType|String|快捷功能意图，最多64字符；与message至少提供一项|
-|currentRecordDesc|String|当前病历草稿，最多10000字符|
-|symptomDescription|String|补充症状描述，最多5000字符|
-|conversationText|String|医患对话或本次问题上下文，最多20000字符|
+|registerId|String|当前接诊挂号ID，必填，最多32字符|
+|message|String|医生在AI对话框中输入的自然语言问题，最多2000字符；message和actionType至少提供一项|
+|actionType|String|前端按钮指定的 AI 能力；未传或无法识别时后端会按医生文本关键词做保守匹配，最多64字符|
+|medicineId|String|可选药品ID，用于统一接诊聊天中补充药品知识上下文，最多32字符|
+|currentRecordDesc|String|医生当前正在编辑的病历草稿，优先于数据库旧草稿，最多10000字符|
+|symptomDescription|String|患者症状补充描述，最多5000字符|
+|conversationText|String|医患对话原文，主要供AI病历自动生成模块整理病历，最多20000字符|
 |structuredParameters|Map\<String,String\>|结构化问诊参数，最多30项|
-|followUpAnswers|Map\<String,String\>|AI追问和患者回答，最多10项|
-|patientInformation|Map\<String,String\>|处方审查补充患者信息，最多30项|
-|medicines|PrescriptionReviewMedicineRequest\[\]|处方审查药品列表，最多10项|
+|followUpAnswers|Map\<String,String\>|医生已完成的AI追问及患者回答，最多10项|
+|patientInformation|Map\<String,String\>|处方审核需要的补充患者信息，例如过敏史、妊娠状态等，最多30项|
+|medicines|PrescriptionReviewMedicineRequest\[\]|处方审核场景下待审核的药品列表，最多10项；统一接诊聊天也可据此补充药品知识上下文|
+
+
+
+`actionType` 支持值来自当前源码的 `AiAssistantIntentEnum`：`FOLLOW_UP_QUESTION`、`MISSING_INFORMATION`、`CONTEXT_SUMMARY`、`CONTEXT_QA`、`MEDICAL_RECORD_DRAFT`、`PRESCRIPTION_REVIEW`、`DIAGNOSIS_ASSISTANT`、`UNKNOWN`。快捷按钮传入的 `actionType` 优先级最高；未传或无法识别时，后端会按医生文本关键词做保守匹配，未命中则默认 `CONTEXT_QA`。`MEDICAL_RECORD_DRAFT`、`PRESCRIPTION_REVIEW` 分别委派给病历草稿生成和处方审核专业模块。
+
+
+
+##### `AiAssistantChatResponse`
+
+
+
+
+
+|字段|类型|说明|
+|---|---|---|
+|traceId|String|本次AI请求追踪ID；当前聊天直接回答场景可能为空|
+|intent|String|识别出的意图，对应 `AiAssistantIntentEnum`|
+|answer|String|可直接展示在医生AI对话框中的文本回复|
+|status|String|SUCCESS/DELEGATED/NEEDS\_INPUT/FAILED/UNSUPPORTED|
+|handledModule|String|实际处理模块；病历生成为 `AI_MEDICAL_RECORD`，处方审核为 `AI_PRESCRIPTION_REVIEW`|
+|moduleResult|Object|专业模块结构化结果，例如病历草稿或处方审核结果|
+|modelVersion|String|当前使用的大模型版本或模型标识|
+|handledByAssistant|Boolean|是否由AI辅助接诊模块自身处理|
+|fallback|Boolean|是否为异常降级结果|
+
+
+
+
+
+##### `AiRecordGenerateRequest`
+
+
+
+|字段|类型|说明|
+|---|---|---|
+|registerId|String|当前接诊挂号ID，必填，最多32字符|
+|conversationText|String|医患对话原文，最多20000字符；conversationText和structuredParameters至少提供一项|
+|structuredParameters|Map\<String,String\>|结构化问诊参数，最多30项|
+|currentRecordDesc|String|医生当前病历草稿，最多10000字符|
+
+
+
+##### `AiRecordGenerateResponse`
+
+
+
+|字段|类型|说明|
+|---|---|---|
+|traceId|String|本次生成追踪ID；当前服务实现可能为空|
+|status|String|SUCCESS/FAILED|
+|modelVersion|String|模型名称或版本|
+|informationCompleteness|String|SUFFICIENT/INCOMPLETE|
+|structuredRecord|AiStructuredMedicalRecord|结构化病历字段|
+|draftRecordDesc|String|供医生编辑确认的完整病历草稿|
+|missingInformation|String\[\]|仍需补充的信息|
+|riskLevel|String|LOW/MEDIUM/HIGH/CRITICAL/UNKNOWN|
+|riskWarnings|String\[\]|由现有信息支持的风险提示|
+|fallback|Boolean|是否降级结果|
+
+
+
+##### `AiStructuredMedicalRecord`
+
+
+
+|字段|类型|说明|
+|---|---|---|
+|chiefComplaint|String|主诉|
+|historyOfPresentIllness|String|现病史|
+|pastMedicalHistory|String|既往史|
+|allergyHistory|String|过敏史|
+|personalHistory|String|个人史|
+|familyHistory|String|家族史|
+|physicalExamination|String|体格检查|
+|auxiliaryExamination|String|辅助检查|
+|assessment|String|初步诊断与依据|
+|treatmentPlan|String|处理计划|
+
+
+
+##### `PrescriptionReviewRequest`
+
+
+
+|字段|类型|说明|
+|---|---|---|
+|registerId|String|当前接诊挂号ID，必填，最多32字符|
+|currentRecordDesc|String|医生当前病历草稿，最多10000字符|
+|patientInformation|Map\<String,String\>|患者补充信息，例如过敏史、妊娠状态等，最多30项|
+|medicines|PrescriptionReviewMedicineRequest\[\]|待审核药品列表，必填，最多10项|
 
 
 
@@ -3802,74 +4005,71 @@ GET /inspection-doctor/order/MO202606160001
 |字段|类型|说明|
 |---|---|---|
 |medicineId|String|药品ID，必填，最多32字符|
-|usage|String|用法用量，必填，最多200字符|
-|quantity|Integer|数量，必填，1到10000|
+|usage|String|医嘱用法，必填，最多200字符|
+|quantity|Integer|数量，必填，范围1\-10000|
 
 
 
-##### `AiAssistantChatResponse`
+##### `PrescriptionReviewResponse`
 
 
 
 |字段|类型|说明|
 |---|---|---|
-|traceId|String|本次AI请求追踪ID|
-|intent|String|识别出的意图，对应actionType枚举|
-|answer|String|可直接展示在医生AI对话框中的文本回复|
-|status|String|SUCCESS/DELEGATED/NEEDS_INPUT/FAILED/UNSUPPORTED|
-|handledModule|String|实际处理模块；为空表示由辅助接诊模块直接处理|
-|moduleResult|Object|专业模块结构化结果，例如病历草稿或处方审查结果|
+|traceId|String|本次审核追踪ID；当前服务实现可能为空|
+|status|String|SUCCESS/FAILED|
 |modelVersion|String|模型名称或版本|
-|handledByAssistant|Boolean|是否由AI辅助接诊模块直接处理|
+|passed|Boolean|是否通过审核|
+|overallRiskLevel|String|LOW/MEDIUM/HIGH/CRITICAL/UNKNOWN|
+|summary|String|总体审核结论|
+|interactions|DrugInteractionResult\[\]|药物相互作用结果|
+|medicineRisks|PrescriptionMedicineRisk\[\]|单药风险结果|
+|contraindications|String\[\]|禁忌或潜在禁忌|
+|recommendations|String\[\]|总体用药建议|
+|missingInformation|String\[\]|审核所缺信息|
 |fallback|Boolean|是否降级结果|
 
 
 
-##### `ExamGenerateRequest`
+##### `DrugInteractionResult`
 
 
 
 |字段|类型|说明|
 |---|---|---|
-|registerId|String|挂号ID，必填|
-|context|ExamGenerateContext|病历上下文，必填|
+|medicineA|String|药品A名称|
+|medicineB|String|药品B名称|
+|severity|String|LOW/MEDIUM/HIGH/CRITICAL/UNKNOWN|
+|description|String|相互作用说明|
+|recommendation|String|处理建议|
 
 
 
-##### `ExamGenerateContext`
-
-
-
-|字段|类型|说明|
-|---|---|---|
-|patientId|String|患者ID，必填|
-|visitAge|Integer|就诊年龄|
-|description|String|病历描述、主诉、现病史、体格检查、初步诊断等文本|
-
-
-
-##### `ExamGenerateResponse`
+##### `PrescriptionMedicineRisk`
 
 
 
 |字段|类型|说明|
 |---|---|---|
-|traceId|String|本次生成追踪ID|
-|clinicalSummary|String|临床摘要|
-|checkItems|CheckItem\[\]|AI建议的检查/检验项目列表|
-|urgencyLevel|String|紧急程度：NORMAL/URGENT/EMERGENCY|
-|reasoningTrace|String|Agent执行追踪信息|
+|medicineId|String|药品ID|
+|medicineName|String|药品名称|
+|riskLevel|String|LOW/MEDIUM/HIGH/CRITICAL/UNKNOWN|
+|issues|String\[\]|该药品的具体风险|
+|suggestions|String\[\]|调整或监测建议|
 
 
 
-##### `CheckItem`
+##### `MedicineQueryDto`
 
 
 
 |字段|类型|说明|
 |---|---|---|
-|itemName|String|检查/检验项目名称|
-|selected|Boolean|默认是否选中，供医生确认|
+|sessionId|String|药品问答会话ID；用于 Redis 保存最近对话历史|
+|question|String|医生或患者输入的药品问题|
+|medicineId|String|可选药品ID；传入时优先按ID查询药品库|
+|userRole|String|用户角色，`doctor` 或 `patient`；为空或非 patient 时默认按医生问答提示词处理|
+|patientId|String|患者ID；患者端调用时可携带，后端会用于区分会话历史 key|
 
 
 
@@ -3879,10 +4079,11 @@ GET /inspection-doctor/order/MO202606160001
 
 |字段|类型|说明|
 |---|---|---|
-|registerId|String|挂号ID，必填|
-|reportType|String|报告类型：EXAM/LAB|
-|reportText|String|报告原文|
-|indicators|IndicatorDto\[\]|检验指标明细，可选|
+|registerId|String|挂号ID，必填，最多32字符|
+|reportType|String|报告类型；普通报告可传 EXAM/LAB，CT 结构化结果建议传 CT_ARTIFACT_REPORT 或 CT_LESION_REPORT|
+|reportText|String|检查/检验报告原文；与 indicators、reportInput 至少提供一项|
+|indicators|IndicatorDto\[\]|检验指标明细；与 reportText、reportInput 至少提供一项|
+|reportInput|Map\<String,Object\>|影像 AI 标准化 JSON 结果；用于承接 CT 金属伪影识别、CT 病灶识别与分割接口输出的 `reportInput`|
 
 
 
@@ -3907,11 +4108,11 @@ GET /inspection-doctor/order/MO202606160001
 |字段|类型|说明|
 |---|---|---|
 |summary|String|报告分析摘要|
-|riskLevel|String|风险等级：LOW/MEDIUM/HIGH等|
-|abnormalIndicators|AbnormalIndicatorVo\[\]|异常指标解释|
+|riskLevel|String|风险等级，例如 LOW/MEDIUM/HIGH|
+|abnormalIndicators|AbnormalIndicatorVo\[\]|异常指标解释；CT 结构化结果场景可为空数组|
 |suggestions|String\[\]|处理建议|
 |followUpAdvice|String|随访或复查建议|
-|fallback|Boolean|是否降级结果|
+|fallback|Boolean|是否为降级结果|
 
 
 
@@ -3928,7 +4129,134 @@ GET /inspection-doctor/order/MO202606160001
 
 
 
-#### 2\.4\.1 AI辅助接诊
+##### `ReportContextDto`
+
+
+
+|字段|类型|说明|
+|---|---|---|
+|available|Boolean|上下文是否可用|
+|errorMessage|String|不可用原因|
+|registerId|String|挂号ID|
+|patientId|String|患者ID|
+|patientAge|Integer|患者年龄|
+|patientGender|String|患者性别文本|
+|chiefComplaint|String|挂号主诉|
+|currentRecordDesc|String|当前病历描述|
+|medicalHistory|String\[\]|历史病历摘要|
+|previousReports|String\[\]|历史检查/检验报告摘要|
+
+
+
+##### `AiScheduleGenerateRequest`
+
+
+
+|字段|类型|说明|
+|---|---|---|
+|doctorId|String|医生ID，必填，最多32字符|
+|doctorName|String|医生姓名，必填，最多64字符|
+|deptId|String|科室ID，必填，最多32字符|
+|periodStart|Date|排班开始日期，必填|
+|periodEnd|Date|排班结束日期，必填；不能早于periodStart|
+|requirement|String|管理员自然语言排班要求，最多1000字符|
+|defaultMaxNum|Integer|默认号源数，1\-500，默认30|
+|defaultPrice|Decimal|默认挂号费，不能小于0，默认0\.00|
+|rooms|String\[\]|可用诊室，最多20项，每项最多64字符|
+|timeWindows|AiScheduleTimeWindow\[\]|可用时间窗口，最多30项；为空时使用工作日默认上午/下午窗口|
+|unavailableDates|Date\[\]|不可排班日期，最多60项|
+
+
+
+##### `AiScheduleTimeWindow`
+
+
+
+|字段|类型|说明|
+|---|---|---|
+|dayOfWeek|Integer|星期几，1\-7表示周一到周日；为空表示请求周期内每天都适用|
+|startTime|Time|开始时间|
+|endTime|Time|结束时间；必须晚于startTime才会作为有效窗口|
+|maxNum|Integer|该窗口号源数，1\-500；为空时使用defaultMaxNum|
+|price|Decimal|该窗口挂号费；为空时使用defaultPrice|
+|room|String|诊室，最多64字符|
+
+
+
+##### `AiScheduleItem`
+
+
+
+|字段|类型|说明|
+|---|---|---|
+|doctorId|String|医生ID，必填，最多32字符|
+|doctorName|String|医生姓名，必填，最多64字符|
+|deptId|String|科室ID，必填，最多32字符|
+|workDate|Date|工作日期，必填|
+|startTime|Time|开始时间，必填|
+|endTime|Time|结束时间，必填|
+|maxNum|Integer|号源数，必填，1\-500|
+|price|Decimal|挂号费，必填，不能小于0|
+|room|String|诊室，最多64字符|
+|conflict|Boolean|是否存在排班冲突|
+|conflictReason|String|冲突原因，最多200字符|
+
+
+
+##### `AiScheduleGenerateResponse`
+
+
+
+|字段|类型|说明|
+|---|---|---|
+|traceId|String|本次生成追踪ID；当前服务实现可能为空|
+|status|String|SUCCESS/FALLBACK|
+|modelVersion|String|模型名称或版本|
+|summary|String|排班策略摘要|
+|items|AiScheduleItem\[\]|排班草稿项，最多100项|
+|warnings|String\[\]|生成、读取现有排班或冲突检查时的提示|
+|optimizationReasons|String\[\]|排班优化理由|
+|fallback|Boolean|是否为规则降级生成|
+
+
+
+##### `AiScheduleConflictCheckRequest`
+
+
+
+|字段|类型|说明|
+|---|---|---|
+|items|AiScheduleItem\[\]|待检查排班项，必填，最多100项|
+
+
+
+##### `AiSchedulePublishRequest`
+
+
+
+|字段|类型|说明|
+|---|---|---|
+|traceId|String|排班草稿追踪ID，最多64字符|
+|items|AiScheduleItem\[\]|待发布排班项，必填，最多100项|
+
+
+
+##### `AiSchedulePublishResponse`
+
+
+
+|字段|类型|说明|
+|---|---|---|
+|traceId|String|发布追踪ID；当前服务实现可能为空|
+|status|String|SUCCESS/PARTIAL\_SUCCESS/FAILED|
+|submittedCount|Integer|提交的排班项数量|
+|createdCount|Integer|实际创建成功数量|
+|createdSchedules|DoctorSchedule\[\]|admin\-service 返回的已创建排班|
+|warnings|String\[\]|发布失败、部分成功或冲突提示|
+
+
+
+#### 2\.4\.1 AI接诊聊天与专业模块编排
 
 
 
@@ -3940,8 +4268,8 @@ GET /inspection-doctor/order/MO202606160001
 |---|---|
 |接口地址|`/ai-service/reception/chat`|
 |请求方式|`POST`|
-|请求头|token: 医生JWT|
-|权限说明|医生本人|
+|请求头|token: 医生JWT（必填）|
+|权限说明|医生本人；通过内部接口校验医生与挂号记录归属|
 
 
 
@@ -3951,16 +4279,17 @@ GET /inspection-doctor/order/MO202606160001
 
 |参数名|位置|类型|必填|说明|
 |---|---|---|---|---|
-|registerId|body|String|是|挂号ID|
-|message|body|String|否|医生自然语言问题；与actionType至少提供一项|
-|actionType|body|String|否|快捷功能意图；与message至少提供一项|
-|currentRecordDesc|body|String|否|当前病历，最多10000字符|
-|symptomDescription|body|String|否|补充症状，最多5000字符|
-|conversationText|body|String|否|医患对话或本次问题上下文，最多20000字符|
-|structuredParameters|body|Map\<String,String\>|否|最多30项；AI病历生成至少应提供conversationText或非空structuredParameters|
-|followUpAnswers|body|Map\<String,String\>|否|最多10项|
-|patientInformation|body|Map\<String,String\>|否|处方审查补充患者信息，最多30项|
-|medicines|body|PrescriptionReviewMedicineRequest\[\]|否|处方审查必填，最多10项|
+|registerId|body|String|是|当前接诊挂号ID|
+|message|body|String|条件必填|医生自然语言问题；与actionType至少提供一项|
+|actionType|body|String|条件必填|前端按钮选择的 AI 能力；与message至少提供一项；未传或无法识别时后端会按医生文本关键词做保守匹配|
+|medicineId|body|String|否|可选药品ID，用于接诊聊天中补充药品知识上下文|
+|currentRecordDesc|body|String|否|医生当前正在编辑的病历草稿|
+|symptomDescription|body|String|否|患者症状补充描述|
+|conversationText|body|String|否|医患对话原文；病历生成委派时会优先使用|
+|structuredParameters|body|Map\<String,String\>|否|结构化问诊参数|
+|followUpAnswers|body|Map\<String,String\>|否|已完成的追问及患者回答|
+|patientInformation|body|Map\<String,String\>|否|处方审核补充患者信息|
+|medicines|body|PrescriptionReviewMedicineRequest\[\]|否|处方审核时必填；接诊聊天可用于补充药品知识上下文|
 
 
 
@@ -3970,21 +4299,20 @@ GET /inspection-doctor/order/MO202606160001
 
 |参数名|类型|说明|
 |---|---|---|
-|data|AiAssistantChatResponse|AI聊天响应|
+|data|AiAssistantChatResponse|AI对话回复或专业模块编排结果|
 
 
 
-**请求示例**
+**请求示例：AI追问建议**
 
 
 
 ```JSON
 {
   "registerId": "REG001",
-  "message": "请基于当前接诊信息给出追问建议",
   "actionType": "FOLLOW_UP_QUESTION",
+  "message": "这个患者下一步还需要追问哪些问题？",
   "currentRecordDesc": "主诉：咳嗽三天。",
-  "symptomDescription": "夜间加重",
   "followUpAnswers": {
     "是否发热？": "否"
   }
@@ -3993,7 +4321,7 @@ GET /inspection-doctor/order/MO202606160001
 
 
 
-**返回示例**
+**返回示例：AI追问建议**
 
 
 
@@ -4002,10 +4330,12 @@ GET /inspection-doctor/order/MO202606160001
   "code": 200,
   "msg": "成功",
   "data": {
-    "traceId": "AI0123456789abcdef",
+    "traceId": null,
     "intent": "FOLLOW_UP_QUESTION",
-    "answer": "建议继续追问是否发热、咳痰颜色、胸痛气促和既往过敏史。",
+    "answer": "建议继续确认：1. 咳嗽性质；2. 是否咳痰；3. 是否胸闷气促；4. 是否接触呼吸道感染患者。",
     "status": "SUCCESS",
+    "handledModule": null,
+    "moduleResult": null,
     "modelVersion": "deepseek-v4-flash",
     "handledByAssistant": true,
     "fallback": false
@@ -4015,32 +4345,78 @@ GET /inspection-doctor/order/MO202606160001
 
 
 
-**actionType枚举：** `FOLLOW_UP_QUESTION`、`MISSING_INFORMATION`、`CONTEXT_SUMMARY`、`CONTEXT_QA`、`MEDICAL_RECORD_DRAFT`、`PRESCRIPTION_REVIEW`、`DIAGNOSIS_ASSISTANT`。
+**请求示例：委派AI病历生成**
 
 
 
-**错误码：** 400 参数校验失败；200\+FAILED AI或依赖服务失败
+```JSON
+{
+  "registerId": "REG001",
+  "actionType": "MEDICAL_RECORD_DRAFT",
+  "conversationText": "患者诉咳嗽三天，夜间加重，无发热。",
+  "structuredParameters": {
+    "咳嗽持续时间": "3天",
+    "发热": "否"
+  },
+  "currentRecordDesc": "主诉：咳嗽三天。"
+}
+```
 
 
 
-**业务规则：** 通过内部接口校验医生与接诊记录归属；快捷按钮传入的actionType优先于关键词识别；`MEDICAL_RECORD_DRAFT`委派AI病历生成模块，`PRESCRIPTION_REVIEW`委派AI处方审查模块且必须提供真实medicineId、usage和quantity；AI失败时仍可能返回code=200，但data\.status=FAILED、fallback=true；AI结果仅供医生审核。
+**返回示例：委派AI病历生成**
 
 
 
-#### 2\.4\.2 AI生成检查/检验项目建议
+```JSON
+{
+  "code": 200,
+  "msg": "成功",
+  "data": {
+    "traceId": null,
+    "intent": "MEDICAL_RECORD_DRAFT",
+    "answer": "已调用AI病历自动生成模块生成病历草稿。",
+    "status": "DELEGATED",
+    "handledModule": "AI_MEDICAL_RECORD",
+    "moduleResult": {
+      "traceId": null,
+      "status": "SUCCESS",
+      "modelVersion": "deepseek-v4-flash",
+      "informationCompleteness": "INCOMPLETE",
+      "draftRecordDesc": "主诉：咳嗽3天。现病史：患者咳嗽3天，夜间加重，无发热。",
+      "riskLevel": "LOW",
+      "riskWarnings": [],
+      "fallback": false
+    },
+    "modelVersion": "deepseek-v4-flash",
+    "handledByAssistant": false,
+    "fallback": false
+  }
+}
+```
 
 
 
-##### 2\.4\.2\.1 AI生成检查/检验项目建议
+**错误码：** 400 参数校验失败；500/业务异常 token无效、非医生角色、挂号记录不存在、无权访问、内部服务密钥缺失；200\+FAILED/NEEDS\_INPUT 表示模型降级或委派模块缺少必要输入
+
+
+
+**业务规则：** 先通过token解析医生ID并限制医生角色；再调用 `/internal/doctor/consult/context` 获取可信患者上下文。快捷按钮传入的 `actionType` 优先级最高；未传或无法识别时，后端会按医生文本关键词做保守匹配，未命中则默认 `CONTEXT_QA`。`FOLLOW_UP_QUESTION`、`MISSING_INFORMATION`、`CONTEXT_SUMMARY`、`CONTEXT_QA` 和 `DIAGNOSIS_ASSISTANT` 由 AI 辅助接诊模块直接处理；`MEDICAL_RECORD_DRAFT` 委派AI病历草稿生成；`PRESCRIPTION_REVIEW` 委派AI处方审核，调用时必须提供真实 `medicineId`、`usage`、`quantity`。正式处方仍需医生审核后通过医生接诊业务接口提交。
+
+
+
+
+
+##### 2\.4\.1\.2 AI病历草稿生成
 
 
 
 |项目|内容|
 |---|---|
-|接口地址|`/ai-service/agent/exam/generate`|
+|接口地址|`/ai-service/reception/record/generate`|
 |请求方式|`POST`|
-|请求头|Content\-Type: application/json|
-|权限说明|模块3维护；医生接诊模块仅跳转、传参、消费结果并由医生确认开单|
+|请求头|token: 医生JWT（必填）|
+|权限说明|医生本人；通过内部接口校验医生与挂号记录归属|
 
 
 
@@ -4050,10 +4426,10 @@ GET /inspection-doctor/order/MO202606160001
 
 |参数名|位置|类型|必填|说明|
 |---|---|---|---|---|
-|registerId|body|String|是|挂号ID|
-|context.patientId|body|String|是|患者ID|
-|context.visitAge|body|Integer|否|就诊年龄|
-|context.description|body|String|否|病历描述、主诉、现病史、体格检查、初步诊断等文本|
+|registerId|body|String|是|当前接诊挂号ID|
+|conversationText|body|String|条件必填|医患对话原文；与structuredParameters至少提供一项|
+|structuredParameters|body|Map\<String,String\>|条件必填|结构化问诊参数；与conversationText至少提供一项|
+|currentRecordDesc|body|String|否|医生当前病历草稿；优先于数据库旧草稿|
 
 
 
@@ -4063,7 +4439,7 @@ GET /inspection-doctor/order/MO202606160001
 
 |参数名|类型|说明|
 |---|---|---|
-|data|ExamGenerateResponse|AI生成的检查/检验项目建议|
+|data|AiRecordGenerateResponse|AI生成的结构化病历和病历草稿|
 
 
 
@@ -4074,11 +4450,13 @@ GET /inspection-doctor/order/MO202606160001
 ```JSON
 {
   "registerId": "REG001",
-  "context": {
-    "patientId": "P001",
-    "visitAge": 35,
-    "description": "主诉：头痛伴眩晕三天。现病史：..."
-  }
+  "conversationText": "医生：哪里不舒服？患者：咳嗽三天，夜里明显，没有发热。",
+  "structuredParameters": {
+    "咳嗽持续时间": "3天",
+    "夜间加重": "是",
+    "发热": "否"
+  },
+  "currentRecordDesc": "主诉：咳嗽三天。"
 }
 ```
 
@@ -4093,27 +4471,678 @@ GET /inspection-doctor/order/MO202606160001
   "code": 200,
   "msg": "成功",
   "data": {
-    "traceId": "EXAM_0123456789abcdef",
-    "clinicalSummary": "患者头痛伴眩晕，建议结合神经系统检查进一步评估。",
-    "checkItems": [
-      {
-        "itemName": "颅脑CT平扫",
-        "selected": true
-      }
+    "traceId": null,
+    "status": "SUCCESS",
+    "modelVersion": "deepseek-v4-flash",
+    "informationCompleteness": "INCOMPLETE",
+    "structuredRecord": {
+      "chiefComplaint": "咳嗽3天",
+      "historyOfPresentIllness": "患者咳嗽3天，夜间明显，无发热。",
+      "pastMedicalHistory": "待补充",
+      "allergyHistory": "待补充",
+      "personalHistory": "待补充",
+      "familyHistory": "待补充",
+      "physicalExamination": "待补充",
+      "auxiliaryExamination": "待补充",
+      "assessment": "待医生结合查体和检查确认",
+      "treatmentPlan": "待补充"
+    },
+    "draftRecordDesc": "主诉：咳嗽3天。现病史：患者咳嗽3天，夜间明显，无发热。既往史：待补充。",
+    "missingInformation": [
+      "咳嗽性质",
+      "是否咳痰",
+      "既往史",
+      "过敏史"
     ],
-    "urgencyLevel": "NORMAL",
-    "reasoningTrace": "=== Step 1: Planner ===\n..."
+    "riskLevel": "LOW",
+    "riskWarnings": [],
+    "fallback": false
   }
 }
 ```
 
 
 
-**错误码：** 400 参数校验失败；200\+空checkItems AI生成失败或无建议。
+**错误码：** 400 参数校验失败；500/业务异常 token无效、非医生角色、挂号记录不存在、无权访问、内部服务密钥缺失；200\+FAILED 表示AI病历生成降级
 
 
 
-**业务规则：** 该接口仅生成建议，不直接写入正式检查/检验申请；前端医生接诊页面可跳转到 `/doctor/ai-exam-generate` 或消费生成结果，但正式申请必须由医生确认后调用医生业务模块的开单接口。`/doctor/ai-exam-generate` 页面和该生成流程归模块3维护。
+**业务规则：** 该接口是 AI 病历草稿生成模块的直接入口；统一聊天入口也可通过 `actionType=MEDICAL_RECORD_DRAFT` 委派调用同一模块。服务只生成可编辑草稿，不直接保存正式病历。生成前从 doctor\-service 拉取患者年龄、性别、主诉、当前病历、历史病历和历史报告；请求中的 `currentRecordDesc` 会覆盖上下文里的旧草稿。模型失败时返回 `status=FAILED`、`fallback=true`，并尽量回填当前病历草稿。
+
+
+
+##### 2\.4\.1\.3 AI处方审核
+
+
+
+|项目|内容|
+|---|---|
+|接口地址|`/ai-service/prescription/review`|
+|请求方式|`POST`|
+|请求头|token: 医生JWT（必填）|
+|权限说明|医生本人；通过内部接口校验医生与挂号记录归属|
+
+
+
+**请求参数**
+
+
+
+|参数名|位置|类型|必填|说明|
+|---|---|---|---|---|
+|registerId|body|String|是|当前接诊挂号ID|
+|currentRecordDesc|body|String|否|医生当前病历草稿|
+|patientInformation|body|Map\<String,String\>|否|患者补充信息，例如过敏史、妊娠状态、肝肾功能等|
+|medicines|body|PrescriptionReviewMedicineRequest\[\]|是|待审核药品列表，最多10项|
+|medicines\[\]\.medicineId|body|String|是|药品ID，必须存在于药品库|
+|medicines\[\]\.usage|body|String|是|医嘱用法|
+|medicines\[\]\.quantity|body|Integer|是|数量，1\-10000|
+
+
+
+**返回参数**
+
+
+
+|参数名|类型|说明|
+|---|---|---|
+|data|PrescriptionReviewResponse|AI处方安全审核结果|
+
+
+
+**请求示例**
+
+
+
+```JSON
+{
+  "registerId": "REG001",
+  "currentRecordDesc": "主诉：咳嗽三天。无发热。青霉素过敏史待确认。",
+  "patientInformation": {
+    "过敏史": "青霉素过敏",
+    "妊娠状态": "否"
+  },
+  "medicines": [
+    {
+      "medicineId": "MED001",
+      "usage": "口服，一次1片，一日3次",
+      "quantity": 12
+    }
+  ]
+}
+```
+
+
+
+**返回示例**
+
+
+
+```JSON
+{
+  "code": 200,
+  "msg": "成功",
+  "data": {
+    "traceId": null,
+    "status": "SUCCESS",
+    "modelVersion": "deepseek-v4-flash",
+    "passed": false,
+    "overallRiskLevel": "MEDIUM",
+    "summary": "存在需医生确认的用药风险，建议补充过敏史和适应证信息后再开具。",
+    "interactions": [],
+    "medicineRisks": [
+      {
+        "medicineId": "MED001",
+        "medicineName": "示例药品",
+        "riskLevel": "MEDIUM",
+        "issues": [
+          "患者存在相关过敏史信息，需核对禁忌"
+        ],
+        "suggestions": [
+          "确认过敏史后选择替代药物或调整处方"
+        ]
+      }
+    ],
+    "contraindications": [
+      "青霉素过敏史需确认"
+    ],
+    "recommendations": [
+      "由医生或药师复核后再提交处方"
+    ],
+    "missingInformation": [
+      "明确过敏反应类型"
+    ],
+    "fallback": false
+  }
+}
+```
+
+
+
+**错误码：** 400 参数校验失败；500/业务异常 token无效、非医生角色、挂号记录不存在、无权访问、内部服务密钥缺失、药品不存在、处方药品重复；200\+FAILED 表示AI处方审核降级
+
+
+
+**业务规则：** 审核前会按 `medicineId` 查询药品库，并拒绝重复药品或不存在的药品。AI结合患者上下文、当前病历、历史病历、历史报告、患者补充信息和药品库中的用法/适应证/注意事项生成审核结论；模型输出后还会做确定性校验和字段规范化。审核结果只作为医生或药师辅助意见，不直接提交或修改处方。
+
+
+
+##### 2\.4\.1\.4 AI药品问答流式输出
+
+
+
+|项目|内容|
+|---|---|
+|接口地址|`/ai-service/medicine/chat`|
+|请求方式|`POST`|
+|请求头|`Content-Type: application/json`；`Accept: text/event-stream`|
+|权限说明|当前 Controller 未显式校验 token；医生端 `/doctor/ai-medicine` 页面直接调用该 SSE 接口|
+
+
+
+**请求参数**
+
+
+
+|参数名|位置|类型|必填|说明|
+|---|---|---|---|---|
+|sessionId|body|String|是|药品问答会话ID；用于保存最近对话历史|
+|question|body|String|是|医生或患者输入的药品问题|
+|medicineId|body|String|否|药品ID；传入时优先按ID查询药品库|
+|userRole|body|String|否|用户角色，`doctor` 或 `patient`；默认 `doctor`|
+|patientId|body|String|否|患者ID；患者端调用时可携带，用于区分会话历史 key|
+
+
+
+**返回参数**
+
+
+
+该接口返回 `Content-Type: text/event-stream` 的流式文本片段，响应体不是统一 `Result` JSON。
+
+
+
+**请求示例**
+
+
+
+```JSON
+{
+  "sessionId": "medicine-session-001",
+  "question": "阿莫西林和布洛芬可以一起用吗？",
+  "medicineId": "MED001",
+  "userRole": "doctor"
+}
+```
+
+
+
+**返回示例**
+
+
+
+```text
+阿莫西林和布洛芬通常不存在明确的严重相互作用...
+```
+
+
+
+**错误码：** SSE 建连失败或模型/向量检索异常时连接会结束或返回异常；前端需按流式请求失败处理。
+
+
+
+**业务规则：** 后端创建 `SseEmitter(300000L)`，根据 `medicineId` 或问题关键词查询药品库，并结合向量知识库相似文档生成回答。`userRole=patient` 时使用患者友好提示词；其他情况按医生临床药学顾问提示词处理。最近 5 轮 User/Assistant 对话会写入 Redis，默认 30 分钟过期。
+
+
+
+#### 2\.4\.2 AI智能排班
+
+
+
+**统一响应外层字段**
+
+
+
+|参数名|类型|说明|
+|---|---|---|
+|code|Integer|统一业务状态码；`200` 表示请求被后端正常处理，具体业务结果仍需继续查看 `data.status`、`data.fallback` 和 `data.warnings`|
+|msg|String|统一响应提示语；成功通常为 `成功`|
+|data|Object|接口业务数据；预览和冲突检查为 `AiScheduleGenerateResponse`，发布为 `AiSchedulePublishResponse`|
+
+
+
+**AiScheduleTimeWindow 字段说明**
+
+
+
+|参数名|类型|必填|说明|
+|---|---|---|---|
+|dayOfWeek|Integer|否|星期限制；`1-7` 分别表示周一到周日；不传或为 `null` 表示请求周期内每天都可使用该时间窗口|
+|startTime|Time|否|时间窗口开始时间，格式 `HH:mm:ss`；例如 `08:30:00`|
+|endTime|Time|否|时间窗口结束时间，格式 `HH:mm:ss`；必须晚于 `startTime` 才会被视为有效排班时段|
+|maxNum|Integer|否|该时间窗口的号源数量；未传时使用请求体中的 `defaultMaxNum`；范围 `1-500`|
+|price|Decimal|否|该时间窗口的挂号费；未传时使用请求体中的 `defaultPrice`|
+|room|String|否|该时间窗口优先使用的诊室；未传时从 `rooms` 列表中自动选择或为空|
+
+
+
+**AiScheduleItem 字段说明**
+
+
+
+|参数名|类型|必填|说明|
+|---|---|---|---|
+|doctorId|String|是|医生ID；发布时会作为排班所属医生写入 `doctor_schedule.doctor_id`|
+|doctorName|String|是|医生姓名；用于展示和写入排班快照|
+|deptId|String|是|科室ID；发布时会作为排班所属科室写入|
+|workDate|Date|是|出诊日期，格式 `yyyy-MM-dd`|
+|startTime|Time|是|出诊开始时间，格式 `HH:mm:ss`|
+|endTime|Time|是|出诊结束时间，格式 `HH:mm:ss`；必须晚于 `startTime`|
+|maxNum|Integer|是|本排班最大号源数；发布后通常会作为初始可预约号源数量|
+|price|Decimal|是|本排班挂号费|
+|room|String|否|出诊诊室|
+|conflict|Boolean|否|冲突标记；`true` 表示该医生在同日期、同时间段已有冲突排班或冲突检查失败|
+|conflictReason|String|否|冲突原因；无冲突时通常为 `null` 或空字符串|
+
+
+
+**AiScheduleGenerateResponse 字段说明**
+
+
+
+|参数名|类型|说明|
+|---|---|---|
+|traceId|String|本次排班草稿追踪ID；当前预览实现可能返回 `null`，发布时可原样透传或留空|
+|status|String|生成/检查状态；常见值：`SUCCESS` 表示成功，`FALLBACK` 表示模型不可用时使用规则降级生成|
+|modelVersion|String|使用的大模型名称或版本；当前配置通常为 `deepseek-v4-flash`|
+|summary|String|本次排班方案摘要，说明生成策略或冲突检查结果|
+|items|AiScheduleItem\[\]|排班项列表；预览接口返回 AI 或规则生成的草稿，冲突检查接口返回带冲突标记的原排班项|
+|warnings|String\[\]|警告信息列表；用于提示模型降级、读取已有排班失败、冲突检查异常、过滤无效排班等情况|
+|optimizationReasons|String\[\]|AI 给出的排班优化理由，例如避开不可用日期、符合管理员偏好、均衡诊室使用等|
+|fallback|Boolean|是否为降级结果；`true` 表示大模型调用失败，后端按规则生成了可供管理员继续检查的草稿|
+
+
+
+**AiSchedulePublishResponse 字段说明**
+
+
+
+|参数名|类型|说明|
+|---|---|---|
+|traceId|String|发布请求携带的排班草稿追踪ID；用于关联预览与发布流程|
+|status|String|发布结果；`SUCCESS` 表示全部创建成功，`PARTIAL_SUCCESS` 表示部分创建成功，`FAILED` 表示没有可发布项或调用 admin\-service 创建失败|
+|submittedCount|Integer|本次提交的排班项数量，包含冲突项和非冲突项|
+|createdCount|Integer|实际成功创建的排班数量|
+|createdSchedules|DoctorSchedule\[\]|admin\-service 返回的已创建排班记录列表|
+|warnings|String\[\]|发布警告或失败原因，例如存在冲突项被过滤、没有可发布排班、部分排班未创建等|
+
+
+
+**DoctorSchedule 主要字段说明**
+
+
+
+|参数名|类型|说明|
+|---|---|---|
+|scheduleId|String|排班ID，由 admin\-service 创建后返回|
+|planId|String|排班计划ID；当前 AI 批量创建场景可能为空|
+|doctorId|String|医生ID|
+|doctorName|String|医生姓名|
+|deptId|String|科室ID|
+|workDate|Date|出诊日期|
+|startTime|Time|出诊开始时间|
+|endTime|Time|出诊结束时间|
+|maxNum|Integer|最大号源数|
+|remainNum|Integer|剩余号源数|
+|status|Integer|排班启用状态；通常 `1` 表示启用，`0` 表示停用|
+|price|Decimal|挂号费|
+|room|String|诊室|
+|sourceType|String|排班来源；AI 创建场景可能由 admin\-service 标记|
+|scheduleStatus|String|排班业务状态；取值以 admin\-service 实际实现为准|
+|createTime|DateTime|创建时间|
+|updateTime|DateTime|更新时间|
+
+
+
+##### 2\.4\.2\.1 AI排班预览
+
+
+
+|项目|内容|
+|---|---|
+|接口地址|`/ai-service/schedule/preview`|
+|请求方式|`POST`|
+|请求头|`Authorization: Bearer {token}` 或 `token: 管理员JWT`|
+|权限说明|管理员；Controller 会校验管理员角色|
+
+
+
+**请求参数**
+
+
+
+|参数名|位置|类型|必填|说明|
+|---|---|---|---|---|
+|doctorId|body|String|是|医生ID|
+|doctorName|body|String|是|医生姓名|
+|deptId|body|String|是|科室ID|
+|periodStart|body|Date|是|排班开始日期|
+|periodEnd|body|Date|是|排班结束日期；周期最多31天|
+|requirement|body|String|否|管理员自然语言要求|
+|defaultMaxNum|body|Integer|否|默认号源数，1\-500，默认30|
+|defaultPrice|body|Decimal|否|默认挂号费，不能小于0，默认0\.00|
+|rooms|body|String\[\]|否|可用诊室列表|
+|timeWindows|body|AiScheduleTimeWindow\[\]|否|可用时间窗口；为空时使用工作日默认上午/下午窗口；字段含义见上方 `AiScheduleTimeWindow 字段说明`|
+|unavailableDates|body|Date\[\]|否|不可排班日期|
+
+
+
+**返回参数**
+
+
+
+|参数名|类型|说明|
+|---|---|---|
+|data|AiScheduleGenerateResponse|AI生成的排班草稿和冲突检查结果；字段含义见上方 `AiScheduleGenerateResponse 字段说明`|
+|data\.items|AiScheduleItem\[\]|可供管理员预览、调整、冲突检查和发布的排班项；字段含义见上方 `AiScheduleItem 字段说明`|
+
+
+
+**请求示例**
+
+
+
+```JSON
+{
+  "doctorId": "DOC001",
+  "doctorName": "李医生",
+  "deptId": "DEPT001",
+  "periodStart": "2026-07-01",
+  "periodEnd": "2026-07-07",
+  "requirement": "优先安排周一、周三上午门诊，避开周五。",
+  "defaultMaxNum": 30,
+  "defaultPrice": 30,
+  "rooms": [
+    "101",
+    "102"
+  ],
+  "timeWindows": [
+    {
+      "dayOfWeek": 1,
+      "startTime": "09:00:00",
+      "endTime": "12:00:00",
+      "maxNum": 30,
+      "price": 30,
+      "room": "101"
+    },
+    {
+      "dayOfWeek": 3,
+      "startTime": "09:00:00",
+      "endTime": "12:00:00",
+      "maxNum": 30,
+      "price": 30,
+      "room": "102"
+    }
+  ],
+  "unavailableDates": [
+    "2026-07-03"
+  ]
+}
+```
+
+
+
+**返回示例**
+
+
+
+```JSON
+{
+  "code": 200,
+  "msg": "成功",
+  "data": {
+    "traceId": null,
+    "status": "SUCCESS",
+    "modelVersion": "deepseek-v4-flash",
+    "summary": "根据管理员要求生成周一、周三上午门诊排班草稿。",
+    "items": [
+      {
+        "doctorId": "DOC001",
+        "doctorName": "李医生",
+        "deptId": "DEPT001",
+        "workDate": "2026-07-01",
+        "startTime": "09:00:00",
+        "endTime": "12:00:00",
+        "maxNum": 30,
+        "price": 30,
+        "room": "101",
+        "conflict": false,
+        "conflictReason": null
+      }
+    ],
+    "warnings": [],
+    "optimizationReasons": [
+      "符合管理员指定时间偏好",
+      "已跳过不可排班日期"
+    ],
+    "fallback": false
+  }
+}
+```
+
+
+
+**错误码：** 400 参数校验失败；500/业务异常 管理员token无效、非管理员角色；200\+FALLBACK 表示模型不可用时按规则生成草稿
+
+
+
+**业务规则：** 先校验管理员身份；再读取 admin\-service 中该医生在请求周期内的已有排班。AI生成结果会被规范化：医生、科室信息以请求参数为准；无效日期、不可排班日期、无效时间段会被过滤；最多保留100条排班项；最后调用 admin\-service 冲突检查并标记 `conflict/conflictReason`。模型失败时使用配置的时间窗口生成规则降级草稿。
+
+
+
+##### 2\.4\.2\.2 AI排班冲突检查
+
+
+
+|项目|内容|
+|---|---|
+|接口地址|`/ai-service/schedule/conflict-check`|
+|请求方式|`POST`|
+|请求头|`Authorization: Bearer {token}` 或 `token: 管理员JWT`|
+|权限说明|管理员；Controller 会校验管理员角色|
+
+
+
+**请求参数**
+
+
+
+|参数名|位置|类型|必填|说明|
+|---|---|---|---|---|
+|items|body|AiScheduleItem\[\]|是|待检查排班项，最多100项；字段含义见上方 `AiScheduleItem 字段说明`|
+
+
+
+**返回参数**
+
+
+
+|参数名|类型|说明|
+|---|---|---|
+|data|AiScheduleGenerateResponse|带冲突标记的排班项列表；字段含义见上方 `AiScheduleGenerateResponse 字段说明`|
+|data\.items|AiScheduleItem\[\]|冲突检查后的排班项；重点查看每项的 `conflict` 和 `conflictReason`|
+
+
+
+**请求示例**
+
+
+
+```JSON
+{
+  "items": [
+    {
+      "doctorId": "DOC001",
+      "doctorName": "李医生",
+      "deptId": "DEPT001",
+      "workDate": "2026-07-01",
+      "startTime": "09:00:00",
+      "endTime": "12:00:00",
+      "maxNum": 30,
+      "price": 30,
+      "room": "101"
+    }
+  ]
+}
+```
+
+
+
+**返回示例**
+
+
+
+```JSON
+{
+  "code": 200,
+  "msg": "成功",
+  "data": {
+    "traceId": null,
+    "status": "SUCCESS",
+    "modelVersion": "deepseek-v4-flash",
+    "summary": "Conflict check completed.",
+    "items": [
+      {
+        "doctorId": "DOC001",
+        "doctorName": "李医生",
+        "deptId": "DEPT001",
+        "workDate": "2026-07-01",
+        "startTime": "09:00:00",
+        "endTime": "12:00:00",
+        "maxNum": 30,
+        "price": 30,
+        "room": "101",
+        "conflict": true,
+        "conflictReason": "Doctor already has a schedule in this time range."
+      }
+    ],
+    "warnings": [],
+    "optimizationReasons": [],
+    "fallback": false
+  }
+}
+```
+
+
+
+**错误码：** 400 参数校验失败；500/业务异常 管理员token无效、非管理员角色；冲突检查依赖服务异常时仍返回200，但对应排班项会标记 `conflict=true`
+
+
+
+**业务规则：** 仅做冲突检查，不创建排班。每个排班项会通过 admin\-service 校验是否与已有排班冲突；校验失败或异常时按冲突处理，并在 `warnings` 中记录原因。
+
+
+
+##### 2\.4\.2\.3 AI排班发布
+
+
+
+|项目|内容|
+|---|---|
+|接口地址|`/ai-service/schedule/publish`|
+|请求方式|`POST`|
+|请求头|`Authorization: Bearer {token}` 或 `token: 管理员JWT`|
+|权限说明|管理员；Controller 会校验管理员角色|
+
+
+
+**请求参数**
+
+
+
+|参数名|位置|类型|必填|说明|
+|---|---|---|---|---|
+|traceId|body|String|否|排班草稿追踪ID|
+|items|body|AiScheduleItem\[\]|是|待发布排班项，最多100项；字段含义见上方 `AiScheduleItem 字段说明`|
+
+
+
+**返回参数**
+
+
+
+|参数名|类型|说明|
+|---|---|---|
+|data|AiSchedulePublishResponse|发布结果；字段含义见上方 `AiSchedulePublishResponse 字段说明`|
+|data\.createdSchedules|DoctorSchedule\[\]|实际创建成功的排班记录；字段含义见上方 `DoctorSchedule 主要字段说明`|
+
+
+
+**请求示例**
+
+
+
+```JSON
+{
+  "traceId": "SCH202607010001",
+  "items": [
+    {
+      "doctorId": "DOC001",
+      "doctorName": "李医生",
+      "deptId": "DEPT001",
+      "workDate": "2026-07-01",
+      "startTime": "09:00:00",
+      "endTime": "12:00:00",
+      "maxNum": 30,
+      "price": 30,
+      "room": "101",
+      "conflict": false
+    }
+  ]
+}
+```
+
+
+
+**返回示例**
+
+
+
+```JSON
+{
+  "code": 200,
+  "msg": "成功",
+  "data": {
+    "traceId": null,
+    "status": "SUCCESS",
+    "submittedCount": 1,
+    "createdCount": 1,
+    "createdSchedules": [
+      {
+        "scheduleId": "SCH001",
+        "doctorId": "DOC001",
+        "doctorName": "李医生",
+        "deptId": "DEPT001",
+        "workDate": "2026-07-01",
+        "startTime": "09:00:00",
+        "endTime": "12:00:00",
+        "maxNum": 30,
+        "price": 30,
+        "room": "101"
+      }
+    ],
+    "warnings": []
+  }
+}
+```
+
+
+
+**错误码：** 400 参数校验失败；500/业务异常 管理员token无效、非管理员角色；200\+FAILED/200\+PARTIAL\_SUCCESS 表示无可发布排班、admin\-service创建失败或部分排班未创建
+
+
+
+**业务规则：** 发布前会再次执行冲突检查；存在冲突的排班项会被过滤，不会提交给 admin\-service。无可发布排班时返回 `status=FAILED`。可发布排班通过 admin\-service 批量创建，全部成功返回 `SUCCESS`，部分创建返回 `PARTIAL_SUCCESS`。
 
 
 
@@ -4129,7 +5158,7 @@ GET /inspection-doctor/order/MO202606160001
 |---|---|
 |接口地址|`/ai-service/report/analyze`|
 |请求方式|`POST`|
-|请求头|token: 医生JWT|
+|请求头|token: 医生JWT（必填）|
 |权限说明|医生本人；通过内部接诊上下文校验医生与挂号记录归属|
 
 
@@ -4141,9 +5170,10 @@ GET /inspection-doctor/order/MO202606160001
 |参数名|位置|类型|必填|说明|
 |---|---|---|---|---|
 |registerId|body|String|是|挂号ID|
-|reportType|body|String|否|报告类型：EXAM/LAB|
-|reportText|body|String|否|报告原文|
-|indicators|body|IndicatorDto\[\]|否|检验指标明细|
+|reportType|body|String|否|报告类型；普通检查/检验可传 EXAM/LAB，CT 结构化结果建议传 CT_ARTIFACT_REPORT 或 CT_LESION_REPORT|
+|reportText|body|String|条件必填|报告原文；与 indicators、reportInput 至少提供一项|
+|indicators|body|IndicatorDto\[\]|条件必填|检验指标明细；与 reportText、reportInput 至少提供一项|
+|reportInput|body|Map\<String,Object\>|条件必填|影像 AI 标准化 JSON 结果；可直接传 CT 金属伪影识别或 CT 病灶识别分割返回的 `data.reportInput`|
 
 
 
@@ -4157,7 +5187,7 @@ GET /inspection-doctor/order/MO202606160001
 
 
 
-**请求示例**
+**请求示例：普通检验报告**
 
 
 
@@ -4166,6 +5196,42 @@ GET /inspection-doctor/order/MO202606160001
   "registerId": "REG001",
   "reportType": "LAB",
   "reportText": "脑脊液蛋白 0.62 g/L，参考范围 0.15-0.45 g/L"
+}
+```
+
+
+
+**请求示例：CT病灶结构化结果**
+
+
+
+```JSON
+{
+  "registerId": "REG001",
+  "reportType": "CT_LESION_REPORT",
+  "reportInput": {
+    "task": "CT_LESION_REPORT",
+    "modality": "CT",
+    "finding": {
+      "lesionDetected": true,
+      "lesionPixels": 3264,
+      "totalPixels": 31457280,
+      "lesionRatio": 0.0104,
+      "maskFile": "xxx_scan_lesion_mask.nii.gz",
+      "lesionSliceIndices": [36, 37, 38],
+      "lesionCount": 2,
+      "largestLesionPixels": 2140,
+      "fallback": false,
+      "previewSliceIndex": 37,
+      "previewImageFile": "xxx_scan_lesion_preview_z37.png",
+      "previewImageUrl": "/previews/xxx_scan_lesion_preview_z37.png"
+    },
+    "model": {
+      "modelType": "attention",
+      "modelVersion": "lesion_attention_adamw_20260704_001918"
+    },
+    "summary": "检测到CT病灶候选区2处，候选像素占比约0.0104%。"
+  }
 }
 ```
 
@@ -4180,18 +5246,14 @@ GET /inspection-doctor/order/MO202606160001
   "code": 200,
   "msg": "成功",
   "data": {
-    "summary": "脑脊液蛋白偏高，需结合临床表现判断炎症或屏障受损可能。",
+    "summary": "CT病灶候选区需结合原始影像、临床症状和既往检查综合判断。",
     "riskLevel": "MEDIUM",
-    "abnormalIndicators": [
-      {
-        "name": "脑脊液蛋白",
-        "value": "0.62 g/L",
-        "referenceRange": "0.15-0.45 g/L",
-        "interpretation": "高于参考范围"
-      }
+    "abnormalIndicators": [],
+    "suggestions": [
+      "由检查/检验医生结合原始CT影像复核AI分割区域",
+      "必要时完善增强CT或相关实验室检查"
     ],
-    "suggestions": ["核对报告原文和异常指标", "必要时结合影像和病史复查"],
-    "followUpAdvice": "由医生结合查体和既往检查结果确认。",
+    "followUpAdvice": "建议结合病史和体征决定复查或进一步检查计划。",
     "fallback": false
   }
 }
@@ -4199,88 +5261,11 @@ GET /inspection-doctor/order/MO202606160001
 
 
 
-**错误码：** 500 Token无效；500 挂号ID为空；500 无法获取患者接诊信息。
+**错误码：** 400 参数校验失败；500 Token无效、非医生角色、挂号ID为空、无法获取患者接诊信息或无权访问；200\+fallback=true 表示大模型调用失败后返回规则降级分析。
 
 
 
-**业务规则：** 调用前通过内部接口校验医生拥有该接诊记录；AI分析结果仅供医生参考，可由医生写入病历草稿。
-
-
-
-#### 2\.4\.4 AI药品问答
-
-
-
-##### 2\.4\.4\.1 药品问答流式输出
-
-
-
-|项目|内容|
-|---|---|
-|接口地址|`/api/ai/medicine/chat`|
-|请求方式|`POST`|
-|请求头|Content\-Type: application/json；Accept: text/event\-stream|
-|权限说明|医生端；当前Controller未校验token|
-
-
-
-**请求参数**
-
-
-
-|参数名|位置|类型|必填|说明|
-|---|---|---|---|---|
-|sessionId|body|String|建议|会话ID|
-|question|body|String|是|问题|
-|medicineId|body|String|否|指定药品ID；为空时按问题关键词查找|
-
-
-
-**返回参数**
-
-
-
-|参数名|类型|说明|
-|---|---|---|
-|SSE chunk|text|模型生成的文本片段|
-
-
-
-**请求示例**
-
-
-
-```JSON
-{
-  "sessionId": "S001",
-  "question": "该药有哪些注意事项？",
-  "medicineId": "MED001"
-}
-```
-
-
-
-**返回示例**
-
-
-
-```Plain Text
-data: 药品使用需遵医嘱，注意禁忌证...
-
-data: [后续文本片段]
-```
-
-
-
-**错误码：** 流中断/HTTP 5xx 模型、Redis或数据库异常
-
-
-
-**业务规则：** 响应Content\-Type为text/event\-stream；超时300秒；会话历史当前不读取，仅写入Redis字符串，过期30分钟。
-
-#### 2\.4\.5 AI智能问诊
-
-
+**业务规则：** 普通检查/检验报告分析调用前通过内部接口校验医生拥有该接诊记录。CT 金属伪影识别和 CT 病灶识别分割产生的结构化 `reportInput` 可由检查医生工作流提交，`reportType` 传 `CT_ARTIFACT_REPORT` 或 `CT_LESION_REPORT` 时不再强制要求当前医生是该挂号的接诊医生。`reportText`、`indicators`、`reportInput` 至少提供一项；其中 `reportInput` 用于接收影像 AI 输出的标准化 JSON。服务会把报告文本、结构化检验指标或影像 AI 结构化结果交给大模型分析，输出仅供医生参考，不替代原始影像复核或正式诊断。
 
 
 
@@ -4326,9 +5311,9 @@ data: [后续文本片段]
 |CT病灶识别与分割结果掩膜下载|`GET`|`/admin-service/ml/inference/ct-lesion/result/{maskFilename}`|
 |CT病灶识别与分割预览图下载|`GET`|`/admin-service/ml/inference/ct-lesion/preview/{previewFilename}`|
 
-> **四角色拆分（CT 归属检查医生）**：CT 伪影检测虽物理上仍由 `ai-service` 的 `MlOpsController` 实现，但业务上归**检查医生（roleType=2, doctorType=2）**，不再属于管理员 MLOps。网关新增 doctor 向语义别名，前端检查医生页面应调用别名路径：
+> **四角色拆分（CT 归属检查医生）**：CT 伪影检测虽物理上仍由 `ai-service` 的 `MlOpsController` 实现，但业务上归**检查医生（roleType=2, doctorType=2）**，不再属于管理员 MLOps。前端检查医生页面应调用 doctor-service 语义路径，由 doctor-service 完成医生身份校验后代理到 ai-service：
 >
-> | 检查医生调用路径（别名） | 网关重写后转发到 ai-service |
+> | 检查医生调用路径 | doctor-service 代理目标 |
 > |---|---|
 > | `POST /doctor-service/exam/ct-artifact` | `POST /admin-service/ml/inference/ct-artifact` |
 > | `GET /doctor-service/exam/ct-artifact/result/{maskFilename}` | `GET /admin-service/ml/inference/ct-artifact/result/{maskFilename}` |
@@ -4337,7 +5322,7 @@ data: [后续文本片段]
 > | `GET /doctor-service/exam/ct-lesion/result/{maskFilename}` | `GET /admin-service/ml/inference/ct-lesion/result/{maskFilename}` |
 > | `GET /doctor-service/exam/ct-lesion/preview/{previewFilename}` | `GET /admin-service/ml/inference/ct-lesion/preview/{previewFilename}` |
 >
-> 路由 `doctor-ct-artifact-route`、`doctor-ct-lesion-route` 置于通用 `/doctor-service/**` 路由之前（`gateway-server/application-route.yml`），通过 `RewritePath` 完成路径重写。原 `/admin-service/ml/inference/ct-artifact`、`/admin-service/ml/inference/ct-lesion` 路径仍可用（向后兼容），但检查医生端前端应优先调用 doctor 语义路径。
+> `gateway-server/application-route.yml` 和 Vite 开发代理不再对上述 doctor-service 路径做特殊重写，避免绕过检查医生权限校验。原 `/admin-service/ml/inference/ct-artifact`、`/admin-service/ml/inference/ct-lesion` 路径仍可用于管理员/MLOps 兼容访问；检查医生端前端必须优先调用 doctor-service 语义路径。
 
 
 
@@ -4454,9 +5439,9 @@ data: [后续文本片段]
 |lesionRatio|Double|病灶候选区占比，百分数|
 |lesionCount|Integer|按连通域统计的病灶候选区数量|
 |largestLesionPixels|Integer|最大病灶候选连通域像素/体素数|
-|fallback|Boolean|是否使用未加载训练权重时的启发式候选结果|
+|fallback|Boolean|是否为降级结果；`false` 表示已使用训练权重推理，`true` 表示权重缺失或未配置时的启发式候选结果|
 |modelType|String|模型结构，当前默认 attention|
-|modelVersion|String|模型版本；未加载病灶权重时为 heuristic_no_weights|
+|modelVersion|String|模型版本，当前部署为 lesion_attention_adamw_20260704_001918；未加载病灶权重时为 heuristic_no_weights|
 |summary|String|结构化摘要|
 |reportInput|CtLesionReportInput|给后续大语言模型生成文字描述/报告初稿的结构化输入|
 |logId|String|Java 侧推理日志ID|
@@ -5346,11 +6331,35 @@ multipart/form-data: file=<scan.nii.gz>
     "largestLesionPixels": 2140,
     "fallback": false,
     "modelType": "attention",
-    "modelVersion": "lesion_attention_v1",
+    "modelVersion": "lesion_attention_adamw_20260704_001918",
     "summary": "检测到CT病灶候选区2处，候选像素占比约0.0104%。",
     "reportInput": {
       "task": "CT_LESION_REPORT",
-      "modality": "CT"
+      "modality": "CT",
+      "finding": {
+        "lesionDetected": true,
+        "lesionPixels": 3264,
+        "totalPixels": 31457280,
+        "lesionRatio": 0.0104,
+        "maskFile": "xxx_scan_lesion_mask.nii.gz",
+        "lesionSliceIndices": [36, 37, 38],
+        "lesionCount": 2,
+        "largestLesionPixels": 2140,
+        "fallback": false,
+        "previewSliceIndex": 37,
+        "previewImageFile": "xxx_scan_lesion_preview_z37.png",
+        "previewImageUrl": "/previews/xxx_scan_lesion_preview_z37.png"
+      },
+      "imageMeta": {
+        "shape": [120, 512, 512],
+        "spacing": [1.0, 0.8, 0.8],
+        "origin": [0.0, 0.0, 0.0]
+      },
+      "model": {
+        "modelType": "attention",
+        "modelVersion": "lesion_attention_adamw_20260704_001918"
+      },
+      "summary": "检测到CT病灶候选区2处，候选像素占比约0.0104%。"
     },
     "logId": "INF0123456789abcdef",
     "latencyMs": 910
@@ -5360,7 +6369,7 @@ multipart/form-data: file=<scan.nii.gz>
 
 **错误码：** 400 文件格式不支持；500 Python 服务不可用或推理异常。
 
-**业务规则：** Python 服务生成 3D 病灶候选掩膜、结构化统计和 2D PNG 预览图。预览图为选定 Z 轴 CT 灰度切片叠加红色病灶候选区，用于前端优先展示；完整 3D 掩膜仍通过下载接口保留。若 `LESION_MODEL_PATH` 未配置或权重不存在，Python 服务返回 `fallback=true` 且 `modelVersion=heuristic_no_weights`，仅表示服务链路可运行的启发式候选结果，不代表训练模型诊断。推荐使用公开带 mask 的 MSD Task10 Colon CT 肿瘤分割数据集，经 `tools/prepare_msd_lesion_dataset.py` 转为 2D `.npy` CT/MASK 切片后，用 `training/config_lesion.yaml` 训练 Attention U-Net；训练完成后将权重保存为 `Model/weights/best_lesion_attention.pth` 并通过 `LESION_MODEL_PATH` 加载。`reportInput` 是后续大语言模型生成文字描述和报告初稿的输入，LLM 不负责重新判断病灶区域。
+**业务规则：** Python 服务生成 3D 病灶候选掩膜、结构化统计和 2D PNG 预览图。预览图为选定 Z 轴 CT 灰度切片叠加红色病灶候选区，用于前端优先展示；完整 3D 掩膜仍通过下载接口保留。当前已部署训练权重 `Model/weights/best_lesion_attention.pth`，默认模型版本为 `lesion_attention_adamw_20260704_001918`；仅当 `LESION_MODEL_PATH` 未配置或权重不存在时，Python 服务返回 `fallback=true` 且 `modelVersion=heuristic_no_weights`，表示服务链路可运行的启发式候选结果，不代表训练模型诊断。`reportInput` 是后续大语言模型生成文字描述和报告初稿的标准化 JSON 输入，可直接提交给 `/ai-service/report/analyze`；LLM 不负责重新判断病灶区域。
 
 ##### 2\.5\.1\.14 CT病灶识别与分割结果掩膜下载
 |项目|内容|
@@ -5708,14 +6717,17 @@ GET /internal/doctor/consult/context
 
 ### 4.1 开具检查/检验申请
 
-- 接诊医生通过 `/doctor-service/consult/create-exam-order` 开具检查/检验申请时，后端写入 `medical_order`、`medical_order_item`，并同步调用 `payment-service/pay/create` 创建 `orderType=MEDICAL` 的支付订单。
+- 接诊医生主流程通过 `/doctor-service/consult/medical-order/confirm` 确认检查/检验申请时，后端写入 `medical_order`、`medical_order_item`，并尝试调用 `payment-service/pay/create` 创建 `orderType=MEDICAL` 的支付订单；当前开发联调流不以 payment-service 成功作为接诊阻塞条件。
+- 兼容旧接口 `/doctor-service/consult/create-exam-order` 保留，但接诊详情页不再作为主入口使用。
 - 检查/检验项目必须能在 `medical_item` 字典中匹配；未知项目会拒绝开单，不再以 0 元项目写入或创建支付订单。
 - 支付订单 `businessId` 等于 `medical_order.order_id`，初始 `payStatus=WAITING`。
-- `medical_order.pay_status` 初始为 `WAITING`，申请状态 `status` 初始为 `WAITING_ASSIGN`。
+- 新主流程会在保存医技申请后将 `medical_order.pay_status` 推进到 `PAID`，并将主单与明细状态推进到 `QUEUED`，确保检查/检验医生队列能立即读取任务；支付服务不可用时只返回非阻断提示。
 
 ### 4.2 支付状态联动
 
-- `POST /payment-service/pay/success/{payId}` 支付成功后，同步更新业务表支付状态；`MEDICAL` 更新 `medical_order.pay_status=PAID`，`PRESCRIPTION` 更新 `prescription.pay_status=PAID`，`REGISTER` 更新 `registration.pay_status=PAID`。
+- `POST /payment-service/pay/success/{payId}` 支付成功后，先更新 `pay.pay_status=PAID`。`PRESCRIPTION` 更新 `prescription.pay_status=PAID`，`REGISTER` 更新 `registration.pay_status=PAID`。
+- `MEDICAL` 支付成功后，payment-service 不再直接更新 `medical_order`，而是调用 doctor-service 内部回调 `/doctor-service/internal/medical-order/payment-success/{orderId}`，由 doctor-service 统一将 `medical_order.pay_status` 推进到 `PAID`、将 `medical_order.status` 从 `WAITING_ASSIGN` 推进到 `QUEUED`，并将该申请下仍为 `WAITING_ASSIGN` 的 `medical_order_item.status` 推进到 `QUEUED`。该回调按幂等处理：如果支付状态已是 `PAID`，doctor-service 仍会继续执行入队；这样避免 payment-service 未提交事务占用 `medical_order` 行锁导致跨服务回调超时。
+- 医生端 CT 推理上传经 `/doctor-service/exam/ct-artifact` 和 `/doctor-service/exam/ct-lesion` 代理到 ai-service；doctor-service 与 ai-service 均配置 multipart 上限 `100MB`，避免浏览器路径先被 doctor-service 拦截。
 - 取消和退款分别同步为 `CANCELLED`、`REFUNDED`；如果业务表未更新到对应记录，本次支付状态变更失败并回滚。
 
 ### 4.3 检查/检验医生申请列表与分配
@@ -5725,6 +6737,8 @@ GET /internal/doctor/consult/context
 | 查询检查/检验申请列表 | `GET` | `/inspection-doctor/orders` |
 | 兼容旧地址 | `GET` | `/inspection-doctor/lab-orders` |
 | 分配检查/检验申请 | `POST` | `/inspection-doctor/order/{orderId}/assign` |
+| 查询当前医生可领取队列 | `GET` | `/doctor-service/task/queue` |
+| 检查/检验医生提交报告 | `POST` | `/doctor-service/task/report` |
 
 `/inspection-doctor/orders` 返回全部 `EXAM` 和 `LAB` 医技申请，不再仅限 LAB。
 
@@ -5741,4 +6755,24 @@ GET /internal/doctor/consult/context
 - 仅检查/检验医生可调用。
 - 只有 `pay_status=PAID` 且 `status=WAITING_ASSIGN` 的申请可以分配。
 - `assignedRoom` 必须非空；分配成功后写入 `medical_order.assigned_room`，并将 `medical_order.status` 更新为 `QUEUED`。
-- 检查/检验医生工作台可按 `payStatus=PAID`、`status=QUEUED` 查找可以执行的患者。
+- `/doctor-service/task/queue` 仅返回当前医生类型可领取的已支付排队明细：检查医生（`doctorType=2`）只返回 `item_category=EXAM`，检验医生（`doctorType=3`）只返回 `item_category=LAB`；`queueCount` 与 `tasks` 使用同一过滤口径。
+- 检查/检验医生工作台展示当前医生自己的任务；可领取队列展示尚未领取的 `QUEUED` 任务，两者语义分开。
+
+报告提交请求体：
+
+```JSON
+{
+  "orderItemId": "MOI001",
+  "resultSummary": "颅脑CT平扫未见明显异常密度影。",
+  "conclusion": "颅脑CT平扫未见明显异常。",
+  "abnormalFlag": "NORMAL",
+  "attachmentUrl": "/files/reports/ct/MR001.zip"
+}
+```
+
+报告提交业务规则：
+
+- 仅检查/检验医生可调用。
+- 任务必须为当前医生领取中的 `IN_PROCESS` 状态。
+- 提交后写入或覆盖 `medical_report`，状态为 `PUBLISHED`，并同步将对应 `medical_order_item` 标记为 `COMPLETED`。
+- 接诊医生通过 `/doctor-service/consult/reports?registerId=...` 查询本次已发布报告；接诊列表通过 `reportCount/latestReportTime/hasReturnedReport` 提示“报告已回传/待复诊分析”。

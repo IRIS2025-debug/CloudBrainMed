@@ -1,7 +1,9 @@
 package com.cloudbrainmed.doctor.service;
 
+import com.cloudbrainmed.doctor.dto.MedicalReportSubmitRequest;
 import com.cloudbrainmed.doctor.vo.DoctorTaskDetailVo;
 import com.cloudbrainmed.doctor.vo.DoctorTaskVo;
+import com.cloudbrainmed.doctor.vo.MedicalReportVo;
 
 import java.util.List;
 
@@ -17,6 +19,11 @@ public interface TaskSchedulerService {
     List<DoctorTaskVo> getDoctorWorkbench(String doctorId, Integer doctorType);
 
     /**
+     * 鑾峰彇褰撳墠妫€鏌?妫€楠屽尰鐢熷彲棰嗗彇鐨勬帓闃熶换鍔?
+     */
+    List<DoctorTaskVo> getAssignableQueue(Integer doctorType);
+
+    /**
      * 获取任务详情
      */
     DoctorTaskDetailVo getTaskDetail(String orderItemId, String doctorId);
@@ -30,6 +37,8 @@ public interface TaskSchedulerService {
      * 医生完成任务
      */
     void completeTask(String orderItemId, String doctorId);
+
+    MedicalReportVo submitReport(MedicalReportSubmitRequest request, String doctorId);
 
     /**
      * 支付成功后触发入队
@@ -53,4 +62,9 @@ public interface TaskSchedulerService {
      * 按医生类型过滤：检查医生(2)只看EXAM，检验医生(3)只看LAB
      */
     List<DoctorTaskVo> getQueue(Integer doctorType);
+
+    /**
+     * 鑾峰彇褰撳墠妫€鏌?妫€楠屽尰鐢熷彲棰嗗彇鐨勬帓闃熶换鍔℃暟閲?
+     */
+    long getAssignableQueueCount(Integer doctorType);
 }

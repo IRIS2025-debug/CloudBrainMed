@@ -5,7 +5,7 @@ import com.cloudbrainmed.doctor.entity.ConsultRecord;
 import java.util.List;
 
 public interface ConsultService {
-    List<ConsultRecord> getList(String doctorId, String consultStatus, String date, int page, int limit);
+    List<ConsultRecord> getList(String doctorId, String consultStatus, String date, boolean reportReturnedOnly, int page, int limit);
     ConsultRecord getDetail(String doctorId, String registerId);
     void saveDraft(String doctorId, String registerId, String recordDesc);
     void confirmRecord(String doctorId, String registerId, String recordDesc);

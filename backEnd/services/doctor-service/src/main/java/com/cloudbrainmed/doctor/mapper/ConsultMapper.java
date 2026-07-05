@@ -20,11 +20,23 @@ public interface ConsultMapper {
         "SELECT r.register_id, r.patient_id, r.doctor_id, r.name, r.gender, r.birthday, " +
         "r.chief_complaint, r.department, r.consult_room, r.visit_date, r.consult_time, " +
         "r.price, r.pay_status, r.consult_status, r.create_time, " +
-        "EXTRACT(YEAR FROM AGE(NOW(), r.birthday)) AS patient_age " +
+        "EXTRACT(YEAR FROM AGE(NOW(), r.birthday)) AS patient_age, " +
+        "(SELECT COUNT(*) FROM medical_order mo " +
+        " JOIN medical_order_item moi ON moi.order_id = mo.order_id " +
+        " JOIN medical_report mr ON mr.order_item_id = moi.order_item_id " +
+        " WHERE mo.register_id = r.register_id AND mr.status = 'PUBLISHED') AS report_count, " +
+        "(SELECT MAX(mr.report_time)::timestamp FROM medical_order mo " +
+        " JOIN medical_order_item moi ON moi.order_id = mo.order_id " +
+        " JOIN medical_report mr ON mr.order_item_id = moi.order_item_id " +
+        " WHERE mo.register_id = r.register_id AND mr.status = 'PUBLISHED') AS latest_report_time " +
         "FROM registration r " +
         "WHERE r.doctor_id = #{doctorId} " +
         "<if test='consultStatus != null and consultStatus != \"\"'>AND r.consult_status = #{consultStatus}</if> " +
         "<if test='date != null and date != \"\"'>AND r.visit_date = #{date}::date</if> " +
+        "<if test='reportReturnedOnly'>AND EXISTS (SELECT 1 FROM medical_order mo " +
+        " JOIN medical_order_item moi ON moi.order_id = mo.order_id " +
+        " JOIN medical_report mr ON mr.order_item_id = moi.order_item_id " +
+        " WHERE mo.register_id = r.register_id AND mr.status = 'PUBLISHED')</if> " +
         "ORDER BY r.create_time DESC LIMIT #{limit} OFFSET #{offset}" +
         "</script>")
     @Results({
@@ -38,11 +50,14 @@ public interface ConsultMapper {
         @Result(column = "pay_status", property = "payStatus"),
         @Result(column = "consult_status", property = "consultStatus"),
         @Result(column = "create_time", property = "createTime"),
-        @Result(column = "patient_age", property = "patientAge")
+        @Result(column = "patient_age", property = "patientAge"),
+        @Result(column = "report_count", property = "reportCount"),
+        @Result(column = "latest_report_time", property = "latestReportTime")
     })
     List<ConsultRecord> findList(@Param("doctorId") String doctorId,
                                   @Param("consultStatus") String consultStatus,
                                   @Param("date") String date,
+                                  @Param("reportReturnedOnly") boolean reportReturnedOnly,
                                   @Param("offset") int offset,
                                   @Param("limit") int limit);
 

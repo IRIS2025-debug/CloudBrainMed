@@ -1,10 +1,10 @@
 # CT lesion recognition/segmentation training config.
 # Prepare data first:
-#   python tools/prepare_msd_lesion_dataset.py --archive D:/datasets/Task10_Colon.tar --output-dir data/ct_lesion_dataset --max-cases 8
+#   python tools/prepare_msd_lesion_dataset.py --archive D:/datasets/Task10_Colon.tar --output-dir ../../../../project-materials/CT病灶识别分割模型留痕/CT病灶数据集 --max-cases 8
 
 data:
-  ct_dir: "data/ct_lesion_dataset/CT"
-  mask_dir: "data/ct_lesion_dataset/MASK"
+  ct_dir: "../../../../project-materials/CT病灶识别分割模型留痕/CT病灶数据集/CT"
+  mask_dir: "../../../../project-materials/CT病灶识别分割模型留痕/CT病灶数据集/MASK"
   val_split: 0.2
   seed: 42
 
@@ -40,6 +40,6 @@ augmentation:
   noise_std: 0.01
 
 logging:
-  experiment_root: "experiments-lesion"
+  experiment_root: "../../../../project-materials/CT病灶识别分割模型留痕/experiments-lesion"
   viz_interval: 10
   save_interval: 10

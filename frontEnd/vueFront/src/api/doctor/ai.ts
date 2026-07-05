@@ -75,6 +75,7 @@ export interface AiExamRecommendationItem {
   urgency?: string
   reason?: string
   purpose?: string
+  selected?: boolean
   estimatedFee?: number
 }
 
@@ -82,10 +83,13 @@ export interface AiExamRecommendResponse {
   traceId?: string
   status?: string
   summary?: string
+  clinicalSummary?: string
   fallback?: boolean
+  urgencyLevel?: string
   recommendations?: AiExamRecommendationItem[]
   items?: AiExamRecommendationItem[]
   examItems?: AiExamRecommendationItem[]
+  checkItems?: AiExamRecommendationItem[]
 }
 
 export function recommendExamItems(data: {

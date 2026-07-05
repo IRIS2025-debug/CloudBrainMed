@@ -38,8 +38,9 @@ public class AiReportServiceImpl implements AiReportService {
     @Override
     public ReportAnalysisVo analyze(ReportAnalysisDto dto) {
         if (dto == null || (!StringUtils.hasText(dto.getReportText())
-                && (dto.getIndicators() == null || dto.getIndicators().isEmpty()))) {
-            throw new BusinessException("请输入报告文本或结构化指标");
+                && (dto.getIndicators() == null || dto.getIndicators().isEmpty())
+                && (dto.getReportInput() == null || dto.getReportInput().isEmpty()))) {
+            throw new BusinessException("请输入报告文本、结构化指标或影像AI结构化结果");
         }
 
         String reply = null;
@@ -99,6 +100,15 @@ public class AiReportServiceImpl implements AiReportService {
                         .append('\n');
             }
         }
+        if (dto.getReportInput() != null && !dto.getReportInput().isEmpty()) {
+            sb.append("影像AI结构化结果(JSON)：\n");
+            try {
+                sb.append(objectMapper.writeValueAsString(dto.getReportInput()));
+            } catch (Exception e) {
+                sb.append(dto.getReportInput());
+            }
+            sb.append('\n');
+        }
         return sb.toString();
     }
 
@@ -146,7 +156,7 @@ public class AiReportServiceImpl implements AiReportService {
             log.setModelKey("clinical-report-analysis");
             log.setModelVersion("llm");
             log.setInputSummary(defaultText(dto.getReportType(), "UNKNOWN") + ": "
-                    + abbreviate(dto.getReportText(), 200));
+                    + abbreviate(buildInputLogSummary(dto), 200));
             log.setOutputSummary(defaultText(vo.getRiskLevel(), "UNKNOWN") + ": "
                     + abbreviate(vo.getSummary(), 200));
             log.setStatus(status);
@@ -161,5 +171,22 @@ public class AiReportServiceImpl implements AiReportService {
     private String abbreviate(String text, int maxLength) {
         if (!StringUtils.hasText(text)) return "";
         return text.length() <= maxLength ? text : text.substring(0, maxLength);
+    }
+
+    private String buildInputLogSummary(ReportAnalysisDto dto) {
+        if (StringUtils.hasText(dto.getReportText())) {
+            return dto.getReportText();
+        }
+        if (dto.getReportInput() != null && !dto.getReportInput().isEmpty()) {
+            try {
+                return objectMapper.writeValueAsString(dto.getReportInput());
+            } catch (Exception e) {
+                return dto.getReportInput().toString();
+            }
+        }
+        if (dto.getIndicators() != null && !dto.getIndicators().isEmpty()) {
+            return "indicators=" + dto.getIndicators().size();
+        }
+        return "";
     }
 }

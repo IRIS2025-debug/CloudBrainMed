@@ -27,9 +27,10 @@ public class MedicalOrderCallbackServiceImpl implements MedicalOrderCallbackServ
         log.info("Medical order paid callback: orderId={}", orderId);
         try {
             Map<String, Object> result = doctorServiceFeignClient.onPaymentSuccess(orderId);
-            Boolean success = (Boolean) result.get("success");
+            Boolean success = Boolean.TRUE.equals(result.get("data"))
+                    || Boolean.TRUE.equals(result.get("success"));
             log.info("Payment callback result: success={}", success);
-            return Boolean.TRUE.equals(success);
+            return success;
         } catch (Exception e) {
             log.error("Failed to call medical order payment callback: {}", e.getMessage(), e);
             return false;

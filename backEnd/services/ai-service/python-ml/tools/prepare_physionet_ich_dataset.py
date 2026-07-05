@@ -33,7 +33,7 @@ DATASET_PAGE = "https://physionet.org/content/ct-ich/1.3.1/"
 def parse_args():
     parser = argparse.ArgumentParser(description="Prepare PhysioNet brain CT ICH lesion slices")
     parser.add_argument("--input", help="Extracted dataset root, .zip, .tar, .tar.gz, or .tgz")
-    parser.add_argument("--output-dir", default="data/ct_lesion_dataset")
+    parser.add_argument("--output-dir", default="data/CT病灶数据集")
     parser.add_argument("--max-cases", type=int, default=20)
     parser.add_argument("--max-positive-slices-per-case", type=int, default=80)
     parser.add_argument("--negative-slices-per-case", type=int, default=20)

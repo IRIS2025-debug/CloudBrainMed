@@ -113,17 +113,11 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
-      '/doctor-service/exam/ct-artifact': {
-        target: 'http://localhost:8001',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/doctor-service\/exam\/ct-artifact/, '/admin-service/ml/inference/ct-artifact'),
-      },
-      '/doctor-service/exam/ct-lesion': {
-        target: 'http://localhost:8001',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/doctor-service\/exam\/ct-lesion/, '/admin-service/ml/inference/ct-lesion'),
-      },
       '/doctor-service': {
+        target: 'http://localhost:8003',
+        changeOrigin: true,
+      },
+      '/inspection-doctor': {
         target: 'http://localhost:8003',
         changeOrigin: true,
       },
@@ -155,7 +149,7 @@ export default defineConfig({
         target: 'http://localhost:8003',
         changeOrigin: true,
       },
-      '/api/payment': {
+      '/payment-service': {
         target: 'http://localhost:8005',
         changeOrigin: true,
       },

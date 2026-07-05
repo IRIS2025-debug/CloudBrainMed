@@ -53,8 +53,8 @@ class ArchiveSummary:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--archives", default="../../../../project-materials/ct-model-defense-traces/xunlian")
-    parser.add_argument("--out", default="../../../../project-materials/ct-model-defense-traces/python-ml-docs/docs/generated")
+    parser.add_argument("--archives", default="../../../../project-materials/CT金属伪影模型留痕/xunlian")
+    parser.add_argument("--out", default="../../../../project-materials/CT金属伪影模型留痕/python-ml-docs/docs/generated")
     args = parser.parse_args()
 
     archive_dir = Path(args.archives)
@@ -119,7 +119,7 @@ def write_markdown(items: list[ArchiveSummary], path: Path) -> None:
     lines = [
         "# 队友六组训练结果汇总",
         "",
-        "> 根据 `project-materials/ct-model-defense-traces/xunlian/*.zip` 中的 `config.yaml` 和 `metrics.json` 自动生成，未解压大体积权重包。",
+        "> 根据 `project-materials/CT金属伪影模型留痕/xunlian/*.zip` 中的 `config.yaml` 和 `metrics.json` 自动生成，未解压大体积权重包。",
         "",
         "## 对比表",
         "",
