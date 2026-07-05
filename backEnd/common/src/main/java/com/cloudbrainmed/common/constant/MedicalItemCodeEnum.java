@@ -1,25 +1,16 @@
 package com.cloudbrainmed.common.constant;
 
 public enum MedicalItemCodeEnum {
-    CRANIAL_CT_PLAIN(MedicalItemCategoryEnum.EXAM),
-    CRANIAL_CT_ENHANCED(MedicalItemCategoryEnum.EXAM),
-    CRANIAL_MRI_PLAIN(MedicalItemCategoryEnum.EXAM),
-    CRANIAL_MRI_ENHANCED(MedicalItemCategoryEnum.EXAM),
-    HEAD_NECK_CTA(MedicalItemCategoryEnum.EXAM),
-    CRANIAL_MRA(MedicalItemCategoryEnum.EXAM),
-    CEREBRAL_DSA(MedicalItemCategoryEnum.EXAM),
-    TCD(MedicalItemCategoryEnum.EXAM),
-    ROUTINE_EEG(MedicalItemCategoryEnum.EXAM),
-    VIDEO_EEG(MedicalItemCategoryEnum.EXAM),
-    EMG(MedicalItemCategoryEnum.EXAM),
-    EVOKED_POTENTIAL(MedicalItemCategoryEnum.EXAM),
-    CSF_ROUTINE(MedicalItemCategoryEnum.LAB),
-    CSF_BIOCHEMISTRY(MedicalItemCategoryEnum.LAB),
-    CSF_CYTOLOGY(MedicalItemCategoryEnum.LAB),
-    CSF_CULTURE(MedicalItemCategoryEnum.LAB),
-    CSF_OLIGOCLONAL_BANDS(MedicalItemCategoryEnum.LAB),
-    AUTOIMMUNE_ENCEPHALITIS_ANTIBODY(MedicalItemCategoryEnum.LAB),
-    DEMYELINATING_DISEASE_ANTIBODY(MedicalItemCategoryEnum.LAB);
+    // 🏥 EXAM（检查类）
+    NEURO_CT_001(MedicalItemCategoryEnum.EXAM),
+    NEURO_CT_002(MedicalItemCategoryEnum.EXAM),
+    NEURO_MRI_001(MedicalItemCategoryEnum.EXAM),
+    NEURO_MRI_002(MedicalItemCategoryEnum.EXAM),
+    NEURO_MRA_001(MedicalItemCategoryEnum.EXAM),
+    // 🧪 LAB（检验类）
+    NEURO_LAB_001(MedicalItemCategoryEnum.LAB),
+    NEURO_LAB_002(MedicalItemCategoryEnum.LAB),
+    NEURO_LAB_003(MedicalItemCategoryEnum.LAB);
 
     private final MedicalItemCategoryEnum category;
 

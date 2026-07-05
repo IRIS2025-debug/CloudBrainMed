@@ -30,29 +30,13 @@ public class DoctorTaskDetailVo {
     private LocalDate birthday;
     private Integer age;
     private String clinicalSummary;
+    /** 状态标签（由服务端计算） */
+    private String statusLabel;
+    /** 紧急程度标签（由服务端计算，包含老化提升标识） */
+    private String urgencyLabel;
 
     public String getGenderLabel() {
         return gender == 1 ? "男" : gender == 0 ? "女" : "未知";
-    }
-
-    public String getStatusLabel() {
-        return switch (status) {
-            case "WAITING_ASSIGN" -> "待分配";
-            case "QUEUED" -> "排队中";
-            case "IN_PROCESS" -> "处理中";
-            case "COMPLETED" -> "已完成";
-            case "CANCELLED" -> "已取消";
-            default -> status;
-        };
-    }
-
-    public String getUrgencyLabel() {
-        return switch (urgencyLevel) {
-            case "EMERGENCY" -> "紧急";
-            case "URGENT" -> "加急";
-            case "NORMAL" -> "常规";
-            default -> urgencyLevel;
-        };
     }
 
     public String getItemCategoryLabel() {

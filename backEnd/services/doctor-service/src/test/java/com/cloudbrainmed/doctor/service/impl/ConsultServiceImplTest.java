@@ -118,7 +118,7 @@ class ConsultServiceImplTest {
         when(mapper.findMedicalItemsByNames(List.of("CT")))
                 .thenReturn(List.of(Map.of(
                         "item_id", "ITEM001",
-                        "item_code", "CRANIAL_CT_PLAIN",
+                        "item_code", "NEURO_CT_001",
                         "item_name", "CT",
                         "item_category", "EXAM",
                         "dept_id", "DEPT001",

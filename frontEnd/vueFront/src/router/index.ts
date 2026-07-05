@@ -176,6 +176,18 @@ const router = createRouter({
       component: () => import('@/pages/examination/report/ReportGeneration.vue'),
       meta: { requiresAuth: true, role: 2, doctorType: 2 }
     },
+    {
+      path: '/examination-doctor/workbench',
+      name: 'ExaminationWorkbench',
+      component: () => import('@/pages/examination/workbench/Index.vue'),
+      meta: { requiresAuth: true, role: 2, doctorType: 2 }
+    },
+    {
+      path: '/examination-doctor/queue',
+      name: 'ExaminationQueue',
+      component: () => import('@/pages/examination/queue/Index.vue'),
+      meta: { requiresAuth: true, role: 2, doctorType: 2 }
+    },
   ],
 })
 

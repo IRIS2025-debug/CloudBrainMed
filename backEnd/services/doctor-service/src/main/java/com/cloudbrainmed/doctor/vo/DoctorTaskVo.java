@@ -3,6 +3,7 @@ package com.cloudbrainmed.doctor.vo;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDateTime;
 
 /**
@@ -19,32 +20,28 @@ public class DoctorTaskVo {
     private String urgencyLevel;
     private BigDecimal price;
     private String status;
-    private LocalDateTime createTime;
-    private LocalDateTime assignTime;
+    private String createTime;
+    private String assignTime;
     private String patientId;
     private String registerId;
     private String patientName;
     private Integer gender;
     private Integer age;
     private String clinicalSummary;
+    /** 等待分钟数（从 createTime 到现在的时长） */
+    private Long waitingMinutes;
+    /** 是否已触发老化升级（NORMAL > 30min → URGENT） */
+    private Boolean agingPromoted;
+    /** 状态标签（由服务端计算） */
+    private String statusLabel;
+    /** 紧急程度标签（由服务端计算，包含老化提升标识） */
+    private String urgencyLabel;
 
-    public String getStatusLabel() {
-        return switch (status) {
-            case "WAITING_ASSIGN" -> "待分配";
-            case "QUEUED" -> "排队中";
-            case "IN_PROCESS" -> "处理中";
-            case "COMPLETED" -> "已完成";
-            case "CANCELLED" -> "已取消";
-            default -> status;
-        };
-    }
-
-    public String getUrgencyLabel() {
-        return switch (urgencyLevel) {
-            case "EMERGENCY" -> "紧急";
-            case "URGENT" -> "加急";
-            case "NORMAL" -> "常规";
-            default -> urgencyLevel;
-        };
+    /** 计算等待分钟数（从 createTime 到现在的时长） */
+    public void calculateWaitingMinutes() {
+        if (this.createTime != null) {
+            LocalDateTime ct = LocalDateTime.parse(this.createTime);
+            this.waitingMinutes = Duration.between(ct, LocalDateTime.now()).toMinutes();
+        }
     }
 }

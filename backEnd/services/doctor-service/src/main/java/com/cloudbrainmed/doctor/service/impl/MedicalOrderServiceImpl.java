@@ -272,7 +272,7 @@ public class MedicalOrderServiceImpl implements MedicalOrderService {
         dto.setPatientName(patientName(consult));
         dto.setOrderType("MEDICAL");
         dto.setBusinessId(order.getOrderId());
-        dto.setDescription("医技检查检验费");
+        dto.setDescription("鍖绘妧妫€鏌ユ楠岃垂");
         dto.setAmount(totalAmount == null ? BigDecimal.ZERO : totalAmount);
         Result<PayResultVo> result;
         try {
@@ -314,7 +314,7 @@ public class MedicalOrderServiceImpl implements MedicalOrderService {
             throw new BusinessException("Consult record not found");
         }
         if (!hasText(doctorId) || !doctorId.equals(consult.getDoctorId())) {
-            throw new BusinessException("无权 create medical order");
+            throw new BusinessException("鏃犳潈 create medical order");
         }
         if ("COMPLETED".equals(consult.getConsultStatus())) {
             throw new BusinessException("Consult already completed");
@@ -331,7 +331,7 @@ public class MedicalOrderServiceImpl implements MedicalOrderService {
         String outputSummary = medicalOrderMapper.findAiRecommendationOutput(
                 traceId, consult.getPatientId());
         if (!hasText(inputSummary) || !hasText(outputSummary)) {
-            throw new BusinessException("AI检查检验推荐记录不存在或已失效");
+            throw new BusinessException("AI妫€鏌ユ楠屾帹鑽愯褰曚笉瀛樺湪鎴栧凡澶辨晥");
         }
         try {
             JsonNode input = objectMapper.readTree(inputSummary);
@@ -379,7 +379,7 @@ public class MedicalOrderServiceImpl implements MedicalOrderService {
             }
             if (!seenCodes.add(itemCode)) {
                 throw new BusinessException(
-                        "检查检验项目不能重复：" + itemCode);
+                        "妫€鏌ユ楠岄」鐩笉鑳介噸澶嶏細" + itemCode);
             }
 
             MedicalItem item =

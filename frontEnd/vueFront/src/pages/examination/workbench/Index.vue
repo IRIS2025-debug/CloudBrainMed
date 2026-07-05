@@ -2,28 +2,43 @@
   <div class="page">
     <header class="page-top">
       <div class="page-top-left">
-        <h2>检查检验队列</h2>
-        <p class="top-sub">
-          当前排队任务：<strong>{{ queueCount }}</strong> 个
-          | 按紧急程度和时间排序
-          <el-tag size="small" type="warning" style="margin-left:8px" v-if="agedCount > 0">
-            {{ agedCount }}个任务已触发老化提升
-          </el-tag>
-        </p>
+        <h2>检查医生工作台</h2>
+        <p class="top-sub">管理您的影像检查任务，按优先级处理</p>
       </div>
       <div class="page-top-right">
-        <el-button type="primary" @click="$router.push('/doctor/workbench')">
-          <el-icon style="margin-right:4px"><Monitor /></el-icon>我的工作台
+        <el-button type="primary" @click="$router.push('/examination-doctor/queue')">
+          <el-icon style="margin-right:4px"><List /></el-icon>查看队列
+          <el-tag size="small" type="danger" style="margin-left:6px" v-if="queueCount > 0">{{ queueCount }}</el-tag>
         </el-button>
-        <el-button @click="fetchQueue" :loading="loading">
+        <el-button @click="fetchTasks" :loading="loading">
           <el-icon style="margin-right:4px"><Refresh /></el-icon>刷新
         </el-button>
-        <span class="auto-refresh-hint" v-if="autoRefresh">自动刷新 {{ countdown }}s</span>
+        <span class="auto-refresh-hint" v-if="autoRefresh">自动刷新中 {{ countdown }}s</span>
       </div>
     </header>
 
+    <!-- 统计卡片 -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-value">{{ stats.total }}</div>
+        <div class="stat-label">全部任务</div>
+      </div>
+      <div class="stat-card sc-queued">
+        <div class="stat-value">{{ stats.queued }}</div>
+        <div class="stat-label">排队中</div>
+      </div>
+      <div class="stat-card sc-process">
+        <div class="stat-value">{{ stats.inProcess }}</div>
+        <div class="stat-label">处理中</div>
+      </div>
+      <div class="stat-card sc-emergency">
+        <div class="stat-value">{{ stats.emergency }}</div>
+        <div class="stat-label">紧急/加急</div>
+      </div>
+    </div>
+
     <div class="card">
-      <el-table :data="tasks" stripe v-loading="loading" empty-text="当前没有排队任务" @sort-change="onSortChange">
+      <el-table :data="tasks" stripe v-loading="loading" empty-text="暂无待处理检查任务" @sort-change="onSortChange">
         <el-table-column label="紧急程度" width="90">
           <template #default="{ row }">
             <span class="badge" :class="['badge-' + row.urgencyLevel, { 'badge-aged': row.agingPromoted }]"
@@ -33,12 +48,7 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="itemName" label="项目名称" min-width="160" show-overflow-tooltip />
-        <el-table-column label="类别" width="70">
-          <template #default="{ row }">
-            <span>{{ row.itemCategory === 'EXAM' ? '检查' : '检验' }}</span>
-          </template>
-        </el-table-column>
+        <el-table-column prop="itemName" label="检查项目" min-width="160" show-overflow-tooltip />
         <el-table-column label="患者" width="130">
           <template #default="{ row }">
             <div class="patient-cell">
@@ -63,9 +73,20 @@
           </template>
         </el-table-column>
         <el-table-column prop="createTime" label="创建时间" width="160" />
-        <el-table-column label="操作" width="120" fixed="right">
+        <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" size="small" @click="handleStart(row)">领取任务</el-button>
+            <el-button type="primary" size="small" @click="$router.push(`/doctor/task/${row.orderItemId}`)">
+              查看
+            </el-button>
+            <el-button v-if="row.status === 'QUEUED'" type="success" size="small" @click="handleStart(row)">
+              开始
+            </el-button>
+            <el-button v-if="row.status === 'IN_PROCESS'" type="warning" size="small" @click="$router.push(`/doctor/task/${row.orderItemId}`)">
+              提交报告
+            </el-button>
+            <el-button v-if="row.status === 'IN_PROCESS'" type="info" size="small" @click="handleSkip(row)">
+              跳过
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -75,22 +96,30 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { getQueue, startTask } from '@/api/doctor/task'
+import { getWorkbench, startTask, skipTask, getQueue } from '@/api/doctor/task'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Monitor, Refresh } from '@element-plus/icons-vue'
+import { List, Refresh } from '@element-plus/icons-vue'
 
 const tasks = ref<any[]>([])
 const loading = ref(false)
-const queueCount = ref(0)
 const autoRefresh = ref(true)
 const countdown = ref(30)
 let timer: ReturnType<typeof setInterval> | null = null
 let countdownTimer: ReturnType<typeof setInterval> | null = null
+const queueCount = ref(0)
 
-const agedCount = computed(() => (tasks.value || []).filter((t: any) => t.agingPromoted).length)
+const stats = computed(() => {
+  const list = tasks.value || []
+  return {
+    total: list.length,
+    queued: list.filter((t: any) => t.status === 'QUEUED').length,
+    inProcess: list.filter((t: any) => t.status === 'IN_PROCESS').length,
+    emergency: list.filter((t: any) => t.urgencyLevel === 'EMERGENCY' || t.urgencyLevel === 'URGENT' || t.agingPromoted).length
+  }
+})
 
 onMounted(() => {
-  fetchQueue()
+  fetchTasks()
   startAutoRefresh()
 })
 
@@ -100,10 +129,12 @@ onUnmounted(() => {
 
 function startAutoRefresh() {
   stopAutoRefresh()
+  // 每30秒自动刷新
   timer = setInterval(() => {
-    fetchQueue()
+    fetchTasks()
     countdown.value = 30
   }, 30000)
+  // 倒计时显示
   countdownTimer = setInterval(() => {
     if (countdown.value > 0) countdown.value--
   }, 1000)
@@ -123,14 +154,14 @@ function formatWaiting(minutes: number | null | undefined): string {
   return `${h}小时${m}分钟`
 }
 
-async function fetchQueue() {
+async function fetchTasks() {
   loading.value = true
   try {
-    const res = await getQueue()
-    tasks.value = res.data?.tasks || []
-    queueCount.value = res.data?.queueCount || 0
+    const [workbenchRes, queueRes] = await Promise.all([getWorkbench(), getQueue()])
+    tasks.value = workbenchRes.data || []
+    queueCount.value = queueRes.data?.queueCount || 0
   } catch {
-    ElMessage.error('加载队列失败')
+    ElMessage.error('加载任务列表失败')
   } finally {
     loading.value = false
   }
@@ -149,10 +180,25 @@ function onSortChange({ prop, order }: { prop: string, order: string }) {
 
 async function handleStart(row: any) {
   try {
-    await ElMessageBox.confirm(`确认领取「${row.itemName}」？`, '领取任务', { type: 'info' })
+    await ElMessageBox.confirm(`确认开始处理「${row.itemName}」？`, '提示', { type: 'info' })
     await startTask(row.orderItemId)
-    ElMessage.success('任务领取成功，请前往工作台处理')
-    fetchQueue()
+    ElMessage.success('已开始处理')
+    fetchTasks()
+  } catch (e: any) {
+    if (e !== 'cancel') ElMessage.error(e?.response?.data?.msg || '操作失败')
+  }
+}
+
+async function handleSkip(row: any) {
+  try {
+    await ElMessageBox.confirm(
+      `确定跳过「${row.itemName}」？该任务将放回队列，由其他医生处理。`,
+      '跳过任务',
+      { type: 'warning', confirmButtonText: '确定跳过', cancelButtonText: '取消' }
+    )
+    await skipTask(row.orderItemId)
+    ElMessage.success('已跳过，任务已放回队列')
+    fetchTasks()
   } catch (e: any) {
     if (e !== 'cancel') ElMessage.error(e?.response?.data?.msg || '操作失败')
   }
@@ -168,6 +214,15 @@ async function handleStart(row: any) {
 .auto-refresh-hint { font-size: 12px; color: #999; }
 .card { background: #fff; border-radius: 8px; padding: 20px; }
 
+/* 统计卡片 */
+.stats-row { display: flex; gap: 12px; margin-bottom: 16px; }
+.stat-card { background: #fff; border-radius: 8px; padding: 12px 20px; flex: 1; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+.stat-value { font-size: 28px; font-weight: 700; color: #1e293b; }
+.stat-label { font-size: 12px; color: #999; margin-top: 2px; }
+.sc-queued .stat-value { color: #409eff; }
+.sc-process .stat-value { color: #e6a23c; }
+.sc-emergency .stat-value { color: #f56c6c; }
+
 .badge { display: inline-flex; align-items: center; gap: 2px; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
 .badge-EMERGENCY { background: #fef0f0; color: #f56c6c; }
 .badge-URGENT { background: #fdf6ec; color: #e6a23c; }
@@ -178,6 +233,9 @@ async function handleStart(row: any) {
 
 .status-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
 .st-QUEUED { background: #ecf5ff; color: #409eff; }
+.st-IN_PROCESS { background: #fdf6ec; color: #e6a23c; }
+.st-COMPLETED { background: #f0f9eb; color: #67c23a; }
+.st-WAITING_ASSIGN { background: #f4f4f5; color: #909399; }
 
 .wait-long { color: #f56c6c; font-weight: 600; }
 

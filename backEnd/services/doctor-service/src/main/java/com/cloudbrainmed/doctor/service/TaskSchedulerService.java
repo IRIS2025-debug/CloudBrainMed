@@ -19,9 +19,9 @@ public interface TaskSchedulerService {
     List<DoctorTaskVo> getDoctorWorkbench(String doctorId, Integer doctorType);
 
     /**
-     * 鑾峰彇褰撳墠妫€鏌?妫€楠屽尰鐢熷彲棰嗗彇鐨勬帓闃熶换鍔?
+     * 获取当前检查/检验医生可领取的排队任务
      */
-    List<DoctorTaskVo> getAssignableQueue(Integer doctorType);
+    List<DoctorTaskVo> getAssignableQueue(String doctorId, Integer doctorType);
 
     /**
      * 获取任务详情
@@ -40,7 +40,7 @@ public interface TaskSchedulerService {
 
     MedicalReportVo submitReport(MedicalReportSubmitRequest request, String doctorId);
 
-    /**
+    /**v
      * 支付成功后触发入队
      * 将 waiting_assign 状态转为 queued
      */
@@ -58,13 +58,12 @@ public interface TaskSchedulerService {
     long getQueueCount();
 
     /**
-     * 获取所有排队中的任务（QUEUED状态）
-     * 按医生类型过滤：检查医生(2)只看EXAM，检验医生(3)只看LAB
+     * 获取当前检查/检验医生可领取的排队任务数量
      */
-    List<DoctorTaskVo> getQueue(Integer doctorType);
+    long getAssignableQueueCount(String doctorId, Integer doctorType);
 
     /**
-     * 鑾峰彇褰撳墠妫€鏌?妫€楠屽尰鐢熷彲棰嗗彇鐨勬帓闃熶换鍔℃暟閲?
+     * 医生跳过任务
      */
-    long getAssignableQueueCount(Integer doctorType);
+    void skipTask(String orderItemId, String doctorId);
 }

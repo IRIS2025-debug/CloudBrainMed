@@ -21,4 +21,6 @@ public class MedicalOrderItem {
     private LocalDateTime createTime;
     private LocalDateTime assignTime;
     private LocalDateTime completeTime;
+    /** 跳过次数（逻辑层使用，DB中无此字段时默认0） */
+    private Integer skipCount;
 }

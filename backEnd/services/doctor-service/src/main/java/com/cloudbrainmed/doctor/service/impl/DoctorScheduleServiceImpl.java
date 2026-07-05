@@ -29,7 +29,7 @@ public class DoctorScheduleServiceImpl implements DoctorScheduleService {
     @Override
     public Map<LocalDate, List<DoctorSchedule>> getWeeklyScheduleGrouped(String doctorId, LocalDate weekStart) {
         List<DoctorSchedule> schedules = getWeeklySchedule(doctorId, weekStart);
-        // 按日期分组，并保持日期顺序
+        // 鎸夋棩鏈熷垎缁勶紝骞朵繚鎸佹棩鏈熼『搴?
         return schedules.stream()
                 .collect(Collectors.groupingBy(
                         DoctorSchedule::getWorkDate,
@@ -43,7 +43,7 @@ public class DoctorScheduleServiceImpl implements DoctorScheduleService {
         if (date == null) {
             date = LocalDate.now();
         }
-        // 以周一为一周的开始（ISO 标准）
+        // 浠ュ懆涓€涓轰竴鍛ㄧ殑寮€濮嬶紙ISO 鏍囧噯锛?
         LocalDate weekStart = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
         LocalDate weekEnd = weekStart.plusDays(6);
         return new LocalDate[]{weekStart, weekEnd};

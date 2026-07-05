@@ -37,8 +37,8 @@ public class TaskController {
         Integer doctorType = extractDoctorType(token);
         return Result.ok(Map.of(
                 "doctorId", doctorId,
-                "tasks", taskSchedulerService.getAssignableQueue(doctorType),
-                "queueCount", taskSchedulerService.getAssignableQueueCount(doctorType)
+                "tasks", taskSchedulerService.getAssignableQueue(doctorId, doctorType),
+                "queueCount", taskSchedulerService.getAssignableQueueCount(doctorId, doctorType)
         ));
     }
 
@@ -62,6 +62,14 @@ public class TaskController {
                                   @RequestBody Map<String, String> body) {
         String doctorId = extractDoctorId(token);
         taskSchedulerService.completeTask(body.get("orderItemId"), doctorId);
+        return Result.ok();
+    }
+
+    @PostMapping("/skip")
+    public Result<?> skipTask(@RequestHeader(value = "token", required = false) String token,
+                              @RequestBody Map<String, String> body) {
+        String doctorId = extractDoctorId(token);
+        taskSchedulerService.skipTask(body.get("orderItemId"), doctorId);
         return Result.ok();
     }
 

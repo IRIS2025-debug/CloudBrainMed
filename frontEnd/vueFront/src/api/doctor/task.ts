@@ -20,6 +20,10 @@ export function completeTask(orderItemId: string) {
   return request.post('/doctor-service/task/complete', { orderItemId })
 }
 
+export function skipTask(orderItemId: string) {
+  return request.post('/doctor-service/task/skip', { orderItemId })
+}
+
 export function submitTaskReport(data: {
   orderItemId: string
   resultSummary?: string

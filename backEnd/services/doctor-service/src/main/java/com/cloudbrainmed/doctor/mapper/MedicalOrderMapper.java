@@ -6,6 +6,7 @@ import com.cloudbrainmed.doctor.entity.MedicalReport;
 import com.cloudbrainmed.doctor.vo.InspectionOrderVo;
 import com.cloudbrainmed.doctor.vo.MedicalReportVo;
 import lombok.Data;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.ibatis.annotations.*;
 
 import java.math.BigDecimal;
@@ -515,6 +516,63 @@ public interface MedicalOrderMapper {
         """)
     long countPublishedReportsByOrderItemId(
             @Param("orderItemId") String orderItemId);
+
+    /**
+     * 直接更新项目状态（不校验旧状态）
+     */
+    @Update("""
+        UPDATE medical_order_item SET status = #{status}
+        WHERE order_item_id = #{orderItemId}
+        """)
+    int updateItemStatusDirect(@Param("orderItemId") String orderItemId,
+                               @Param("status") String status);
+
+    /**
+     * 释放任务：将 IN_PROCESS 状态的任务回退到 QUEUED，清除医生分配
+     * 用于医生跳过任务场景
+     */
+    @Update("""
+        UPDATE medical_order_item
+        SET status = 'QUEUED',
+            assigned_doctor_id = NULL,
+            assign_time = NULL
+        WHERE order_item_id = #{orderItemId}
+          AND status = 'IN_PROCESS'
+          AND assigned_doctor_id = #{doctorId}
+        """)
+    int releaseTask(@Param("orderItemId") String orderItemId,
+                    @Param("doctorId") String doctorId);
+
+    /**
+     * 根据ID查询order_item
+     */
+    @Select("""
+        SELECT order_item_id, order_id, item_id, item_code, item_name,
+               item_category, assigned_dept_id, assigned_doctor_id,
+               urgency_level, price, status,
+               create_time, assign_time, complete_time
+        FROM medical_order_item
+        WHERE order_item_id = #{orderItemId}
+        """)
+    @Results({
+        @Result(column = "order_item_id", property = "orderItemId"),
+        @Result(column = "order_id", property = "orderId"),
+        @Result(column = "item_id", property = "itemId"),
+        @Result(column = "item_code", property = "itemCode"),
+        @Result(column = "item_name", property = "itemName"),
+        @Result(column = "item_category", property = "itemCategory"),
+        @Result(column = "assigned_dept_id", property = "assignedDeptId"),
+        @Result(column = "assigned_doctor_id", property = "assignedDoctorId"),
+        @Result(column = "urgency_level", property = "urgencyLevel"),
+        @Result(column = "price", property = "price"),
+        @Result(column = "status", property = "status"),
+        @Result(column = "create_time", property = "createTime"),
+        @Result(column = "assign_time", property = "assignTime"),
+        @Result(column = "complete_time", property = "completeTime")
+    })
+    com.cloudbrainmed.doctor.entity.MedicalOrderItem selectOrderItemById(
+            @Param("orderItemId") String orderItemId);
+
 
     @Data
     class QueuedTaskItem {

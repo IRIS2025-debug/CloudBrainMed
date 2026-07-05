@@ -26,62 +26,45 @@
       </div>
 
       <!-- 数据表格 -->
-      <el-table
-        :data="pagedList"
-        stripe
-        v-loading="loading"
-        table-layout="fixed"
-        empty-text="暂无检查/检验申请"
-        class="order-table"
-        :header-cell-style="{ background: '#f8fafc', color: '#64748b' }"
-      >
-        <el-table-column prop="patientName" label="患者姓名" width="110" />
-        <el-table-column prop="gender" label="性别" width="70" align="center">
+      <el-table :data="displayList" stripe v-loading="loading" style="width: 100%">
+        <el-table-column prop="patientName" label="患者姓名" min-width="100" />
+        <el-table-column prop="gender" label="性别" width="70">
           <template #default="{ row }">{{ row.gender === 1 ? '男' : '女' }}</template>
         </el-table-column>
-        <el-table-column prop="age" label="年龄" width="70" align="center" />
-        <el-table-column prop="itemName" label="检查/检验项目" min-width="180" show-overflow-tooltip />
-        <el-table-column label="临床摘要" min-width="240" show-overflow-tooltip>
-          <template #default="{ row }">
-            <span class="summary-text">{{ formatClinicalSummary(row.clinicalSummary) }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="urgencyLevel" label="紧急程度" width="110" align="center">
+        <el-table-column prop="age" label="年龄" width="70" />
+        <el-table-column prop="itemName" label="检查/检验项目" min-width="160" show-overflow-tooltip />
+        <el-table-column prop="clinicalSummary" label="临床摘要" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="urgencyLevel" label="紧急程度" width="100">
           <template #default="{ row }">
             <el-tag :type="urgencyTag(row.urgencyLevel)" size="small">{{ urgencyLabel(row.urgencyLevel) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="110" align="center">
+        <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
             <el-tag :type="statusTag(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="payStatus" label="支付" width="95" align="center">
+        <el-table-column prop="payStatus" label="支付" width="90">
           <template #default="{ row }">
             <el-tag :type="payTag(row.payStatus)" size="small">{{ payLabel(row.payStatus) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="assignedRoom" label="分配房间" width="110" align="center">
+        <el-table-column prop="assignedRoom" label="分配房间" min-width="110">
           <template #default="{ row }">{{ row.assignedRoom || '-' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="130" align="center">
+        <el-table-column prop="sourceType" label="来源" width="90">
+          <template #default="{ row }">
+            {{ row.sourceType === 'AI_ASSISTED' ? 'AI建议' : '医生开具' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="createTime" label="申请时间" min-width="170" />
+        <el-table-column label="操作" width="130" fixed="right">
           <template #default="{ row }">
             <el-button v-if="canAssign(row)" type="success" link @click="assignOrder(row)">分配</el-button>
             <el-button type="primary" link @click="showDetail(row)">详情</el-button>
           </template>
         </el-table-column>
       </el-table>
-
-      <div class="pagination-area">
-        <el-pagination
-          v-model:current-page="currentPage"
-          v-model:page-size="pageSize"
-          :page-sizes="[10, 20, 50]"
-          :total="displayList.length"
-          layout="total, sizes, prev, pager, next, jumper"
-          background
-        />
-      </div>
     </el-card>
 
     <!-- 详情弹窗 -->
@@ -102,9 +85,7 @@
         <el-descriptions-item label="申请来源">{{ currentOrder.sourceType === 'AI_ASSISTED' ? 'AI建议' : '医生开具' }}</el-descriptions-item>
         <el-descriptions-item label="支付状态">{{ payLabel(currentOrder.payStatus) }}</el-descriptions-item>
         <el-descriptions-item label="分配房间">{{ currentOrder.assignedRoom || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="临床摘要" :span="2">
-          <span class="detail-summary">{{ formatClinicalSummary(currentOrder.clinicalSummary) }}</span>
-        </el-descriptions-item>
+        <el-descriptions-item label="临床摘要" :span="2">{{ currentOrder.clinicalSummary }}</el-descriptions-item>
         <el-descriptions-item label="挂号编号">{{ currentOrder.registerId }}</el-descriptions-item>
         <el-descriptions-item label="开单医生">{{ currentOrder.doctorId }}</el-descriptions-item>
         <el-descriptions-item label="确认时间">{{ currentOrder.confirmedTime }}</el-descriptions-item>
@@ -118,7 +99,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { assignInspectionOrder, getInspectionOrderList } from '@/api/inspection-doctor'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
@@ -150,15 +131,11 @@ const filterUrgency = ref('')
 const filterStatus = ref('')
 const detailVisible = ref(false)
 const currentOrder = ref<InspectionOrderVo | null>(null)
-const currentPage = ref(1)
-const pageSize = ref(10)
 
 const displayList = computed(() => {
-  const keyword = searchKey.value.trim().toLowerCase()
   let list = allList.value
-  if (keyword) {
-    list = list.filter(item => [item.patientName, item.patientId, item.orderId, item.itemName]
-      .some(value => String(value || '').toLowerCase().includes(keyword)))
+  if (searchKey.value) {
+    list = list.filter(item => item.patientName?.includes(searchKey.value))
   }
   if (filterUrgency.value) {
     list = list.filter(item => item.urgencyLevel === filterUrgency.value)
@@ -168,42 +145,6 @@ const displayList = computed(() => {
   }
   return list
 })
-
-const pagedList = computed(() => {
-  const start = (currentPage.value - 1) * pageSize.value
-  return displayList.value.slice(start, start + pageSize.value)
-})
-
-watch([searchKey, filterUrgency, filterStatus, pageSize], () => {
-  currentPage.value = 1
-})
-
-function formatClinicalSummary(summary: string) {
-  if (!summary) return '-'
-  const text = String(summary).trim()
-  if (!text) return '-'
-  try {
-    const parsed = JSON.parse(text)
-    if (Array.isArray(parsed)) {
-      const parts = parsed
-        .map(item => {
-          if (typeof item === 'string') return item
-          if (!item || typeof item !== 'object') return ''
-          const name = item.itemName || item.name || item.itemCode || ''
-          const reason = item.reason || item.clinicalReason || item.indication || item.summary || ''
-          return reason && reason !== name ? `${name ? `${name}：` : ''}${reason}` : name
-        })
-        .filter(Boolean)
-      return parts.length ? parts.join('；') : '-'
-    }
-    if (parsed && typeof parsed === 'object') {
-      return parsed.clinicalSummary || parsed.summary || parsed.reason || parsed.diagnosis || parsed.itemName || text
-    }
-  } catch {
-    return text
-  }
-  return text
-}
 
 function urgencyTag(level: string) {
   if (level === 'EMERGENCY') return 'danger'
@@ -297,28 +238,5 @@ onMounted(() => {
 .header-title h2 { margin: 0 0 4px 0; font-size: 20px; }
 .subtitle { color: #909399; font-size: 14px; }
 .filter-bar { display: flex; gap: 12px; margin-bottom: 16px; }
-.table-card { min-height: 400px; overflow: hidden; }
-.order-table { width: 100%; }
-.summary-text {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.detail-summary {
-  white-space: pre-wrap;
-  word-break: break-word;
-  line-height: 1.7;
-}
-.pagination-area {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 16px;
-}
-
-@media (max-width: 900px) {
-  .filter-bar {
-    flex-wrap: wrap;
-  }
-}
+.table-card { min-height: 400px; }
 </style>

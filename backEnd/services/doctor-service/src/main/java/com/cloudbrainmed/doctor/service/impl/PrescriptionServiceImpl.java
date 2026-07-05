@@ -61,7 +61,7 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         dto.setPatientName(prescription.getPatientName());
         dto.setOrderType("PRESCRIPTION");
         dto.setBusinessId(prescription.getPrescriptionId());
-        dto.setDescription("处方药品费用");
+        dto.setDescription("澶勬柟鑽搧璐圭敤");
         BigDecimal unitPrice = prescription.getPrice() == null
                 ? BigDecimal.ZERO : prescription.getPrice();
         Integer num = prescription.getNum();

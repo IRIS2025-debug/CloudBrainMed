@@ -64,7 +64,7 @@ public class DoctorWorkRuleServiceImpl implements DoctorWorkRuleService {
         rule.setUpdateTime(LocalDateTime.now());
         validate(rule);
         if (workRuleMapper.update(rule) != 1) {
-            throw new BusinessException("工作时间规则更新失败");
+            throw new BusinessException("宸ヤ綔鏃堕棿瑙勫垯鏇存柊澶辫触");
         }
         return rule;
     }

@@ -99,7 +99,7 @@ class ConsultControllerTest {
     @Test
     void confirmMedicalOrderUsesTokenDoctorAndReturnsQueueStatus() {
         MedicalOrderItemRequest item = new MedicalOrderItemRequest();
-        item.setItemCode("CRANIAL_CT_PLAIN");
+        item.setItemCode("NEURO_CT_001");
         MedicalOrderConfirmRequest request = new MedicalOrderConfirmRequest();
         request.setRegisterId("R001");
         request.setClinicalSummary("headache");

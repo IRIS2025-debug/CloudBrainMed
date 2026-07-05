@@ -20,19 +20,18 @@ const result = normalizeExamRecommendResponse({
   checkItems: [
     { itemName: '颅脑CT平扫', selected: true },
     { itemName: '血常规检查', selected: true },
-    { itemName: '脑脊液常规', selected: false }
+    { itemName: '脑脊液常规检查', selected: false }
   ]
 })
 
 assert.equal(result.summary, '反复腹痛，需排除神经系统相关风险。')
 assert.equal(result.items.length, 3)
-assert.equal(result.items[0].itemCode, 'CRANIAL_CT_PLAIN')
+assert.equal(result.items[0].itemCode, 'NEURO_CT_001')
 assert.equal(result.items[0].category, 'EXAM')
 assert.equal(result.items[0].urgencyLevel, 'URGENT')
 assert.equal(result.items[0].selected, true)
-assert.equal(result.items[1].itemName, '血常规检查')
-assert.equal(result.items[1].itemCode, '')
-assert.equal(result.items[1].needsMapping, true)
-assert.equal(result.items[2].itemCode, 'CSF_ROUTINE')
+assert.equal(result.items[1].itemCode, 'NEURO_LAB_001')
+assert.equal(result.items[1].needsMapping, false)
+assert.equal(result.items[2].itemCode, 'NEURO_LAB_003')
 assert.equal(result.items[2].category, 'LAB')
 assert.equal(result.items[2].selected, false)
