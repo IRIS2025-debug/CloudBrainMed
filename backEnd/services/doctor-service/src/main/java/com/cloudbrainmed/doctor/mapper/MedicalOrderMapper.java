@@ -153,15 +153,6 @@ public interface MedicalOrderMapper {
                     @Param("assignedRoom") String assignedRoom);
 
     /**
-     * 更新订单支付状态
-     */
-    @Update("""
-        UPDATE medical_order SET pay_status = #{payStatus}, update_time = NOW()
-        WHERE order_id = #{orderId}
-        """)
-    int updatePayStatus(@Param("orderId") String orderId, @Param("payStatus") String payStatus);
-
-    /**
      * 查询医生当前正在处理的任务数量
      */
     @Select("""
