@@ -47,7 +47,7 @@ class MedicalOrderServiceImplTest {
         paymentFeignClient = mock(PaymentFeignClient.class);
         service = new MedicalOrderServiceImpl(
                 consultMapper, medicalItemMapper, medicalOrderMapper,
-                paymentFeignClient, new ObjectMapper());
+                paymentFeignClient, new ObjectMapper(), false);
     }
 
     @Test
@@ -143,6 +143,81 @@ class MedicalOrderServiceImplTest {
         assertThat(dto.getOrderType()).isEqualTo("MEDICAL");
         assertThat(dto.getBusinessId()).isEqualTo(orderCaptor.getValue().getOrderId());
         assertThat(dto.getAmount()).isEqualByComparingTo("280.00");
+    }
+
+    @Test
+    void confirmQueuesOrderEvenWhenPaymentServiceFailsForDevIntegration() {
+        service = new MedicalOrderServiceImpl(
+                consultMapper, medicalItemMapper, medicalOrderMapper,
+                paymentFeignClient, new ObjectMapper(), true);
+        ConsultRecord consult = new ConsultRecord();
+        consult.setRegisterId("REG001");
+        consult.setPatientId("P001");
+        consult.setPatientName("Alice");
+        consult.setDoctorId("D001");
+        when(consultMapper.findDetail("REG001")).thenReturn(consult);
+
+        MedicalItem item = new MedicalItem();
+        item.setItemId("ITEM001");
+        item.setItemCode("CRANIAL_CT_PLAIN");
+        item.setItemName("Cranial CT");
+        item.setItemCategory("EXAM");
+        item.setDeptId("DEPT001");
+        item.setPrice(new BigDecimal("280.00"));
+        when(medicalItemMapper.selectEnabledByCode("CRANIAL_CT_PLAIN"))
+                .thenReturn(item);
+        when(medicalOrderMapper.keepConsultInProgress("REG001", "D001"))
+                .thenReturn(1);
+        when(paymentFeignClient.createPayOrder(any(UnifiedPayDto.class)))
+                .thenThrow(new RuntimeException("payment timeout"));
+
+        MedicalOrderConfirmResponse response =
+                service.confirm(request(List.of(itemRequest("CRANIAL_CT_PLAIN", null))), "D001");
+
+        ArgumentCaptor<MedicalOrder> orderCaptor =
+                ArgumentCaptor.forClass(MedicalOrder.class);
+        verify(medicalOrderMapper).insertOrder(orderCaptor.capture());
+        String orderId = orderCaptor.getValue().getOrderId();
+        verify(medicalOrderMapper).updatePayStatus(orderId);
+        verify(medicalOrderMapper).enqueueOrder(orderId);
+        verify(medicalOrderMapper).enqueueOrderItems(orderId);
+        assertThat(response.getStatus()).isEqualTo("QUEUED");
+        assertThat(response.getPayStatus()).isEqualTo("PAID");
+        assertThat(response.isQueueReady()).isTrue();
+        assertThat(response.getPaymentMessage()).contains("payment");
+    }
+
+    @Test
+    void confirmDoesNotQueueWhenPaymentServiceFailsOutsideDevIntegration() {
+        ConsultRecord consult = new ConsultRecord();
+        consult.setRegisterId("REG001");
+        consult.setPatientId("P001");
+        consult.setPatientName("Alice");
+        consult.setDoctorId("D001");
+        when(consultMapper.findDetail("REG001")).thenReturn(consult);
+
+        MedicalItem item = new MedicalItem();
+        item.setItemId("ITEM001");
+        item.setItemCode("CRANIAL_CT_PLAIN");
+        item.setItemName("Cranial CT");
+        item.setItemCategory("EXAM");
+        item.setDeptId("DEPT001");
+        item.setPrice(new BigDecimal("280.00"));
+        when(medicalItemMapper.selectEnabledByCode("CRANIAL_CT_PLAIN"))
+                .thenReturn(item);
+        when(medicalOrderMapper.keepConsultInProgress("REG001", "D001"))
+                .thenReturn(1);
+        when(paymentFeignClient.createPayOrder(any(UnifiedPayDto.class)))
+                .thenThrow(new RuntimeException("payment timeout"));
+
+        assertThatThrownBy(() ->
+                service.confirm(request(List.of(itemRequest("CRANIAL_CT_PLAIN", null))), "D001"))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("payment timeout");
+
+        verify(medicalOrderMapper, never()).updatePayStatus(any());
+        verify(medicalOrderMapper, never()).enqueueOrder(any());
+        verify(medicalOrderMapper, never()).enqueueOrderItems(any());
     }
 
     @Test

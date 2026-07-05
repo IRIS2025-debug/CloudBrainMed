@@ -261,7 +261,12 @@ const startAnalysis = async () => {
     analysisStatus.value = 'analyzing'
     
     // 使用第一个上传的文件进行分析
-    const imagePath = uploadedFiles.value[0].path
+    const firstUploadedFile = uploadedFiles.value[0]
+    if (!firstUploadedFile) {
+      ElMessage.warning('请先上传影像文件')
+      return
+    }
+    const imagePath = firstUploadedFile.path
     
     const response = await axios.post('/api/analysis/image', {
       image_path: imagePath,
@@ -278,8 +283,9 @@ const startAnalysis = async () => {
       analysisStatus.value = 'completed'
       
       // 标记图片已分析
-      if (imageList.value.length > 0) {
-        imageList.value[0].analyzed = true
+      const firstImage = imageList.value[0]
+      if (firstImage) {
+        firstImage.analyzed = true
       }
       
       ElMessage.success('分析完成，报告已生成')

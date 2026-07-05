@@ -3,7 +3,9 @@ package com.cloudbrainmed.doctor.controller;
 import com.cloudbrainmed.common.result.Result;
 import com.cloudbrainmed.common.utils.DoctorJwtUtil;
 import com.cloudbrainmed.common.exception.BusinessException;
+import com.cloudbrainmed.doctor.dto.MedicalReportSubmitRequest;
 import com.cloudbrainmed.doctor.service.TaskSchedulerService;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -35,8 +37,8 @@ public class TaskController {
         Integer doctorType = extractDoctorType(token);
         return Result.ok(Map.of(
                 "doctorId", doctorId,
-                "tasks", taskSchedulerService.getDoctorWorkbench(doctorId, doctorType),
-                "queueCount", taskSchedulerService.getQueueCount()
+                "tasks", taskSchedulerService.getAssignableQueue(doctorType),
+                "queueCount", taskSchedulerService.getAssignableQueueCount(doctorType)
         ));
     }
 
@@ -61,6 +63,14 @@ public class TaskController {
         String doctorId = extractDoctorId(token);
         taskSchedulerService.completeTask(body.get("orderItemId"), doctorId);
         return Result.ok();
+    }
+
+    @PostMapping("/report")
+    public Result<?> submitReport(
+            @RequestHeader(value = "token", required = false) String token,
+            @Valid @RequestBody MedicalReportSubmitRequest request) {
+        String doctorId = extractDoctorId(token);
+        return Result.ok(taskSchedulerService.submitReport(request, doctorId));
     }
 
     /**

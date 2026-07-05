@@ -3,8 +3,8 @@
 
 data:
   # 2D DCM 切片路径（相对于 python-ml/）
-  ct_dir: "../../../../project-materials/ct-model-defense-traces/python-ml-data/data/ct_artifact_dataset/CT"
-  mask_dir: "../../../../project-materials/ct-model-defense-traces/python-ml-data/data/ct_artifact_dataset/MASK"
+  ct_dir: "../../../../project-materials/CT金属伪影模型留痕/python-ml-data/data/CT金属伪影数据集/CT"
+  mask_dir: "../../../../project-materials/CT金属伪影模型留痕/python-ml-data/data/CT金属伪影数据集/MASK"
   # 训练/验证划分比例
   val_split: 0.2
   # 随机种子（保证划分可复现）
@@ -62,7 +62,7 @@ augmentation:
 
 logging:
   # 实验输出根目录（相对于 python-ml/）
-  experiment_root: "../../../../project-materials/ct-model-defense-traces/experiments"
+  experiment_root: "../../../../project-materials/CT金属伪影模型留痕/experiments"
   # 每多少轮画一次图表
   viz_interval: 10
   # 每多少轮保存一次 checkpoint

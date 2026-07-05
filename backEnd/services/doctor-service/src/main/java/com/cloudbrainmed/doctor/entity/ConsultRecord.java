@@ -34,6 +34,8 @@ public class ConsultRecord {
 
     // 计算字段
     private Integer patientAge;
+    private Integer reportCount;
+    private LocalDateTime latestReportTime;
 
     public String getRegisterId() { return registerId; }
     public void setRegisterId(String registerId) { this.registerId = registerId; }
@@ -78,4 +80,11 @@ public class ConsultRecord {
     public void setDescription(String description) { this.description = description; }
     public Integer getPatientAge() { return patientAge; }
     public void setPatientAge(Integer patientAge) { this.patientAge = patientAge; }
+    public Integer getReportCount() { return reportCount; }
+    public void setReportCount(Integer reportCount) { this.reportCount = reportCount; }
+    public LocalDateTime getLatestReportTime() { return latestReportTime; }
+    public void setLatestReportTime(LocalDateTime latestReportTime) { this.latestReportTime = latestReportTime; }
+    public Boolean getHasReturnedReport() {
+        return reportCount != null && reportCount > 0;
+    }
 }

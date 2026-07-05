@@ -5,6 +5,7 @@ import com.cloudbrainmed.payment.dto.PayQueryDto;
 import com.cloudbrainmed.payment.dto.UnifiedPayDto;
 import com.cloudbrainmed.payment.entity.Pay;
 import com.cloudbrainmed.payment.mapper.PayMapper;
+import com.cloudbrainmed.payment.service.MedicalOrderCallbackService;
 import com.cloudbrainmed.payment.service.PayService;
 import com.cloudbrainmed.payment.vo.PayResultVo;
 import com.cloudbrainmed.common.result.PageResult;
@@ -20,9 +21,13 @@ import java.util.UUID;
 public class PayServiceImpl implements PayService {
 
     private final PayMapper payMapper;
+    private final MedicalOrderCallbackService medicalOrderCallbackService;
 
-    public PayServiceImpl(PayMapper payMapper) {
+    public PayServiceImpl(
+            PayMapper payMapper,
+            MedicalOrderCallbackService medicalOrderCallbackService) {
         this.payMapper = payMapper;
+        this.medicalOrderCallbackService = medicalOrderCallbackService;
     }
 
     @Override
@@ -68,7 +73,11 @@ public class PayServiceImpl implements PayService {
         if (result != 1) {
             throw new BusinessException("支付状态更新失败");
         }
-        syncBusinessPayStatus(pay, "PAID");
+        if ("MEDICAL".equals(pay.getOrderType())) {
+            notifyMedicalOrderPaid(pay);
+        } else {
+            syncBusinessPayStatus(pay, "PAID");
+        }
         return result > 0;
     }
 
@@ -118,6 +127,15 @@ public class PayServiceImpl implements PayService {
                 pay.getOrderType(), pay.getBusinessId(), payStatus);
         if (updated != 1) {
             throw new BusinessException("业务支付状态同步失败");
+        }
+    }
+
+    private void notifyMedicalOrderPaid(Pay pay) {
+        if (!"MEDICAL".equals(pay.getOrderType()) || pay.getBusinessId() == null) {
+            return;
+        }
+        if (!medicalOrderCallbackService.onOrderPaid(pay.getBusinessId())) {
+            throw new BusinessException("medical order callback failed");
         }
     }
 

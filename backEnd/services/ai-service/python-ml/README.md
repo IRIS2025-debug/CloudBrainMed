@@ -1,7 +1,7 @@
-﻿# CT 金属伪影检测 — AI 训练与推理
+# CT 金属伪影检测 — AI 训练与推理
 
 > Note: training data, six experiment outputs, and defense evidence have been
-> moved to `../../../../project-materials/ct-model-defense-traces/`. This backend
+> moved to `../../../../project-materials/CT金属伪影模型留痕/`. This backend
 > folder keeps only runtime inference code and deployed weights.
 
 ## 项目结构
@@ -75,7 +75,7 @@ https://msd-for-monai.s3.us-west-2.amazonaws.com/Task10_Colon.tar
 ```bash
 python tools/prepare_msd_lesion_dataset.py \
   --archive D:/datasets/Task10_Colon.tar \
-  --output-dir data/ct_lesion_dataset \
+  --output-dir data/CT病灶数据集 \
   --max-cases 8
 ```
 

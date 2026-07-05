@@ -1,6 +1,6 @@
 import request from '../request'
 
-export function getConsultList(params: { consultStatus?: string; date?: string; page: number; limit: number }) {
+export function getConsultList(params: { consultStatus?: string; date?: string; reportReturnedOnly?: boolean; page: number; limit: number }) {
   return request.get('/doctor-service/consult/list', { params })
 }
 
@@ -18,6 +18,20 @@ export function confirmRecord(data: { registerId: string; recordDesc: string }) 
 
 export function createExamOrder(data: { registerId: string; checkItemList: string; urgencyLevel: string }) {
   return request.post('/doctor-service/consult/create-exam-order', data)
+}
+
+export function confirmMedicalOrder(data: {
+  registerId: string
+  aiTraceId?: string
+  clinicalSummary: string
+  urgencyLevel: string
+  items: Array<{ itemCode: string; urgencyLevel?: string }>
+}) {
+  return request.post('/doctor-service/consult/medical-order/confirm', data)
+}
+
+export function getConsultReports(registerId: string) {
+  return request.get('/doctor-service/consult/reports', { params: { registerId } })
 }
 
 export function completeConsult(registerId: string) {

@@ -13,6 +13,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.util.Map;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
@@ -71,6 +73,24 @@ class AiReportControllerTest {
     }
 
     @Test
+    void analyzeCtStructuredReportAllowsExamDoctorWithoutConsultContextLookup() {
+        AiReportService reportService = mock(AiReportService.class);
+        DoctorFeignClient doctorFeignClient = mock(DoctorFeignClient.class);
+        ReportAnalysisDto request = new ReportAnalysisDto();
+        request.setRegisterId("REG001");
+        request.setReportType("CT_LESION_REPORT");
+        request.setReportInput(Map.of(
+                "task", "CT_LESION_REPORT",
+                "finding", Map.of("lesionDetected", true)));
+
+        new AiReportController(reportService, doctorFeignClient, "internal-key")
+                .analyze(examDoctorToken(), request);
+
+        verify(doctorFeignClient, never()).getConsultContext(any(), any(), any());
+        verify(reportService).analyze(request);
+    }
+
+    @Test
     void analyzeRejectsWhenConsultContextUnavailable() {
         AiReportService reportService = mock(AiReportService.class);
         DoctorFeignClient doctorFeignClient = mock(DoctorFeignClient.class);
@@ -114,5 +134,9 @@ class AiReportControllerTest {
 
     private String doctorToken() {
         return DoctorJwtUtil.createToken("D001", "13800000000", 2);
+    }
+
+    private String examDoctorToken() {
+        return DoctorJwtUtil.createToken("D002", "13800000001", 2, 2);
     }
 }

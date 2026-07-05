@@ -24,7 +24,17 @@
           </div>
         </section>
 
-        <section class="card">
+        <section class="workflow-tabs">
+          <button :class="{ active: activeFlowView === 'record' }" @click="activeFlowView = 'record'">病历编辑</button>
+          <button :class="{ active: activeFlowView === 'exam' }" @click="openExamStep">AI检查/检验</button>
+          <button :class="{ active: activeFlowView === 'reports' }" @click="openReportsStep">
+            检查检验报告
+            <span v-if="publishedReports.length" class="tab-badge">{{ publishedReports.length }}</span>
+          </button>
+          <button :class="{ active: activeFlowView === 'prescription' }" @click="openPrescriptionStep">处方/用药AI</button>
+        </section>
+
+        <section class="card" v-if="activeFlowView === 'record'">
           <div class="card-head">病历编辑</div>
           <div class="record-section-grid">
             <div class="record-section" v-for="section in recordSectionDefs" :key="section.key" :class="{ required: requiredRecordSectionKeys.includes(section.key) }">
@@ -45,22 +55,23 @@
           <div class="actions">
             <el-button @click="handleSaveDraft" :loading="saving" :disabled="isCompleted" size="large">暂存草稿</el-button>
             <el-button type="success" @click="handleConfirm" :loading="confirming" :disabled="isCompleted" size="large">确认病历</el-button>
-            <el-button type="primary" @click="handleRecommendExamItems" :loading="examRecommendLoading" :disabled="isCompleted" size="large" plain>AI推荐检查/检验</el-button>
-            <el-button type="warning" @click="handleCreateExam" :disabled="isCompleted" size="large">开具检查单</el-button>
-            <el-button type="success" @click="handleCreatePrescription" :disabled="isCompleted" size="large">开具处方</el-button>
             <el-button type="danger" @click="handleComplete" :loading="completing" :disabled="isCompleted" size="large" plain>完成接诊</el-button>
           </div>
         </section>
 
-        <section class="card ai-exam-card" v-if="examRecommendations.length">
+        <section class="card ai-exam-card" v-if="activeFlowView === 'exam'">
           <div class="card-head ai-exam-head">
             <span>AI 推荐检查/检验</span>
             <small>医生确认后再生成正式申请单</small>
           </div>
+          <div v-if="!examRecommendations.length && !examRecommendLoading" class="ai-exam-empty">
+            <p>根据当前病历生成检查/检验建议，确认后直接进入检查/检验医生队列。</p>
+            <el-button type="primary" @click="handleRecommendExamItems" :loading="examRecommendLoading" :disabled="isCompleted">生成 AI 建议</el-button>
+          </div>
           <p v-if="examRecommendSummary" class="ai-exam-summary">{{ examRecommendSummary }}</p>
-          <div class="ai-exam-list">
-            <label
-              v-for="item in examRecommendations"
+          <div class="ai-exam-list" v-if="examRecommendations.length">
+            <div
+              v-for="(item, index) in examRecommendations"
               :key="item.id"
               class="ai-exam-recommendation"
               :class="{ selected: item.selected }"
@@ -68,24 +79,67 @@
               <el-checkbox v-model="item.selected" :disabled="isCompleted" />
               <div class="ai-exam-content">
                 <div class="ai-exam-title-line">
-                  <strong>{{ item.itemName }}</strong>
+                  <strong>{{ item.itemName || '待选择项目' }}</strong>
                   <el-tag size="small" :type="item.category === 'LAB' ? 'success' : 'primary'" round>{{ item.category === 'LAB' ? '检验' : '检查' }}</el-tag>
                   <el-tag size="small" :type="urgencyTag(item.urgencyLevel)" round>{{ urgencyLabel(item.urgencyLevel) }}</el-tag>
+                  <el-tag v-if="item.needsMapping" size="small" type="warning" round>需改选系统项目</el-tag>
+                  <el-button text type="danger" size="small" :disabled="isCompleted" @click="removeExamRecommendation(index)">删除</el-button>
                 </div>
-                <p>{{ item.reason || 'AI 建议结合当前病历进一步确认。' }}</p>
-                <small>{{ item.dept || '待分配科室' }}</small>
+                <div class="ai-exam-edit-grid">
+                  <el-select
+                    v-model="item.itemCode"
+                    filterable
+                    clearable
+                    fit-input-width
+                    popper-class="exam-item-select-popper"
+                    placeholder="选择正式检查/检验项目"
+                    :disabled="isCompleted"
+                    @change="handleExamRecommendationCodeChange(item)"
+                  >
+                    <el-option
+                      v-for="option in medicalItemOptions"
+                      :key="option.itemCode"
+                      :label="`${option.itemName}（${option.category === 'LAB' ? '检验' : '检查'}）`"
+                      :value="option.itemCode"
+                    />
+                  </el-select>
+                  <el-select v-model="item.urgencyLevel" fit-input-width popper-class="exam-urgency-select-popper" :disabled="isCompleted">
+                    <el-option label="常规" value="NORMAL" />
+                    <el-option label="加急" value="URGENT" />
+                    <el-option label="紧急" value="EMERGENCY" />
+                  </el-select>
+                </div>
+                <el-input
+                  v-model="item.reason"
+                  type="textarea"
+                  :rows="2"
+                  resize="none"
+                  :disabled="isCompleted"
+                  placeholder="可补充采用理由或医生调整说明"
+                />
+                <small>{{ item.itemCode || '待选择项目编码' }} · {{ item.dept || '待分配科室' }}</small>
               </div>
-            </label>
+            </div>
           </div>
-          <div class="ai-exam-actions">
+          <div class="ai-exam-actions" v-if="examRecommendations.length">
             <el-button @click="examRecommendations = []">收起</el-button>
-            <el-button type="primary" :disabled="isCompleted || !selectedExamRecommendations.length" @click="applyExamRecommendations">
-              带入检查单
+            <el-button :disabled="isCompleted" @click="addExamRecommendation">新增项目</el-button>
+            <el-button type="primary" :loading="examLoading" :disabled="isCompleted || !selectedExamRecommendations.length" @click="submitExamRecommendations">
+              确认并生成检查单
             </el-button>
+          </div>
+          <div v-if="examOrderResult" class="exam-order-result">
+            <strong>检查单已生成并进入检查/检验队列</strong>
+            <span>状态：{{ examOrderResult.status || 'QUEUED' }} · 项目数：{{ examOrderResult.itemCount || 0 }} · 金额：¥{{ examOrderResult.totalAmount || 0 }}</span>
+            <small v-if="examOrderResult.paymentMessage">{{ examOrderResult.paymentMessage }}</small>
+            <div class="exam-order-result-actions">
+              <el-button @click="router.push('/doctor/consult')">返回接诊工作台</el-button>
+              <el-button type="primary" plain @click="activeFlowView = 'record'">回到本次接诊</el-button>
+            </div>
           </div>
         </section>
 
-        <section class="card" v-if="showExamDialog">
+        <section class="card" v-if="activeFlowView === 'exam' && showExamDialog">
           <div class="card-head">检查申请单</div>
           <el-form label-position="top">
             <div class="exam-order-toolbar">
@@ -100,11 +154,13 @@
             <div class="exam-order-table">
               <div class="exam-order-head">
                 <span>检查/检验项目</span>
+                <span>项目编码</span>
                 <span>执行科室</span>
                 <span></span>
               </div>
               <div class="exam-order-row" v-for="(item, index) in examItems" :key="item.id">
                 <el-input v-model="item.itemName" placeholder="例如：颅脑CT平扫" />
+                <el-input v-model="item.itemCode" placeholder="AI推荐后自动带入" />
                 <el-input v-model="item.dept" placeholder="例如：影像科" />
                 <el-button text type="danger" @click="removeExamItem(index)" :disabled="isCompleted || examItems.length === 1">删除</el-button>
               </div>
@@ -117,7 +173,77 @@
           </el-form>
         </section>
 
-        <section class="card" v-if="showPrescriptionDialog">
+        <section class="card" v-if="activeFlowView === 'reports'">
+          <div class="card-head report-card-head">
+            <span>检查检验报告</span>
+            <el-button size="small" @click="loadReports" :loading="reportsLoading">刷新报告</el-button>
+          </div>
+          <div v-if="publishedReports.length" class="published-report-list">
+            <button
+              v-for="report in publishedReports"
+              :key="report.reportId || report.orderItemId"
+              class="published-report-item"
+              :class="{ active: selectedReportId === (report.reportId || report.orderItemId) }"
+              @click="selectReport(report)"
+            >
+              <strong>{{ report.itemName || report.itemCode || '检查/检验报告' }}</strong>
+              <span>{{ report.conclusion || report.resultSummary || '报告已发布' }}</span>
+              <small>{{ report.reportTime || '' }}</small>
+            </button>
+          </div>
+          <el-empty v-else description="暂无检查/检验医生回传报告" />
+          <div class="report-inline-form">
+            <el-select v-model="reportForm.reportType" class="report-type">
+              <el-option label="检验报告" value="LAB" />
+              <el-option label="检查报告" value="EXAM" />
+            </el-select>
+            <el-input
+              v-model="reportForm.reportText"
+              type="textarea"
+              :rows="6"
+              placeholder="选择上方已回传报告后会自动填入；也可以补充粘贴外部报告文本"
+            />
+            <div class="report-inline-actions">
+              <el-button type="primary" :loading="reportLoading" :disabled="isCompleted" @click="handleReportAnalyze">AI分析报告</el-button>
+              <el-button :disabled="!reportResult || isCompleted" :loading="savingReportAnalysis" @click="appendReportAnalysisToRecord">写入病历</el-button>
+            </div>
+          </div>
+          <div v-if="reportResult" class="report-result embedded-report-result">
+            <div class="result-card primary">
+              <div class="result-line">
+                <span>报告结论</span>
+                <el-tag :type="reportRiskTag" round>{{ reportRiskLabel }}</el-tag>
+              </div>
+              <p class="ai-answer">{{ reportResult.summary || 'AI 已生成报告分析结果' }}</p>
+            </div>
+
+            <div class="ai-section" v-if="reportResult.abnormalIndicators?.length">
+              <div class="ai-section-title">异常指标</div>
+              <div class="exam-item" v-for="(item, index) in reportResult.abnormalIndicators" :key="index">
+                <span class="diag-index">{{ index + 1 }}</span>
+                <div>
+                  <strong>{{ item.name || '异常项' }}</strong>
+                  <p>{{ item.value || '--' }} · 参考 {{ item.referenceRange || '--' }}</p>
+                  <p>{{ item.interpretation || '请结合临床判断' }}</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="ai-section" v-if="reportResult.suggestions?.length">
+              <div class="ai-section-title">处理建议</div>
+              <div class="suggestion-item" v-for="(item, index) in reportResult.suggestions" :key="index">
+                <span class="diag-index">{{ index + 1 }}</span>
+                <span>{{ item }}</span>
+              </div>
+            </div>
+
+            <div class="ai-warning" v-if="reportResult.followUpAdvice">
+              {{ reportResult.followUpAdvice }}
+            </div>
+          </div>
+        </section>
+
+        <section class="card" v-if="activeFlowView === 'prescription'">
           <div class="card-head">开具处方</div>
           <el-form label-position="top">
             <el-row :gutter="16">
@@ -175,16 +301,16 @@
           <div class="ai-badge"><el-icon><MagicStick /></el-icon></div>
           <div>
             <div class="ai-title">AI 辅助医生</div>
-            <div class="ai-subtitle">聊天式接诊辅助与报告分析</div>
+            <div class="ai-subtitle">接诊辅助与药品推荐</div>
           </div>
         </div>
 
         <div class="ai-tabs">
-          <button :class="{ active: aiMode === 'reception' }" @click="aiMode = 'reception'">辅助接诊</button>
-          <button :class="{ active: aiMode === 'report' }" @click="aiMode = 'report'">报告分析</button>
+          <button :class="{ active: aiPanelMode === 'reception' }" @click="aiPanelMode = 'reception'">辅助接诊</button>
+          <button :class="{ active: aiPanelMode === 'medicine' }" @click="openMedicinePanel">AI药品推荐</button>
         </div>
 
-        <template v-if="aiMode === 'reception'">
+        <template v-if="aiPanelMode === 'reception'">
           <div class="chat-list">
             <div v-if="!chatMessages.length" class="chat-empty">
               <div class="empty-title">向 AI 提问</div>
@@ -263,59 +389,47 @@
         </template>
 
         <template v-else>
-          <div class="report-form">
-            <el-select v-model="reportForm.reportType" class="report-type">
-              <el-option label="检验报告" value="LAB" />
-              <el-option label="检查报告" value="EXAM" />
-            </el-select>
-            <el-input
-              v-model="reportForm.reportText"
-              type="textarea"
-              :rows="7"
-              placeholder="粘贴检查/检验报告原文，或输入关键指标、影像描述和结论"
-              class="report-textarea"
-            />
-            <el-button type="primary" class="wide-btn" :loading="reportLoading" :disabled="isCompleted" @click="handleReportAnalyze">
-              分析报告
-            </el-button>
+          <div class="medicine-chat-list">
+            <div v-if="!medicineMessages.length" class="chat-empty">
+              <div class="empty-title">AI药品推荐</div>
+              <p>根据当前病历、诊断和处理计划推荐可考虑药品；医生确认后再回到处方页开具处方。</p>
+            </div>
+            <div v-for="message in medicineMessages" :key="message.id" class="chat-message" :class="'is-' + message.role">
+              <div class="bubble">
+                <div class="bubble-meta">
+                  <span>{{ message.role === 'doctor' ? '医生' : 'AI' }}</span>
+                </div>
+                <p>{{ message.content }}</p>
+              </div>
+            </div>
           </div>
 
-          <div v-if="reportResult" class="report-result">
-            <div class="result-card primary">
-              <div class="result-line">
-                <span>报告结论</span>
-                <el-tag :type="reportRiskTag" round>{{ reportRiskLabel }}</el-tag>
-              </div>
-              <p class="ai-answer">{{ reportResult.summary || 'AI 已生成报告分析结果' }}</p>
+          <div class="medicine-input-shell">
+            <el-input
+              v-model="medicineQuestion"
+              type="textarea"
+              :rows="4"
+              resize="none"
+              :disabled="isCompleted || medicineAiLoading"
+              placeholder="输入用药问题，或直接点击根据病历推荐"
+            />
+            <div class="medicine-actions">
+              <el-button
+                plain
+                :disabled="isCompleted || medicineAiLoading"
+                @click="askMedicineRecommendation"
+              >
+                根据病历推荐
+              </el-button>
+              <el-button
+                type="primary"
+                :loading="medicineAiLoading"
+                :disabled="isCompleted || !medicineQuestion.trim()"
+                @click="sendMedicineQuestion"
+              >
+                咨询用药
+              </el-button>
             </div>
-
-            <div class="ai-section" v-if="reportResult.abnormalIndicators?.length">
-              <div class="ai-section-title">异常指标</div>
-              <div class="exam-item" v-for="(item, index) in reportResult.abnormalIndicators" :key="index">
-                <span class="diag-index">{{ index + 1 }}</span>
-                <div>
-                  <strong>{{ item.name || '异常项' }}</strong>
-                  <p>{{ item.value || '--' }} · 参考 {{ item.referenceRange || '--' }}</p>
-                  <p>{{ item.interpretation || '请结合临床判断' }}</p>
-                </div>
-              </div>
-            </div>
-
-            <div class="ai-section" v-if="reportResult.suggestions?.length">
-              <div class="ai-section-title">处理建议</div>
-              <div class="suggestion-item" v-for="(item, index) in reportResult.suggestions" :key="index">
-                <span class="diag-index">{{ index + 1 }}</span>
-                <span>{{ item }}</span>
-              </div>
-            </div>
-
-            <div class="ai-warning" v-if="reportResult.followUpAdvice">
-              {{ reportResult.followUpAdvice }}
-            </div>
-
-            <el-button class="wide-btn report-apply-btn" type="success" plain :loading="savingReportAnalysis" :disabled="isCompleted" @click="appendReportAnalysisToRecord">
-              写入并暂存病历
-            </el-button>
           </div>
         </template>
       </aside>
@@ -328,10 +442,11 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, MagicStick, MoreFilled, Promotion } from '@element-plus/icons-vue'
-import { getConsultDetail, saveDraft, confirmRecord, createExamOrder, completeConsult, createPrescription } from '@/api/doctor/consult'
-import { assistantChat, analyzeReport, recommendExamItems, type AiAssistantActionType, type AiAssistantChatResponse, type AiExamRecommendationItem, type AiExamRecommendResponse, type ReportAnalysisResponse } from '@/api/doctor/ai'
+import { getConsultDetail, saveDraft, confirmRecord, confirmMedicalOrder, getConsultReports, completeConsult, createPrescription } from '@/api/doctor/consult'
+import { assistantChat, analyzeReport, recommendExamItems, type AiAssistantActionType, type AiAssistantChatResponse, type ReportAnalysisResponse } from '@/api/doctor/ai'
 import { getMedicineList } from '@/api/doctor/medicine'
 import type { Medicine } from '@/types/admin/adminMedicine'
+import { medicalItemOptions, normalizeExamRecommendResponse, type NormalizedExamRecommendation } from '@/utils/examRecommendation'
 
 type RecordSectionKey = 'chiefComplaint' | 'presentHistory' | 'pastHistory' | 'physicalExam' | 'auxiliaryExam' | 'diagnosis' | 'treatmentPlan'
 
@@ -356,14 +471,12 @@ interface ChatMessage {
   response?: AiAssistantChatResponse
 }
 
-interface NormalizedExamRecommendation {
+interface ExamOrderDraftItem {
   id: number
+  itemCode: string
   itemName: string
-  category: string
   dept: string
-  urgencyLevel: string
-  reason: string
-  selected: boolean
+  urgencyLevel?: string
 }
 
 const route = useRoute()
@@ -377,17 +490,27 @@ const examLoading = ref(false)
 const examRecommendLoading = ref(false)
 const showExamDialog = ref(false)
 const urgencyLevel = ref('NORMAL')
-const examItems = ref([{ id: Date.now(), itemName: '', dept: '' }])
+const activeFlowView = ref<'record' | 'exam' | 'reports' | 'prescription'>('record')
+const examItems = ref<ExamOrderDraftItem[]>([{ id: Date.now(), itemCode: '', itemName: '', dept: '' }])
 const examRecommendations = ref<NormalizedExamRecommendation[]>([])
 const examRecommendSummary = ref('')
-const aiMode = ref<'reception' | 'report'>('reception')
+const examAiTraceId = ref('')
+const examOrderResult = ref<any>(null)
+const aiPanelMode = ref<'reception' | 'medicine'>('reception')
 const aiLoading = ref(false)
 const chatInput = ref('')
 const chatMessages = ref<ChatMessage[]>([])
+const medicineAiLoading = ref(false)
+const medicineQuestion = ref('')
+const medicineMessages = ref<ChatMessage[]>([])
+const medicineSessionId = ref(`medicine_${registerId}_${Date.now()}`)
 const reportLoading = ref(false)
+const reportsLoading = ref(false)
 const savingReportAnalysis = ref(false)
 const reportForm = ref({ reportType: 'LAB', reportText: '' })
 const reportResult = ref<ReportAnalysisResponse | null>(null)
+const publishedReports = ref<any[]>([])
+const selectedReportId = ref('')
 const showPrescriptionDialog = ref(false)
 const rxLoading = ref(false)
 const medicineLoading = ref(false)
@@ -427,13 +550,17 @@ const aiQuickActions: AiQuickAction[] = [
   { label: '诊断辅助', actionType: 'DIAGNOSIS_ASSISTANT', prompt: '请给出可能诊断、支持依据、证据不足和下一步确认问题。' }
 ]
 
-const visibleAiActionTypes: AiAssistantActionType[] = ['DIAGNOSIS_ASSISTANT', 'PRESCRIPTION_REVIEW']
+const visibleAiActionTypes: AiAssistantActionType[] = [
+  'FOLLOW_UP_QUESTION',
+  'MISSING_INFORMATION',
+  'MEDICAL_RECORD_DRAFT'
+]
 const visibleAiActions = visibleAiActionTypes
   .map(actionType => aiQuickActions.find(action => action.actionType === actionType))
   .filter((action): action is AiQuickAction => Boolean(action))
 const moreAiActions = aiQuickActions.filter(action => !visibleAiActionTypes.includes(action.actionType))
+  .filter(action => action.actionType !== 'PRESCRIPTION_REVIEW')
 const prescriptionReviewAction = aiQuickActions.find(action => action.actionType === 'PRESCRIPTION_REVIEW')!
-
 const patientName = computed(() => detail.value.name || detail.value.patientName || '--')
 const isCompleted = computed(() => detail.value.consultStatus === 'COMPLETED')
 const recordDesc = computed({
@@ -465,7 +592,6 @@ onMounted(async () => {
     if (!recordSections.value.chiefComplaint && res.data.chiefComplaint) {
       recordSections.value.chiefComplaint = res.data.chiefComplaint
     }
-    loadMedicineOptions()
   } catch (e: any) {
     showActionError(e, '加载接诊详情失败')
   }
@@ -504,6 +630,11 @@ async function handleConfirm() {
   }
 }
 
+function openExamStep() {
+  activeFlowView.value = 'exam'
+  showPrescriptionDialog.value = false
+}
+
 function handleCreateExam() {
   if (isCompleted.value) {
     ElMessage.warning('接诊已完成，不能继续开具检查单')
@@ -514,7 +645,7 @@ function handleCreateExam() {
   if (!examItems.value.length) addExamItem()
 }
 
-function handleRecommendExamItems() {
+async function handleRecommendExamItems() {
   if (isCompleted.value) {
     ElMessage.warning('接诊已完成，不能继续推荐检查/检验')
     return
@@ -523,7 +654,32 @@ function handleRecommendExamItems() {
     ElMessage.warning('请先填写主诉或病历内容')
     return
   }
-  router.push({ path: '/doctor/ai-exam-generate', query: { registerId } })
+  activeFlowView.value = 'exam'
+  examRecommendLoading.value = true
+  try {
+    const res = await recommendExamItems({
+      registerId,
+      patientId: detail.value.patientId,
+      chiefComplaint: detail.value.chiefComplaint,
+      recordDesc: recordDesc.value,
+      patientAge: String(detail.value.patientAge || ''),
+      patientGender: genderLabel(detail.value.gender),
+      structuredParameters: buildStructuredParameters()
+    })
+    const normalized = normalizeExamRecommendResponse(res.data)
+    examRecommendations.value = normalized.items
+    examRecommendSummary.value = normalized.summary
+    examAiTraceId.value = Array.isArray(res.data) ? '' : (res.data?.traceId || '')
+    if (!examRecommendations.value.length) {
+      ElMessage.warning('AI 暂未返回可确认的检查/检验项目')
+      return
+    }
+    ElMessage.success('AI检查/检验建议已生成')
+  } catch (e: any) {
+    showActionError(e, 'AI检查/检验建议生成失败')
+  } finally {
+    examRecommendLoading.value = false
+  }
 }
 
 function applyExamRecommendations() {
@@ -535,13 +691,81 @@ function applyExamRecommendations() {
   const existingItems = examItems.value.filter(item => item.itemName.trim())
   const newItems = selectedItems.map(item => ({
     id: Date.now() + Math.random(),
+    itemCode: item.itemCode,
     itemName: item.itemName,
-    dept: item.dept
+    dept: item.dept,
+    urgencyLevel: item.urgencyLevel
   }))
   examItems.value = [...existingItems, ...newItems]
   showExamDialog.value = true
   showPrescriptionDialog.value = false
   ElMessage.success('已带入检查申请单，请确认后提交')
+}
+
+function handleExamRecommendationCodeChange(item: NormalizedExamRecommendation) {
+  const option = medicalItemOptions.find(option => option.itemCode === item.itemCode)
+  if (!option) {
+    item.needsMapping = true
+    return
+  }
+  item.itemName = option.itemName
+  item.category = option.category
+  item.dept = option.dept
+  item.needsMapping = false
+}
+
+function addExamRecommendation() {
+  if (isCompleted.value) return
+  examRecommendations.value.push({
+    id: Date.now() + Math.random(),
+    itemCode: '',
+    itemName: '',
+    category: 'EXAM',
+    dept: '',
+    urgencyLevel: urgencyLevel.value,
+    reason: '',
+    selected: true,
+    needsMapping: true
+  })
+}
+
+function removeExamRecommendation(index: number) {
+  if (isCompleted.value) return
+  examRecommendations.value.splice(index, 1)
+}
+
+async function submitExamRecommendations() {
+  if (isCompleted.value) {
+    ElMessage.warning('接诊已完成，不能继续开具检查单')
+    return
+  }
+  const selectedItems = selectedExamRecommendations.value
+  if (!selectedItems.length) {
+    ElMessage.warning('请先勾选要采用的检查/检验项目')
+    return
+  }
+  if (selectedItems.some(item => !item.itemCode || item.needsMapping)) {
+    ElMessage.warning('请为已勾选项目改选系统支持的检查/检验项目')
+    return
+  }
+  examLoading.value = true
+  try {
+    const res = await confirmMedicalOrder({
+      registerId,
+      clinicalSummary: recordDesc.value || detail.value.chiefComplaint || examRecommendSummary.value || '本次接诊医技申请',
+      urgencyLevel: urgencyLevel.value,
+      items: selectedItems.map(item => ({
+        itemCode: item.itemCode,
+        urgencyLevel: item.urgencyLevel || urgencyLevel.value
+      }))
+    })
+    examOrderResult.value = res.data
+    ElMessage.success('检查申请已生成，并已进入检查/检验队列')
+  } catch (e: any) {
+    showActionError(e, '检查申请提交失败')
+  } finally {
+    examLoading.value = false
+  }
 }
 
 function handleCreatePrescription() {
@@ -550,8 +774,25 @@ function handleCreatePrescription() {
     return
   }
   showPrescriptionDialog.value = true
+  activeFlowView.value = 'prescription'
   showExamDialog.value = false
   loadMedicineOptions()
+}
+
+function openPrescriptionStep() {
+  handleCreatePrescription()
+}
+
+function openMedicinePanel() {
+  aiPanelMode.value = 'medicine'
+  if (!medicineQuestion.value.trim()) {
+    medicineQuestion.value = buildMedicineRecommendationQuestion()
+  }
+}
+
+async function openReportsStep() {
+  activeFlowView.value = 'reports'
+  await loadReports()
 }
 
 async function submitPrescription() {
@@ -582,7 +823,7 @@ async function submitPrescription() {
 
 function addExamItem() {
   if (isCompleted.value) return
-  examItems.value.push({ id: Date.now() + Math.random(), itemName: '', dept: '' })
+  examItems.value.push({ id: Date.now() + Math.random(), itemCode: '', itemName: '', dept: '' })
 }
 
 function removeExamItem(index: number) {
@@ -596,23 +837,70 @@ async function submitExamOrder() {
     return
   }
   const items = examItems.value
-    .map(item => ({ itemName: item.itemName.trim(), dept: item.dept.trim() }))
+    .map(item => ({
+      itemCode: item.itemCode.trim(),
+      itemName: item.itemName.trim(),
+      dept: item.dept.trim(),
+      urgencyLevel: item.urgencyLevel || urgencyLevel.value
+    }))
     .filter(item => item.itemName)
   if (!items.length) {
     ElMessage.warning('请至少填写一个检查/检验项目')
     return
   }
+  if (items.some(item => !item.itemCode)) {
+    ElMessage.warning('正式医技申请需要项目编码，请先使用 AI 推荐带入项目')
+    return
+  }
   examLoading.value = true
   try {
-    await createExamOrder({ registerId, checkItemList: JSON.stringify(items), urgencyLevel: urgencyLevel.value })
-    ElMessage.success('检查申请已生成')
+    const res = await confirmMedicalOrder({
+      registerId,
+      clinicalSummary: recordDesc.value || detail.value.chiefComplaint || '本次接诊医技申请',
+      urgencyLevel: urgencyLevel.value,
+      items: items.map(item => ({
+        itemCode: item.itemCode,
+        urgencyLevel: item.urgencyLevel
+      }))
+    })
+    examOrderResult.value = res.data
+    ElMessage.success('检查申请已生成，并已进入检查/检验队列')
     showExamDialog.value = false
-    examItems.value = [{ id: Date.now(), itemName: '', dept: '' }]
+    examItems.value = [{ id: Date.now(), itemCode: '', itemName: '', dept: '' }]
   } catch (e: any) {
     showActionError(e, '检查申请提交失败')
   } finally {
     examLoading.value = false
   }
+}
+
+async function loadReports() {
+  reportsLoading.value = true
+  try {
+    const res = await getConsultReports(registerId)
+    publishedReports.value = Array.isArray(res.data) ? res.data : []
+    if (publishedReports.value.length && !selectedReportId.value) {
+      selectReport(publishedReports.value[0])
+    }
+  } catch (e: any) {
+    publishedReports.value = []
+    if (e?.response?.status !== 404) {
+      showActionError(e, '检查检验报告加载失败')
+    }
+  } finally {
+    reportsLoading.value = false
+  }
+}
+
+function selectReport(report: any) {
+  selectedReportId.value = report.reportId || report.orderItemId || ''
+  reportForm.value.reportType = report.itemCategory || 'EXAM'
+  reportForm.value.reportText = [
+    report.itemName ? `项目：${report.itemName}` : '',
+    report.resultSummary ? `描述：${report.resultSummary}` : '',
+    report.conclusion ? `结论：${report.conclusion}` : '',
+    report.abnormalFlag ? `异常标记：${report.abnormalFlag}` : ''
+  ].filter(Boolean).join('\n')
 }
 
 async function handleComplete() {
@@ -639,6 +927,62 @@ async function sendChatQuestion() {
   if (!message) return
   chatInput.value = ''
   await sendAiMessage(message)
+}
+
+async function askMedicineRecommendation() {
+  const question = buildMedicineRecommendationQuestion()
+  medicineQuestion.value = question
+  await sendMedicineQuery(question)
+}
+
+async function sendMedicineQuestion() {
+  const question = medicineQuestion.value.trim()
+  if (!question) return
+  medicineQuestion.value = ''
+  await sendMedicineQuery(question)
+}
+
+async function sendMedicineQuery(question: string) {
+  if (isCompleted.value) {
+    ElMessage.warning('接诊已完成，不能继续使用 AI 药品推荐')
+    return
+  }
+  medicineMessages.value.push({ id: Date.now() + Math.random(), role: 'doctor', content: question })
+  medicineAiLoading.value = true
+  const reply: ChatMessage = { id: Date.now() + Math.random(), role: 'assistant', content: '' }
+  medicineMessages.value.push(reply)
+  try {
+    const token = sessionStorage.getItem('token') || ''
+    const response = await fetch('/ai-service/medicine/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}`, token } : {})
+      },
+      body: JSON.stringify({
+        sessionId: medicineSessionId.value,
+        patientId: detail.value.patientId || registerId,
+        userRole: 'doctor',
+        question
+      })
+    })
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '')
+      throw new Error(`AI药品推荐请求失败 ${response.status}${errText ? `：${errText}` : ''}`)
+    }
+    if (!response.body) {
+      throw new Error('AI药品推荐服务未返回内容')
+    }
+    await readMedicineStream(response, reply)
+    if (!reply.content.trim()) {
+      reply.content = 'AI 暂未返回药品推荐内容，请补充诊断或用药问题后重试。'
+    }
+  } catch (e: any) {
+    showActionError(e, 'AI药品推荐失败')
+    reply.content = 'AI药品推荐失败，请稍后重试。'
+  } finally {
+    medicineAiLoading.value = false
+  }
 }
 
 async function sendQuickAction(action: AiQuickAction) {
@@ -762,12 +1106,14 @@ function handleMedicineChange(medicineId: string) {
 function validatePrescriptionReviewInput() {
   if (!rxForm.value.medicineId) {
     ElMessage.warning('AI处方审查需要先选择药品')
+    activeFlowView.value = 'prescription'
     showPrescriptionDialog.value = true
     loadMedicineOptions()
     return false
   }
   if (!rxForm.value.usage.trim()) {
     ElMessage.warning('AI处方审查需要填写用法用量')
+    activeFlowView.value = 'prescription'
     showPrescriptionDialog.value = true
     return false
   }
@@ -822,6 +1168,49 @@ function buildPatientInformation() {
   }
 }
 
+function buildMedicineRecommendationQuestion() {
+  return [
+    '请根据以下接诊信息推荐可考虑的药品方案。',
+    '要求：只给正常文字，不要使用 Markdown 符号；说明推荐药品、适应依据、常用用法用量、禁忌和注意事项；最后提醒由接诊医生结合检查检验结果确认后开具处方。',
+    `患者：${patientName.value}，${genderLabel(detail.value.gender)}，${detail.value.patientAge || '--'}岁，${detail.value.department || '--'}`,
+    `主诉：${recordSections.value.chiefComplaint || detail.value.chiefComplaint || '未填写'}`,
+    `现病史：${recordSections.value.presentHistory || '未填写'}`,
+    `既往史/过敏史：${recordSections.value.pastHistory || '未填写'}`,
+    `辅助检查/报告：${recordSections.value.auxiliaryExam || '暂无'}`,
+    `诊断意见：${recordSections.value.diagnosis || '未填写'}`,
+    `处理计划：${recordSections.value.treatmentPlan || '未填写'}`
+  ].join('\n')
+}
+
+async function readMedicineStream(response: Response, target: ChatMessage) {
+  const reader = response.body!.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() || ''
+    lines.forEach(line => appendMedicineLine(target, line))
+  }
+  if (buffer) appendMedicineLine(target, buffer)
+}
+
+function appendMedicineLine(target: ChatMessage, line: string) {
+  const text = line.startsWith('data:') ? line.substring(5) : line
+  const cleaned = cleanAiPlainText(text)
+  if (!cleaned) return
+  target.content += cleaned
+}
+
+function cleanAiPlainText(value: string) {
+  return value
+    .replace(/^>\s?/gm, '')
+    .replace(/^[\s#*\-]+/gm, '')
+    .replace(/[#*`]/g, '')
+}
+
 function buildConversationText(message: string) {
   const recentMessages = chatMessages.value
     .slice(-6)
@@ -832,35 +1221,6 @@ function buildConversationText(message: string) {
     `当前病历：\n${recordDesc.value || '未填写'}`,
     recentMessages.length ? `近期对话：\n${recentMessages.join('\n')}` : ''
   ].filter(Boolean).join('\n\n')
-}
-
-function normalizeExamRecommendResponse(data: AiExamRecommendResponse | AiExamRecommendationItem[] | undefined) {
-  if (Array.isArray(data)) {
-    return {
-      summary: '',
-      items: data.map(normalizeExamRecommendation).filter((item): item is NormalizedExamRecommendation => Boolean(item))
-    }
-  }
-  const rawItems = data?.recommendations || data?.items || data?.examItems || []
-  return {
-    summary: data?.summary || '',
-    items: rawItems.map(normalizeExamRecommendation).filter((item): item is NormalizedExamRecommendation => Boolean(item))
-  }
-}
-
-function normalizeExamRecommendation(item: AiExamRecommendationItem): NormalizedExamRecommendation | null {
-  const itemName = String(item.itemName || item.name || '').trim()
-  if (!itemName) return null
-  const urgency = String(item.urgencyLevel || item.urgency || 'NORMAL').trim().toUpperCase()
-  return {
-    id: Date.now() + Math.random(),
-    itemName,
-    category: String(item.itemCategory || item.category || 'EXAM').toUpperCase(),
-    dept: String(item.dept || item.deptName || item.departmentName || '').trim(),
-    urgencyLevel: ['NORMAL', 'URGENT', 'EMERGENCY'].includes(urgency) ? urgency : 'NORMAL',
-    reason: String(item.reason || item.purpose || '').trim(),
-    selected: true
-  }
 }
 
 function applyAiRecordDraft(draft: string) {
@@ -993,6 +1353,10 @@ function statusLabel(status: string) {
 .main-flow { display: flex; flex-direction: column; gap: 18px; }
 .card { background: #fff; border: 1px solid #e3eaf3; border-radius: 18px; padding: 24px; box-shadow: 0 18px 42px rgba(28, 44, 68, .08); }
 .card-head { font-size: 15px; font-weight: 700; color: #102033; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 1px solid #edf2f7; }
+.workflow-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 8px; background: #fff; border: 1px solid #e3eaf3; border-radius: 16px; box-shadow: 0 12px 30px rgba(28, 44, 68, .06); }
+.workflow-tabs button { min-height: 42px; border: 0; border-radius: 12px; background: transparent; color: #64748b; font-weight: 800; cursor: pointer; }
+.workflow-tabs button.active { background: #315fbb; color: #fff; box-shadow: 0 10px 20px rgba(49, 95, 187, .18); }
+.tab-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; margin-left: 6px; border-radius: 999px; background: #dcfce7; color: #166534; font-size: 12px; }
 .patient-brief { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
 .pb-avatar { width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, #dbeafe, #ccfbf1); color: #0f766e; font-size: 18px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
 .pb-name { font-size: 17px; font-weight: 700; color: #102033; }
@@ -1013,7 +1377,7 @@ function statusLabel(status: string) {
 .editor { width: 100%; }
 .editor :deep(.el-textarea__inner) { border-radius: 13px; border-color: #dbe3ee; box-shadow: 0 1px 0 rgba(15, 23, 42, .02); transition: border-color .18s ease, box-shadow .18s ease; }
 .editor :deep(.el-textarea__inner:focus) { border-color: #4f8df7; box-shadow: 0 0 0 3px rgba(79, 141, 247, .14); }
-.actions { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; padding-top: 6px; }
+.actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding-top: 6px; }
 .actions :deep(.el-button) {
   width: 100%;
   min-width: 0;
@@ -1034,25 +1398,74 @@ function statusLabel(status: string) {
 .ai-exam-card { border-color: #cfe0f7; background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%); }
 .ai-exam-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .ai-exam-head small { color: #94a3b8; font-size: 12px; font-weight: 700; }
+.ai-exam-empty { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px; border: 1px dashed #b8d3f8; border-radius: 14px; background: #f8fbff; color: #475569; }
+.ai-exam-empty p { margin: 0; line-height: 1.7; }
 .ai-exam-summary { margin: -4px 0 14px; color: #475569; font-size: 13px; line-height: 1.7; }
-.ai-exam-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.ai-exam-recommendation { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 10px; padding: 14px; border: 1px solid #dbe7f6; border-radius: 14px; background: #fff; cursor: pointer; transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease; }
-.ai-exam-recommendation:hover { border-color: #91b9f6; box-shadow: 0 12px 26px rgba(49, 95, 187, .12); transform: translateY(-1px); }
+.ai-exam-list { display: grid; grid-template-columns: 1fr; gap: 12px; }
+.ai-exam-recommendation { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 12px; padding: 14px; border: 1px solid #dbe7f6; border-radius: 14px; background: #fff; transition: border-color .18s ease, box-shadow .18s ease; }
+.ai-exam-recommendation:hover { border-color: #91b9f6; box-shadow: 0 12px 26px rgba(49, 95, 187, .12); }
 .ai-exam-recommendation.selected { border-color: #4f8df7; background: #f8fbff; }
 .ai-exam-content { min-width: 0; }
 .ai-exam-title-line { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: #102033; }
 .ai-exam-title-line strong { font-size: 14px; }
+.ai-exam-title-line :deep(.el-button) { margin-left: auto; }
+.ai-exam-edit-grid { display: grid; grid-template-columns: minmax(0, 1fr) 120px; gap: 10px; margin: 12px 0; }
+.ai-exam-edit-grid :deep(.el-select__wrapper) { min-height: 42px; border-radius: 10px; background: #fff; }
+.ai-exam-content :deep(.el-textarea__inner) { min-height: 54px !important; border-radius: 10px; background: #fff; line-height: 1.55; }
 .ai-exam-content p { margin: 8px 0 6px; color: #475569; font-size: 13px; line-height: 1.65; }
 .ai-exam-content small { color: #94a3b8; font-size: 12px; font-weight: 700; }
 .ai-exam-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
+:global(.exam-item-select-popper),
+:global(.exam-urgency-select-popper) {
+  z-index: 3600 !important;
+  border: 1px solid #d8e3f2 !important;
+  border-radius: 10px !important;
+  background: #fff !important;
+  box-shadow: 0 16px 34px rgba(15, 23, 42, .18) !important;
+}
+:global(.exam-item-select-popper .el-select-dropdown),
+:global(.exam-urgency-select-popper .el-select-dropdown) {
+  background: #fff !important;
+}
+:global(.exam-item-select-popper .el-select-dropdown__wrap) {
+  max-height: 196px !important;
+}
+:global(.exam-urgency-select-popper .el-select-dropdown__wrap) {
+  max-height: 132px !important;
+}
+:global(.exam-item-select-popper .el-select-dropdown__item),
+:global(.exam-urgency-select-popper .el-select-dropdown__item) {
+  min-height: 34px;
+  line-height: 34px;
+  background: #fff;
+}
+:global(.exam-item-select-popper .el-select-dropdown__item.hover),
+:global(.exam-item-select-popper .el-select-dropdown__item:hover),
+:global(.exam-urgency-select-popper .el-select-dropdown__item.hover),
+:global(.exam-urgency-select-popper .el-select-dropdown__item:hover) {
+  background: #eef5ff !important;
+}
+.exam-order-result { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; padding: 16px; border-radius: 14px; border: 1px solid #bbf7d0; background: #f0fdf4; color: #166534; }
+.exam-order-result strong { font-size: 15px; }
+.exam-order-result small { color: #64748b; }
+.exam-order-result-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
 .exam-order-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .exam-order-table { border: 1px solid #edf2f7; border-radius: 8px; overflow: hidden; }
 .exam-order-head,
-.exam-order-row { display: grid; grid-template-columns: minmax(220px, 1.4fr) minmax(160px, 1fr) 72px; gap: 12px; align-items: center; padding: 12px 14px; }
+.exam-order-row { display: grid; grid-template-columns: minmax(180px, 1.2fr) minmax(150px, .9fr) minmax(150px, 1fr) 72px; gap: 12px; align-items: center; padding: 12px 14px; }
 .exam-order-head { background: #f8fafc; color: #64748b; font-size: 12px; font-weight: 800; }
 .exam-order-row + .exam-order-row { border-top: 1px solid #edf2f7; }
 .exam-order-actions,
 .prescription-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
+.report-card-head { display: flex; align-items: center; justify-content: space-between; }
+.published-report-list { display: grid; gap: 10px; margin-bottom: 16px; }
+.published-report-item { display: grid; gap: 6px; width: 100%; padding: 14px; border: 1px solid #dbe7f6; border-radius: 12px; background: #fff; text-align: left; color: #334155; cursor: pointer; }
+.published-report-item.active { border-color: #315fbb; background: #f8fbff; }
+.published-report-item strong { color: #102033; }
+.published-report-item span { font-size: 13px; line-height: 1.6; }
+.published-report-item small { color: #94a3b8; }
+.report-inline-form { display: grid; gap: 12px; }
+.report-inline-actions { display: flex; justify-content: flex-end; gap: 10px; }
 .medicine-option { display: flex; justify-content: space-between; gap: 12px; }
 .medicine-option small { color: #64748b; }
 .ai-sidebar { position: sticky; top: 18px; display: flex; flex-direction: column; min-height: calc(100vh - 104px); max-height: calc(100vh - 36px); background: #fff; border: 1px solid #d7e6fa; border-radius: 18px; overflow: hidden; box-shadow: 0 22px 52px rgba(36, 73, 123, .14); }
@@ -1064,6 +1477,7 @@ function statusLabel(status: string) {
 .ai-tabs button { border: 0; border-radius: 13px; padding: 10px 8px; background: transparent; color: #66758a; font-weight: 800; cursor: pointer; }
 .ai-tabs button.active { background: #315fbb; color: #fff; box-shadow: 0 10px 20px rgba(49, 95, 187, .18); }
 .chat-list { display: flex; flex: 1 1 auto; flex-direction: column; gap: 12px; min-height: 360px; overflow: auto; padding: 18px; background: #f7faff; }
+.medicine-chat-list { display: flex; flex: 1 1 auto; flex-direction: column; gap: 12px; min-height: 360px; overflow: auto; padding: 18px; background: #f7faff; }
 .chat-empty { padding: 18px; border: 1px solid #dbeafe; border-radius: 14px; background: #fff; color: #475569; line-height: 1.7; }
 .chat-empty p { margin: 0; font-size: 13px; }
 .empty-title { font-size: 15px; font-weight: 800; color: #102033; margin-bottom: 6px; }
@@ -1084,6 +1498,14 @@ function statusLabel(status: string) {
   background: #fff;
   box-shadow: 0 14px 34px rgba(36, 73, 123, .12);
 }
+.medicine-input-shell {
+  margin: 14px 18px 18px;
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 14px 34px rgba(36, 73, 123, .12);
+}
 .chat-input-shell :deep(.el-textarea__inner) {
   min-height: 68px !important;
   padding: 4px 6px 10px;
@@ -1094,6 +1516,14 @@ function statusLabel(status: string) {
   color: #102033;
   line-height: 1.6;
 }
+.medicine-input-shell :deep(.el-textarea__inner) {
+  min-height: 118px !important;
+  border-radius: 13px;
+  border-color: #dbe3ee;
+  line-height: 1.65;
+}
+.medicine-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+.medicine-actions :deep(.el-button) { min-width: 0; margin-left: 0 !important; border-radius: 12px; font-weight: 800; }
 .chat-input-shell :deep(.el-textarea__inner::placeholder) { color: #94a3b8; }
 .chat-input-shell :deep(.el-textarea__inner:focus) { box-shadow: none; }
 .chat-input-tools { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 6px; border-top: 1px solid #f1f5f9; }
@@ -1135,18 +1565,6 @@ function statusLabel(status: string) {
 .exam-item strong { color: #102033; font-size: 13px; }
 .exam-item p { margin: 4px 0 0; color: #64748b; font-size: 13px; line-height: 1.6; }
 .ai-warning { margin-top: 16px; padding: 12px; border: 1px solid #fde68a; background: #fffdf3; color: #854d0e; border-radius: 8px; font-size: 13px; line-height: 1.6; }
-.wide-btn { width: 100%; }
-.report-form {
-  margin: 18px;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  border: 1px solid #dbe7f6;
-  border-radius: 18px;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-  box-shadow: 0 14px 32px rgba(36, 73, 123, .08);
-}
 .report-type { width: 100%; }
 .report-type :deep(.el-select__wrapper) {
   min-height: 46px;
@@ -1156,31 +1574,9 @@ function statusLabel(status: string) {
 .report-type :deep(.el-select__wrapper.is-focused) {
   box-shadow: 0 0 0 3px rgba(79, 141, 247, .14), 0 0 0 1px #4f8df7 inset;
 }
-.report-textarea :deep(.el-textarea__inner) {
-  min-height: 172px !important;
-  border-radius: 14px;
-  border-color: #d9e4f2;
-  background: #fff;
-  box-shadow: 0 1px 0 rgba(15, 23, 42, .02);
-  line-height: 1.7;
-}
-.report-textarea :deep(.el-textarea__inner:focus) {
-  border-color: #4f8df7;
-  box-shadow: 0 0 0 3px rgba(79, 141, 247, .14);
-}
-.report-form .wide-btn {
-  height: 44px;
-  border: 0;
-  border-radius: 13px;
-  font-weight: 800;
-  background: #4f8df7;
-  box-shadow: 0 12px 24px rgba(79, 141, 247, .22);
-}
-.report-form .wide-btn:hover,
-.report-form .wide-btn:focus { background: #315fbb; }
-.report-result { margin: 0 18px 18px; padding: 14px; border: 1px solid #dbe7f6; border-radius: 18px; background: #fff; }
+.report-result { padding: 14px; border: 1px solid #dbe7f6; border-radius: 18px; background: #fff; }
+.embedded-report-result { margin-top: 16px; }
 .report-result .result-card { border-radius: 14px; }
-.report-apply-btn { margin-top: 14px; width: 100%; height: 40px; border-radius: 12px; font-weight: 800; }
 .suggestion-item { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid #edf2f7; color: #475569; font-size: 13px; line-height: 1.6; }
 .suggestion-item:last-child { border-bottom: 0; }
 @media (max-width: 1180px) {

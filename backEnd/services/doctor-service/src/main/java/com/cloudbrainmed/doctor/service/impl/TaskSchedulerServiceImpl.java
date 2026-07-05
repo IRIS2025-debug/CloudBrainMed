@@ -1,6 +1,8 @@
 package com.cloudbrainmed.doctor.service.impl;
 
 import com.cloudbrainmed.common.exception.BusinessException;
+import com.cloudbrainmed.doctor.dto.MedicalReportSubmitRequest;
+import com.cloudbrainmed.doctor.entity.MedicalReport;
 import com.cloudbrainmed.doctor.mapper.DoctorSkillMapper;
 import com.cloudbrainmed.doctor.mapper.MedicalOrderMapper;
 import com.cloudbrainmed.doctor.mapper.MedicalOrderMapper.QueuedTaskItem;
@@ -8,6 +10,7 @@ import com.cloudbrainmed.doctor.mapper.DoctorSkillMapper.DoctorSkillMatch;
 import com.cloudbrainmed.doctor.service.TaskSchedulerService;
 import com.cloudbrainmed.doctor.vo.DoctorTaskDetailVo;
 import com.cloudbrainmed.doctor.vo.DoctorTaskVo;
+import com.cloudbrainmed.doctor.vo.MedicalReportVo;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +20,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -54,6 +58,15 @@ public class TaskSchedulerServiceImpl implements TaskSchedulerService {
             itemCategory = "LAB";
         }
         return medicalOrderMapper.selectDoctorTasks(doctorId, itemCategory)
+                .stream()
+                .map(this::convertToVo)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<DoctorTaskVo> getAssignableQueue(Integer doctorType) {
+        String itemCategory = itemCategoryForDoctorType(doctorType);
+        return medicalOrderMapper.findQueuedTasksByCategory(itemCategory, BATCH_SIZE)
                 .stream()
                 .map(this::convertToVo)
                 .collect(Collectors.toList());
@@ -101,6 +114,13 @@ public class TaskSchedulerServiceImpl implements TaskSchedulerService {
     @Override
     @Transactional
     public void completeTask(String orderItemId, String doctorId) {
+        if (medicalOrderMapper.countPublishedReportsByOrderItemId(orderItemId) <= 0) {
+            throw new BusinessException("请先提交并发布检查检验报告");
+        }
+        markTaskCompleted(orderItemId, doctorId);
+    }
+
+    private void markTaskCompleted(String orderItemId, String doctorId) {
         int updated = medicalOrderMapper.completeTask(orderItemId, doctorId);
         if (updated == 0) {
             throw new BusinessException("任务状态异常或不属于当前医生，无法完成");
@@ -110,14 +130,58 @@ public class TaskSchedulerServiceImpl implements TaskSchedulerService {
 
     @Override
     @Transactional
+    public MedicalReportVo submitReport(
+            MedicalReportSubmitRequest request, String doctorId) {
+        MedicalOrderMapper.DoctorTaskDetailVo task =
+                medicalOrderMapper.selectTaskDetailById(request.getOrderItemId());
+        if (task == null) {
+            throw new BusinessException("task not found");
+        }
+        if (!"IN_PROCESS".equals(task.getStatus())) {
+            throw new BusinessException("task is not in process");
+        }
+        if (!doctorId.equals(task.getAssignedDoctorId())) {
+            throw new BusinessException("task does not belong to current doctor");
+        }
+        if (!hasText(request.getResultSummary())
+                && !hasText(request.getConclusion())) {
+            throw new BusinessException("report summary or conclusion is required");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        MedicalReport report = new MedicalReport();
+        report.setReportId(newId("MR", 30));
+        report.setOrderItemId(task.getOrderItemId());
+        report.setPatientId(task.getPatientId());
+        report.setItemCategory(task.getItemCategory());
+        report.setResultSummary(trimToNull(request.getResultSummary()));
+        report.setConclusion(trimToNull(request.getConclusion()));
+        report.setAbnormalFlag(normalizeAbnormalFlag(request.getAbnormalFlag()));
+        report.setAttachmentUrl(trimToNull(request.getAttachmentUrl()));
+        report.setReportDoctorId(doctorId);
+        report.setStatus("PUBLISHED");
+        report.setPerformedTime(now);
+        report.setReportTime(now);
+        report.setCreateTime(now);
+        report.setUpdateTime(now);
+        if (medicalOrderMapper.insertMedicalReport(report) != 1) {
+            throw new BusinessException("save report failed");
+        }
+        markTaskCompleted(task.getOrderItemId(), doctorId);
+        return toReportVo(report, task);
+    }
+
+    @Override
+    @Transactional
     public void enqueueByPayment(String orderId) {
         int paid = medicalOrderMapper.updatePayStatus(orderId);
         if (paid == 0) {
-            log.warn("Payment callback: order {} already paid or not found (idempotent)", orderId);
-            return;
+            log.info("Payment callback: order {} was already marked paid or not found", orderId);
         }
+        int queuedOrder = medicalOrderMapper.enqueueOrder(orderId);
         int enqueued = medicalOrderMapper.enqueueOrderItems(orderId);
-        log.info("Order {} paid, {} items enqueued (waiting_assign -> queued)", orderId, enqueued);
+        log.info("Order {} paid, main order queued={}, {} items enqueued",
+                orderId, queuedOrder, enqueued);
     }
 
     @Override
@@ -169,6 +233,22 @@ public class TaskSchedulerServiceImpl implements TaskSchedulerService {
         return medicalOrderMapper.countQueuedTasks();
     }
 
+    @Override
+    public long getAssignableQueueCount(Integer doctorType) {
+        return medicalOrderMapper.countQueuedTasksByCategory(
+                itemCategoryForDoctorType(doctorType));
+    }
+
+    private String itemCategoryForDoctorType(Integer doctorType) {
+        if (Integer.valueOf(2).equals(doctorType)) {
+            return "EXAM";
+        }
+        if (Integer.valueOf(3).equals(doctorType)) {
+            return "LAB";
+        }
+        throw new BusinessException("unsupported doctor type");
+    }
+
     private String findAvailableDoctor(QueuedTaskItem task, Set<String> busyDoctors) {
         Integer doctorType = "EXAM".equals(task.getItemCategory()) ? 2 :
                              "LAB".equals(task.getItemCategory()) ? 3 : null;
@@ -216,6 +296,25 @@ public class TaskSchedulerServiceImpl implements TaskSchedulerService {
         return vo;
     }
 
+    private DoctorTaskVo convertToVo(QueuedTaskItem source) {
+        DoctorTaskVo vo = new DoctorTaskVo();
+        vo.setOrderItemId(source.getOrderItemId());
+        vo.setOrderId(source.getOrderId());
+        vo.setItemCode(source.getItemCode());
+        vo.setItemName(source.getItemName());
+        vo.setItemCategory(source.getItemCategory());
+        vo.setUrgencyLevel(source.getUrgencyLevel());
+        vo.setPrice(source.getPrice());
+        vo.setStatus(source.getStatus());
+        vo.setCreateTime(source.getCreateTime());
+        vo.setPatientId(source.getPatientId());
+        vo.setRegisterId(source.getRegisterId());
+        vo.setPatientName(source.getPatientName());
+        vo.setGender(source.getGender());
+        vo.setAge(source.getAge());
+        return vo;
+    }
+
     private DoctorTaskDetailVo convertToDetailVo(MedicalOrderMapper.DoctorTaskDetailVo source) {
         DoctorTaskDetailVo vo = new DoctorTaskDetailVo();
         vo.setOrderItemId(source.getOrderItemId());
@@ -238,5 +337,49 @@ public class TaskSchedulerServiceImpl implements TaskSchedulerService {
         vo.setAge(source.getAge());
         vo.setClinicalSummary(source.getClinicalSummary());
         return vo;
+    }
+
+    private MedicalReportVo toReportVo(
+            MedicalReport report,
+            MedicalOrderMapper.DoctorTaskDetailVo task) {
+        MedicalReportVo vo = new MedicalReportVo();
+        vo.setReportId(report.getReportId());
+        vo.setOrderItemId(report.getOrderItemId());
+        vo.setOrderId(task.getOrderId());
+        vo.setRegisterId(task.getRegisterId());
+        vo.setPatientId(report.getPatientId());
+        vo.setItemCode(task.getItemCode());
+        vo.setItemName(task.getItemName());
+        vo.setItemCategory(report.getItemCategory());
+        vo.setResultSummary(report.getResultSummary());
+        vo.setConclusion(report.getConclusion());
+        vo.setAbnormalFlag(report.getAbnormalFlag());
+        vo.setAttachmentUrl(report.getAttachmentUrl());
+        vo.setReportDoctorId(report.getReportDoctorId());
+        vo.setStatus(report.getStatus());
+        vo.setPerformedTime(report.getPerformedTime());
+        vo.setReportTime(report.getReportTime());
+        return vo;
+    }
+
+    private String normalizeAbnormalFlag(String value) {
+        String flag = trimToNull(value);
+        return flag == null ? "NORMAL" : flag.toUpperCase();
+    }
+
+    private String trimToNull(String value) {
+        if (!hasText(value)) {
+            return null;
+        }
+        return value.trim();
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private String newId(String prefix, int randomLength) {
+        return prefix + UUID.randomUUID().toString()
+                .replace("-", "").substring(0, randomLength);
     }
 }

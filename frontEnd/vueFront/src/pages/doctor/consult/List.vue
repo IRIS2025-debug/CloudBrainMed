@@ -13,6 +13,7 @@
           <el-option label="已完成" value="COMPLETED" />
         </el-select>
         <el-date-picker v-model="filters.date" type="date" placeholder="就诊日期" @change="fetchList" style="width:150px" />
+        <el-checkbox v-model="filters.reportReturnedOnly" @change="fetchList">报告已回传</el-checkbox>
       </div>
     </header>
 
@@ -36,6 +37,14 @@
             <span class="status-tag" :class="'st-' + row.consultStatus">{{ statusLabel(row.consultStatus) }}</span>
           </template>
         </el-table-column>
+        <el-table-column label="报告" width="150">
+          <template #default="{ row }">
+            <el-tag v-if="row.hasReturnedReport || row.reportCount > 0" type="success" round>
+              已回传 {{ row.reportCount || 1 }}
+            </el-tag>
+            <span v-else class="muted-text">待报告</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="visitDate" label="就诊日期" width="120" />
         <el-table-column label="操作" width="120" fixed="right">
           <template #default="{ row }">
@@ -56,7 +65,7 @@ import { ref, reactive } from 'vue'
 import { getConsultList } from '@/api/doctor/consult'
 import { ElMessage } from 'element-plus'
 const list = ref<any[]>([]); const loading = ref(false); const page = ref(1); const total = ref(0)
-const filters = reactive({ consultStatus: '', date: '' })
+const filters = reactive({ consultStatus: '', date: '', reportReturnedOnly: false })
 
 
 async function fetchList() {
@@ -65,6 +74,7 @@ async function fetchList() {
     const res = await getConsultList({
       consultStatus: filters.consultStatus,
       date: formatDate(filters.date),
+      reportReturnedOnly: filters.reportReturnedOnly,
       page: page.value,
       limit: 10
     })
@@ -134,4 +144,5 @@ fetchList()
 
 .table-footer { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-top: 1px solid #f1f5f9; }
 .tf-total { font-size: 13px; color: #94a3b8; }
+.muted-text { color: #94a3b8; font-size: 12px; }
 </style>

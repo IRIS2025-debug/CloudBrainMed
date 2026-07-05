@@ -96,6 +96,32 @@ class AiAssistantChatServiceImplTest {
     }
 
     @Test
+    void chatNormalizesMarkdownFormattingFromModelAnswer() {
+        prepareContext();
+        when(chatClient.prompt(any(Prompt.class)).call().content())
+                .thenReturn("""
+                        ### Known
+                        - Patient female
+                        1. **Pain detail**
+                        - Fever?
+                        """);
+
+        AiAssistantChatRequest request = request(null);
+        request.setActionType("MISSING_INFORMATION");
+
+        AiAssistantChatResponse response = service.chat(request, "D001");
+
+        assertThat(response.getAnswer()).contains("Known");
+        assertThat(response.getAnswer()).contains("Patient female");
+        assertThat(response.getAnswer()).contains("Pain detail");
+        assertThat(response.getAnswer()).contains("Fever?");
+        assertThat(response.getAnswer()).doesNotContain("###");
+        assertThat(response.getAnswer()).doesNotContain("**");
+        assertThat(response.getAnswer()).doesNotContain("- Patient");
+        assertThat(response.getAnswer()).doesNotContain("1. Pain");
+    }
+
+    @Test
     void receptionAssistantFallsBackWhenConsultContextUnavailable() {
         AiAssistantChatRequest request = request(null);
         request.setActionType("RECEPTION_ASSISTANT");

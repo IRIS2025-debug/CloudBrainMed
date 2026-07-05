@@ -18,7 +18,7 @@
           </div>
           <div class="detail-actions">
             <el-button v-if="task.status === 'QUEUED'" type="success" @click="handleStart">开始处理</el-button>
-            <el-button v-if="task.status === 'IN_PROCESS'" type="warning" @click="handleComplete">标记完成</el-button>
+            <el-button v-if="task.status === 'IN_PROCESS'" type="warning" @click="handleComplete" :loading="submittingReport">提交报告</el-button>
           </div>
         </div>
 
@@ -79,6 +79,30 @@
           <p class="clinical-text">{{ task.clinicalSummary }}</p>
         </div>
 
+        <div class="detail-section report-section" v-if="task.status === 'IN_PROCESS'">
+          <h3>报告填写</h3>
+          <el-form label-position="top">
+            <el-form-item label="检查/检验描述">
+              <el-input v-model="reportForm.resultSummary" type="textarea" :rows="4" placeholder="填写检查所见、检验结果摘要或关键指标" />
+            </el-form-item>
+            <el-form-item label="报告结论">
+              <el-input v-model="reportForm.conclusion" type="textarea" :rows="3" placeholder="填写报告结论，发布后接诊医生可直接查看" />
+            </el-form-item>
+            <el-form-item label="异常标记">
+              <el-select v-model="reportForm.abnormalFlag" style="width: 180px">
+                <el-option label="正常" value="NORMAL" />
+                <el-option label="异常" value="ABNORMAL" />
+                <el-option label="危急" value="CRITICAL" />
+                <el-option label="偏高" value="HIGH" />
+                <el-option label="偏低" value="LOW" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="附件地址">
+              <el-input v-model="reportForm.attachmentUrl" placeholder="可选，填写影像或报告附件地址" />
+            </el-form-item>
+          </el-form>
+        </div>
+
         <div class="detail-section">
           <h3>时间信息</h3>
           <div class="info-grid">
@@ -104,14 +128,21 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { getTaskDetail, startTask, completeTask } from '@/api/doctor/task'
+import { getTaskDetail, startTask, submitTaskReport } from '@/api/doctor/task'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const task = ref<any>(null)
 const loading = ref(false)
+const submittingReport = ref(false)
 const orderItemId = route.params.id as string
+const reportForm = ref({
+  resultSummary: '',
+  conclusion: '',
+  abnormalFlag: 'NORMAL',
+  attachmentUrl: ''
+})
 
 onMounted(() => fetchDetail())
 
@@ -139,13 +170,20 @@ async function handleStart() {
 }
 
 async function handleComplete() {
+  if (!reportForm.value.resultSummary.trim() && !reportForm.value.conclusion.trim()) {
+    ElMessage.warning('请先填写报告描述或结论')
+    return
+  }
   try {
-    await ElMessageBox.confirm('确认完成此任务？', '提示', { type: 'info' })
-    await completeTask(orderItemId)
-    ElMessage.success('任务已完成')
+    await ElMessageBox.confirm('确认发布报告并完成此任务？报告会回传给接诊医生。', '提示', { type: 'info' })
+    submittingReport.value = true
+    await submitTaskReport({ orderItemId, ...reportForm.value })
+    ElMessage.success('报告已发布，任务已完成')
     fetchDetail()
   } catch (e: any) {
     if (e !== 'cancel') ElMessage.error(e?.response?.data?.msg || '操作失败')
+  } finally {
+    submittingReport.value = false
   }
 }
 </script>
