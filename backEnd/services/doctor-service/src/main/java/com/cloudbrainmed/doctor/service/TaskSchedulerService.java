@@ -47,4 +47,10 @@ public interface TaskSchedulerService {
      * 获取排队中的任务数量
      */
     long getQueueCount();
+
+    /**
+     * 获取所有排队中的任务（QUEUED状态）
+     * 按医生类型过滤：检查医生(2)只看EXAM，检验医生(3)只看LAB
+     */
+    List<DoctorTaskVo> getQueue(Integer doctorType);
 }

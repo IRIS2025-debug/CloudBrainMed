@@ -35,7 +35,7 @@ public class TaskController {
         Integer doctorType = extractDoctorType(token);
         return Result.ok(Map.of(
                 "doctorId", doctorId,
-                "tasks", taskSchedulerService.getDoctorWorkbench(doctorId, doctorType),
+                "tasks", taskSchedulerService.getQueue(doctorType),
                 "queueCount", taskSchedulerService.getQueueCount()
         ));
     }

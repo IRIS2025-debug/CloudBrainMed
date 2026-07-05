@@ -85,7 +85,9 @@
         <el-descriptions-item label="申请来源">{{ currentOrder.sourceType === 'AI_ASSISTED' ? 'AI建议' : '医生开具' }}</el-descriptions-item>
         <el-descriptions-item label="支付状态">{{ payLabel(currentOrder.payStatus) }}</el-descriptions-item>
         <el-descriptions-item label="分配房间">{{ currentOrder.assignedRoom || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="临床摘要" :span="2">{{ currentOrder.clinicalSummary }}</el-descriptions-item>
+        <el-descriptions-item label="临床摘要" :span="2">
+          <div class="clinical-summary-text">{{ currentOrder.clinicalSummary }}</div>
+        </el-descriptions-item>
         <el-descriptions-item label="挂号编号">{{ currentOrder.registerId }}</el-descriptions-item>
         <el-descriptions-item label="开单医生">{{ currentOrder.doctorId }}</el-descriptions-item>
         <el-descriptions-item label="确认时间">{{ currentOrder.confirmedTime }}</el-descriptions-item>
@@ -239,4 +241,9 @@ onMounted(() => {
 .subtitle { color: #909399; font-size: 14px; }
 .filter-bar { display: flex; gap: 12px; margin-bottom: 16px; }
 .table-card { min-height: 400px; }
+.clinical-summary-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.6;
+}
 </style>

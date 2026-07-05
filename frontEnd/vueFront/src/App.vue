@@ -96,7 +96,7 @@ const doctorMenus = [
   { path: '/examination-doctor/application', title: '查看检查申请', icon: 'List', group: '检查医生' },
   { path: '/examination-doctor/upload', title: '影像上传', icon: 'Camera', group: '检查医生' },
   { path: '/examination-doctor/report', title: '生成检查报告', icon: 'CollectionTag', group: '检查医生' },
-  { path: '/', title: '首页概览', icon: 'HomeFilled', group: '医生端' },
+  { path: '/doctor/home', title: '首页概览', icon: 'HomeFilled', group: '医生端' },
   { path: '/doctor/profile', title: '医生个人信息', icon: 'UserFilled', group: '医生端' },
   { path: '/doctor/consult', title: '接诊工作台', icon: 'List', group: '医生端' },
   { path: '/doctor/ai-exam-generate', title: 'AI检查检验项目生成', icon: 'DataAnalysis', group: '医生端' },

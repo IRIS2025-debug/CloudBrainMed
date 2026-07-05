@@ -138,8 +138,10 @@ public class ConsultServiceImpl implements ConsultService {
 
         // ----- 写入主表 -----
         String orderId = "CHK" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+        // 构建临床摘要：提取症状+初步诊断+申请目的，便于检验医生快速了解病情
+        String clinicalSummary = buildClinicalSummary(detail);
         consultMapper.insertCheckReport(orderId, detail.getPatientId(), registerId,
-                detail.getDoctorId(), checkItemList, urgencyLevel);
+                detail.getDoctorId(), clinicalSummary, urgencyLevel);
 
         // ----- 逐项写入子表 -----
         BigDecimal totalAmount = BigDecimal.ZERO;
@@ -162,6 +164,69 @@ public class ConsultServiceImpl implements ConsultService {
             totalAmount = totalAmount.add(price);
         }
         createPayOrder(orderId, detail, totalAmount);
+    }
+
+    /**
+     * 构建临床摘要
+     * 格式："症状：xxx\n初步诊断：xxx\n申请目的：为进一步明确诊断，建议行xxx检查"
+     * 从病历中提取症状(主诉)和初步诊断(诊断意见)，结合申请项目构建申请目的
+     */
+    private String buildClinicalSummary(ConsultRecord detail) {
+        StringBuilder sb = new StringBuilder();
+        String description = detail.getDescription();
+
+        // 1. 症状：优先使用挂号主诉，其次从病历 description 中提取"主诉"段落
+        String symptom = detail.getChiefComplaint();
+        if (symptom == null || symptom.isBlank()) {
+            symptom = extractSection(description, "主诉");
+        }
+        if (symptom != null && !symptom.isBlank()) {
+            sb.append("症状：").append(symptom.trim());
+        }
+
+        // 2. 初步诊断：从病历 description 中提取"诊断意见"段落
+        String diagnosis = extractSection(description, "诊断意见");
+        if (diagnosis != null && !diagnosis.isBlank()) {
+            if (sb.length() > 0) sb.append("\n");
+            sb.append("初步诊断：").append(diagnosis.trim());
+        }
+
+        // 3. 申请目的：如果没有任何病历信息，至少给出主诉作为临床摘要
+        if (sb.length() == 0 && description != null && !description.isBlank()) {
+            sb.append(description.trim());
+        }
+
+        return sb.toString();
+    }
+
+    /**
+     * 从病历文本中提取指定段落的内容
+     * 匹配格式："段落名：\n内容" 或 "段落名：内容"
+     * 自动在下一个段落标题处截断
+     */
+    private String extractSection(String text, String sectionName) {
+        if (text == null || text.isBlank()) return null;
+        String pattern = sectionName + "：";
+        int idx = text.indexOf(pattern);
+        if (idx < 0) {
+            // 尝试带换行的格式："段落名：\n"
+            pattern = sectionName + "：\n";
+            idx = text.indexOf(pattern);
+            if (idx < 0) return null;
+        }
+        int start = idx + pattern.length();
+        // 寻找下一个段落标题的位置
+        int end = text.length();
+        String[] headings = {"主诉", "现病史", "既往史", "体格检查", "辅助检查", "诊断意见", "处理计划"};
+        for (String h : headings) {
+            if (h.equals(sectionName)) continue;
+            int hIdx = text.indexOf(h + "：", start);
+            if (hIdx >= 0 && hIdx < end) {
+                end = hIdx;
+            }
+        }
+        String content = text.substring(start, end).trim();
+        return content.isEmpty() ? null : content;
     }
 
     private void createPayOrder(

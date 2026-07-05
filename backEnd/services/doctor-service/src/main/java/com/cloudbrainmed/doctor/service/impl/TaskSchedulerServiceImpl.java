@@ -77,9 +77,24 @@ public class TaskSchedulerServiceImpl implements TaskSchedulerService {
         if (task == null) {
             throw new BusinessException("任务不存在");
         }
-        if (!"QUEUED".equals(task.getStatus())) {
-            throw new BusinessException("任务状态异常，无法开始处理");
+
+        String status = task.getStatus();
+
+        if ("COMPLETED".equals(status)) {
+            throw new BusinessException("该任务已完成");
         }
+        if ("IN_PROCESS".equals(status)) {
+            if (doctorId.equals(task.getAssignedDoctorId())) {
+                log.info("Doctor {} already claimed task {}, idempotent return",
+                        doctorId, orderItemId);
+                return;
+            }
+            throw new BusinessException("该任务已被其他医生领取");
+        }
+        if (!"QUEUED".equals(status)) {
+            throw new BusinessException("任务状态异常（" + status + "），无法开始处理");
+        }
+
         int inProcessByPatient = medicalOrderMapper.countInProgressByPatient(task.getPatientId());
         if (inProcessByPatient > 0) {
             throw new BusinessException("该患者已有检查项目正在处理中，请等待完成后再处理");
@@ -89,12 +104,10 @@ public class TaskSchedulerServiceImpl implements TaskSchedulerService {
             throw new BusinessException("您已有正在处理的任务，请先完成当前任务");
         }
 
-        int updated = medicalOrderMapper.updateItemStatus(
-                orderItemId, "QUEUED", "IN_PROCESS");
+        int updated = medicalOrderMapper.claimTaskAtomically(orderItemId, doctorId);
         if (updated == 0) {
             throw new BusinessException("任务已被其他医生领取");
         }
-        medicalOrderMapper.assignDoctor(orderItemId, doctorId);
         log.info("Doctor {} started task {} for patient {}", doctorId, orderItemId, task.getPatientId());
     }
 
@@ -148,12 +161,11 @@ public class TaskSchedulerServiceImpl implements TaskSchedulerService {
                 continue;
             }
 
-            int updated = medicalOrderMapper.updateItemStatus(
-                    task.getOrderItemId(), "QUEUED", "IN_PROCESS");
+            int updated = medicalOrderMapper.claimTaskAtomically(
+                    task.getOrderItemId(), assignedDoctor);
             if (updated == 0) {
                 continue;
             }
-            medicalOrderMapper.assignDoctor(task.getOrderItemId(), assignedDoctor);
             busyPatients.add(task.getPatientId());
             busyDoctors.add(assignedDoctor);
             assigned++;
@@ -167,6 +179,20 @@ public class TaskSchedulerServiceImpl implements TaskSchedulerService {
     @Override
     public long getQueueCount() {
         return medicalOrderMapper.countQueuedTasks();
+    }
+
+    @Override
+    public List<DoctorTaskVo> getQueue(Integer doctorType) {
+        String itemCategory = null;
+        if (Integer.valueOf(2).equals(doctorType)) {
+            itemCategory = "EXAM";
+        } else if (Integer.valueOf(3).equals(doctorType)) {
+            itemCategory = "LAB";
+        }
+        return medicalOrderMapper.selectQueuedTasks(itemCategory)
+                .stream()
+                .map(this::convertToVo)
+                .collect(Collectors.toList());
     }
 
     private String findAvailableDoctor(QueuedTaskItem task, Set<String> busyDoctors) {

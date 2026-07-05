@@ -27,6 +27,20 @@ public interface MedicalOrderMapper {
         """)
     int insertOrder(MedicalOrder order);
 
+    /**
+     * 原子认领任务：同时更新状态和分配医生
+     * 返回 1 表示认领成功，0 表示状态不对
+     */
+    @Update("""
+    UPDATE medical_order_item
+    SET status = 'IN_PROCESS',
+        assigned_doctor_id = #{doctorId},
+        assign_time = NOW()
+    WHERE order_item_id = #{orderItemId} AND status = 'QUEUED'
+    """)
+    int claimTaskAtomically(@Param("orderItemId") String orderItemId,
+                            @Param("doctorId") String doctorId);
+
     @Insert("""
         INSERT INTO medical_order_item (
             order_item_id, order_id, item_id, item_code, item_name,
@@ -180,8 +194,11 @@ public interface MedicalOrderMapper {
     int countInProgressByPatient(@Param("patientId") String patientId);
 
     /**
-     * 获取待调度的排队任务（按优先级排序）
-     * 返回 queued 状态，按 urgency_level (紧急优先) + create_time 排序
+     * 获取待调度的排队任务（按优先级排序，带时效老化防饥饿）
+     * 排序规则：
+     * 1. 紧急 > 加急 > 常规
+     * 2. 同级别按创建时间升序
+     * 3. 常规任务排队超过 30 分钟自动升级为加急级别
      */
     @Select("""
         SELECT moi.order_item_id, moi.order_id, moi.item_code, moi.item_name,
@@ -195,13 +212,14 @@ public interface MedicalOrderMapper {
         JOIN patient p ON mo.patient_id = p.patient_id
         WHERE moi.status = 'QUEUED' AND mo.pay_status = 'PAID'
         ORDER BY
-            CASE moi.urgency_level
-                WHEN 'EMERGENCY' THEN 1
-                WHEN 'URGENT' THEN 2
-                WHEN 'NORMAL' THEN 3
-                ELSE 4
-            END,
-            moi.create_time ASC
+          CASE
+            WHEN moi.urgency_level = 'EMERGENCY' THEN 1
+            WHEN moi.urgency_level = 'URGENT' THEN 2
+            WHEN moi.urgency_level = 'NORMAL' AND moi.create_time < NOW() - INTERVAL '30 minutes' THEN 2
+            WHEN moi.urgency_level = 'NORMAL' THEN 3
+            ELSE 4
+          END,
+          moi.create_time ASC
         LIMIT #{limit}
         """)
     @Results({
@@ -302,6 +320,7 @@ public interface MedicalOrderMapper {
         SELECT moi.order_item_id, moi.order_id, moi.item_code, moi.item_name,
                moi.item_category, moi.urgency_level, moi.price,
                moi.status, moi.create_time, moi.assign_time, moi.complete_time,
+               moi.assigned_doctor_id,
                mo.patient_id, mo.register_id, mo.doctor_id AS requester_doctor_id,
                p.name AS patient_name, p.gender, p.birthday,
                EXTRACT(YEAR FROM AGE(CURRENT_DATE, p.birthday)) AS age,
@@ -323,6 +342,7 @@ public interface MedicalOrderMapper {
         @Result(column = "create_time", property = "createTime"),
         @Result(column = "assign_time", property = "assignTime"),
         @Result(column = "complete_time", property = "completeTime"),
+        @Result(column = "assigned_doctor_id", property = "assignedDoctorId"),
         @Result(column = "patient_id", property = "patientId"),
         @Result(column = "register_id", property = "registerId"),
         @Result(column = "requester_doctor_id", property = "requesterDoctorId"),
@@ -361,6 +381,50 @@ public interface MedicalOrderMapper {
         WHERE moi.status = 'QUEUED' AND mo.pay_status = 'PAID'
         """)
     long countQueuedTasks();
+
+    @Select("""
+        <script>
+        SELECT moi.order_item_id, moi.order_id, moi.item_code, moi.item_name,
+               moi.item_category, moi.urgency_level, moi.price,
+               moi.status, moi.create_time, moi.assign_time,
+               mo.patient_id, mo.register_id,
+               p.name AS patient_name, p.gender,
+               EXTRACT(YEAR FROM AGE(CURRENT_DATE, p.birthday)) AS age,
+               mo.clinical_summary
+        FROM medical_order_item moi
+        JOIN medical_order mo ON moi.order_id = mo.order_id
+        JOIN patient p ON mo.patient_id = p.patient_id
+        WHERE moi.status = 'QUEUED'
+        <if test="itemCategory != null and itemCategory != ''">
+          AND moi.item_category = #{itemCategory}
+        </if>
+        ORDER BY
+          CASE moi.urgency_level
+            WHEN 'EMERGENCY' THEN 1 WHEN 'URGENT' THEN 2
+            WHEN 'NORMAL' THEN 3 ELSE 4
+          END,
+          moi.create_time ASC
+        </script>
+        """)
+    @Results({
+        @Result(column = "order_item_id", property = "orderItemId"),
+        @Result(column = "order_id", property = "orderId"),
+        @Result(column = "item_code", property = "itemCode"),
+        @Result(column = "item_name", property = "itemName"),
+        @Result(column = "item_category", property = "itemCategory"),
+        @Result(column = "urgency_level", property = "urgencyLevel"),
+        @Result(column = "price", property = "price"),
+        @Result(column = "status", property = "status"),
+        @Result(column = "create_time", property = "createTime"),
+        @Result(column = "assign_time", property = "assignTime"),
+        @Result(column = "patient_id", property = "patientId"),
+        @Result(column = "register_id", property = "registerId"),
+        @Result(column = "patient_name", property = "patientName"),
+        @Result(column = "gender", property = "gender"),
+        @Result(column = "age", property = "age"),
+        @Result(column = "clinical_summary", property = "clinicalSummary")
+    })
+    List<DoctorTaskVo> selectQueuedTasks(@Param("itemCategory") String itemCategory);
 
     @Data
     class QueuedTaskItem {
@@ -414,6 +478,7 @@ public interface MedicalOrderMapper {
         private LocalDateTime createTime;
         private LocalDateTime assignTime;
         private LocalDateTime completeTime;
+        private String assignedDoctorId;
         private String patientId;
         private String registerId;
         private String requesterDoctorId;
