@@ -37,6 +37,7 @@ sentinel-dashboard-*.jar
 *.swo
 .venv/
 .gitnexus/
+.codex/
 
 # 日志
 *.log
@@ -108,6 +109,8 @@ project-materials/**/*.yaml
 project-materials/**/*.xlsx
 project-materials/ct-model-defense-traces/xunlian/**
 !project-materials/ct-model-defense-traces/xunlian/README.md
+project-materials/CT金属伪影模型留痕/xunlian/**
+!project-materials/CT金属伪影模型留痕/xunlian/README.md
 project-materials/restored-reference-materials/course/**
 project-materials/restored-reference-materials/teach/**
 project-materials/restored-reference-materials/tmp_inspect_dataset_folder/**
@@ -115,6 +118,7 @@ project-materials/restored-reference-materials/temp_share.js
 !project-materials/**/*.md
 !project-materials/**/README.md
 !project-materials/ct-model-defense-traces/python-ml-docs/docs/generated/*.csv
+!project-materials/CT金属伪影模型留痕/python-ml-docs/docs/generated/*.csv
 
 # Local CT inference/training data and generated outputs.
 backEnd/services/ai-service/python-ml/uploads/

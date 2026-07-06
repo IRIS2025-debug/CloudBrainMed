@@ -35,7 +35,7 @@ MODEL_TYPE = os.environ.get("MODEL_TYPE", "attention")
 MODEL_VERSION = os.environ.get("MODEL_VERSION", "attention_adamw_e4")
 LESION_MODEL_PATH = os.environ.get("LESION_MODEL_PATH", "./Model/weights/best_lesion_attention.pth")
 LESION_MODEL_TYPE = os.environ.get("LESION_MODEL_TYPE", "attention")
-LESION_MODEL_VERSION = os.environ.get("LESION_MODEL_VERSION", "lesion_attention_adamw_20260704_001918")
+LESION_MODEL_VERSION = os.environ.get("LESION_MODEL_VERSION", "lesion_attention_adamw_20260705_191345")
 
 try:
     infer = CTArtifactInfer(model_weight_path=MODEL_PATH, model_type=MODEL_TYPE)
