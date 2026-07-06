@@ -18,7 +18,12 @@ public interface MedicalReportMapper extends BaseMapper<MedicalReport> {
     @Select("SELECT * FROM medical_report WHERE order_item_id = #{orderItemId}")
     MedicalReport selectByOrderItemId(@Param("orderItemId") String orderItemId);
 
-    @Select("SELECT * FROM medical_report WHERE order_item_id IN (${orderItemIds})")
+    @Select("<script>" +
+            "SELECT * FROM medical_report WHERE order_item_id IN " +
+            "<foreach collection='orderItemIds' item='id' open='(' separator=',' close=')'>" +
+            "#{id}" +
+            "</foreach>" +
+            "</script>")
     List<MedicalReport> selectByOrderItemIds(@Param("orderItemIds") List<String> orderItemIds);
 
     @Select("SELECT * FROM medical_report WHERE patient_id = #{patientId}")

@@ -6,14 +6,15 @@
     "pages/register/DeptListPage",
     "pages/register/DoctorListPage",
     "pages/register/OrderSuccessPage",
-    "pages/register/RegisterHistoryPage",
     "pages/register/ScheduleSelectPage",
     "pages/pay/PayPage",
     "pages/pay/PayHistory",
-    "pages/medical/PrescriptionHistory",
-    "pages/medical/PrescriptionDetail",
-    "pages/medical/MedicalOrderPage",
-    "pages/medical/MedicalOrderDetail",
+    "pages/history/PrescriptionHistory",
+    "pages/history/PrescriptionDetail",
+    "pages/history/MedicalOrderPage",
+    "pages/history/MedicalOrderDetail",
+    "pages/history/RegisterHistory",
+    "pages/history/RegisterDetail",
     "pages/medicineAi/MedicineAiChatPage"
   ]
 }

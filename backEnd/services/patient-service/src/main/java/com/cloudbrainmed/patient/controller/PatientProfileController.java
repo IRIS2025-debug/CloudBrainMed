@@ -26,9 +26,4 @@ public class PatientProfileController {
         return Result.ok(profileService.getInfo(patientId));
     }
 
-    /** 按患者ID查挂号记录（模块四挂号用） */
-    @GetMapping("/register/history/{patientId}")
-    public Result<?> getRegisterHistory(@PathVariable String patientId) {
-        return Result.ok(registerService.getRegisterHistory(patientId));
-    }
 }

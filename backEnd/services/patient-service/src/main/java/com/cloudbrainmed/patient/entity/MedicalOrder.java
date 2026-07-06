@@ -1,11 +1,10 @@
-// MedicalOrder.java
 package com.cloudbrainmed.patient.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 /**
  * 医技申请主表 medical_order
@@ -26,9 +25,9 @@ public class MedicalOrder {
     private String aiTraceId;
     private String status;
     private String payStatus;
-    private LocalDateTime confirmedTime;
-    private LocalDateTime createTime;
-    private LocalDateTime updateTime;
+    private OffsetDateTime confirmedTime;
+    private OffsetDateTime createTime;
+    private OffsetDateTime updateTime;
 
     // ===== 常量定义 =====
     public static final String URGENCY_NORMAL = "NORMAL";
@@ -71,10 +70,10 @@ public class MedicalOrder {
     public void setStatus(String status) { this.status = status; }
     public String getPayStatus() { return payStatus; }
     public void setPayStatus(String payStatus) { this.payStatus = payStatus; }
-    public LocalDateTime getConfirmedTime() { return confirmedTime; }
-    public void setConfirmedTime(LocalDateTime confirmedTime) { this.confirmedTime = confirmedTime; }
-    public LocalDateTime getCreateTime() { return createTime; }
-    public void setCreateTime(LocalDateTime createTime) { this.createTime = createTime; }
-    public LocalDateTime getUpdateTime() { return updateTime; }
-    public void setUpdateTime(LocalDateTime updateTime) { this.updateTime = updateTime; }
+    public OffsetDateTime getConfirmedTime() { return confirmedTime; }
+    public void setConfirmedTime(OffsetDateTime confirmedTime) { this.confirmedTime = confirmedTime; }
+    public OffsetDateTime getCreateTime() { return createTime; }
+    public void setCreateTime(OffsetDateTime createTime) { this.createTime = createTime; }
+    public OffsetDateTime getUpdateTime() { return updateTime; }
+    public void setUpdateTime(OffsetDateTime updateTime) { this.updateTime = updateTime; }
 }

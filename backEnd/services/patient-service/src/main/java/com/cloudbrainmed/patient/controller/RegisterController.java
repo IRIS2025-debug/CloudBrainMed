@@ -8,6 +8,7 @@ import com.cloudbrainmed.patient.entity.Registration;
 import com.cloudbrainmed.patient.service.RegisterService;
 import com.cloudbrainmed.patient.vo.DoctorDetailVo;
 import com.cloudbrainmed.patient.vo.ScheduleVo;
+import com.cloudbrainmed.patient.vo.VisitDetail;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
@@ -45,11 +46,6 @@ public class RegisterController {
         return Result.success(registerService.submitRegister(dto));
     }
 
-//    @GetMapping("/history/{patientId}")
-//    public Result<List<Registration>> getRegisterHistory(@PathVariable String patientId) {
-//        return Result.success(registerService.getRegisterHistory(patientId));
-//    }
-
     @GetMapping("/detail/{registerId}")
     public Result<Registration> getRegisterDetail(@PathVariable String registerId) {
         return Result.success(registerService.getRegisterDetail(registerId));
@@ -58,6 +54,16 @@ public class RegisterController {
     @GetMapping("/check-patient/{patientId}")
     public Result<Map<String, Object>> checkPatientInfo(@PathVariable String patientId) {
         return Result.success(registerService.checkPatientInfo(patientId));
+    }
+
+    @GetMapping("/history/{patientId}")
+    public Result<List<Registration>> getRegisterHistory(@PathVariable String patientId) {
+        return Result.success(registerService.getRegisterHistory(patientId));
+    }
+
+    @GetMapping("/visit-detail/{registerId}")
+    public Result<VisitDetail> getVisitDetail(@PathVariable String registerId) {
+        return Result.success(registerService.getVisitDetail(registerId));
     }
 
 }

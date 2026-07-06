@@ -1,4 +1,3 @@
-// pages/medical/PrescriptionDetail.ets
 import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
 

@@ -34,7 +34,7 @@ public interface AuthService {
      * @param skipRegisterCheck 是否跳过注册检查（改手机号场景需要跳过，因为新号码尚未注册）
      * @return 是否发送成功
      */
-    boolean sendVerifyCode(String phone, boolean skipRegisterCheck);
+    String sendVerifyCode(String phone, boolean skipRegisterCheck);
 
     /**
      * 验证验证码

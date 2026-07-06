@@ -8,6 +8,7 @@ import com.cloudbrainmed.auth.vo.PatientInfoVo;
 import com.cloudbrainmed.common.result.Result;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -21,6 +22,9 @@ public class PatientAuthController {
 
     @Autowired
     private AuthService authService;
+
+    @Value("${spring.profiles.active:production}")
+    private String activeProfile;
 
     /**
      * 患者移动端注册
@@ -86,16 +90,21 @@ public class PatientAuthController {
             return Result.error(400, "该手机号已被注册，无法使用");
         }
 
-        // 4. 发送验证码
-        boolean success = authService.sendVerifyCode(phone, skipRegisterCheck);
-        if (!success) {
-            // 能走到这里，false 只可能是频率限制（未注册/已注册已在前面被控制器层挡掉）
+        // 4. 发送验证码（统一调用，返回验证码）
+        String code = authService.sendVerifyCode(phone, skipRegisterCheck);
+        if (code == null) {
             return Result.error(429, "发送过于频繁，请稍后再试");
         }
 
-        // 5. 返回结果
+        // 5. 构建响应
         Map<String, String> data = new HashMap<>();
         data.put("message", "验证码已发送，请注意查收");
+
+        // 判断是否开发/测试环境，返回验证码
+        boolean isDevOrTest = "dev".equals(activeProfile) || "test".equals(activeProfile);
+        if (isDevOrTest) {
+            data.put("verifyCode", code);  // 仅在开发/测试环境返回
+        }
 
         return Result.success("验证码发送成功", data);
     }

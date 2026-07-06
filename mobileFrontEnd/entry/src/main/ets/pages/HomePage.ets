@@ -41,8 +41,8 @@ export struct HomePage {
   private functions: FunctionItem[] = [
     { name: '预约挂号', icon: '🏥', route: 'pages/register/DeptListPage', bgColor: ['#E8F0FE', '#D4E4FF'] },
     { name: '在线问诊', icon: '💬', route: 'pages/aiConsult/AIConsultation', bgColor: ['#E6F7F0', '#C8F0E0'] },
-    { name: '检查报告', icon: '📊', route: 'pages/medical/MedicalOrderPage', bgColor: ['#E6F3FA', '#C8E6F5'] },
-    { name: '中医外方', icon: '🌿', route: 'pages/medical/PrescriptionHistory', bgColor: ['#EEF7EC', '#DCEFD8'] },
+    { name: '检查报告', icon: '📊', route: 'pages/history/MedicalOrderPage', bgColor: ['#E6F3FA', '#C8E6F5'] },
+    { name: '中医外方', icon: '🌿', route: 'pages/history/PrescriptionHistory', bgColor: ['#EEF7EC', '#DCEFD8'] },
     { name: '用药助手', icon: '💊', route: 'pages/medicineAi/MedicineAiChatPage', bgColor: ['#F5EEF8', '#EBDCF0'] },
     { name: '缴费服务', icon: '💳', route: 'pages/pay/PayHistory', bgColor: ['#FFF5E6', '#FFEBCD'] }
   ];

@@ -11,11 +11,11 @@ import { PatientInfo, PatientManager } from '../common/PatientManager';
 interface SendCodeParams {
   phone: string;
 }
-interface VerifyCodeData {
-  verifyCode?: string;
-  message: string;
-}
 
+interface VerifyCodeData {
+  message: string;
+  verifyCode?: string;
+}
 
 interface LoginParams {
   phone: string;
@@ -30,7 +30,6 @@ interface LoginData {
   phone: string;
   token: string;
   expireTime: number;
-  // 添加性别字段 - 后端返回的是数字类型
   gender?: number;
   genderText?: string;
   age?: number;
@@ -41,8 +40,6 @@ interface ApiResponse<T> {
   msg: string;
   data: T;
 }
-
-
 
 @Entry
 @Component
@@ -61,10 +58,11 @@ struct LoginPage {
   @State phoneFocused: boolean = false;
   @State passwordFocused: boolean = false;
   @State codeFocused: boolean = false;
+  @State displayedVerifyCode: string = '';
+  @State showVerifyCodeHint: boolean = false;
 
   private baseUrl: string = APIConfig.AUTH_SERVICE_URL;
   private countdownTimer: number = -1;
-
 
   aboutToAppear(): void {
     const params = router.getParams() as Record<string, string>;
@@ -124,10 +122,8 @@ struct LoginPage {
     return isValid;
   }
 
-  // pages/login/LoginPage.ets
   private async saveUserInfo(userInfo: LoginData): Promise<void> {
     try {
-      // 构建患者信息
       const patientInfo: PatientInfo = {
         patientId: userInfo.patientId,
         name: userInfo.name,
@@ -140,17 +136,14 @@ struct LoginPage {
         expiresIn: 7 * 24 * 60 * 60
       };
 
-      // 仅保存到 AppStorage
       PatientManager.savePatientInfo(patientInfo);
       console.log('患者信息保存成功');
-
     } catch (error) {
       console.error('保存用户信息失败：' + JSON.stringify(error));
     }
   }
 
   private async sendVerifyCode(): Promise<void> {
-
     if (this.phone.length === 0) {
       promptAction.showToast({
         message: '请先输入手机号',
@@ -165,11 +158,13 @@ struct LoginPage {
       });
       return;
     }
+
     this.isCodeSending = true;
+    this.displayedVerifyCode = '';
+    this.showVerifyCodeHint = false;
+
     try {
       const url: string = this.baseUrl + '/patient/send-code';
-
-      // 使用接口类型
       const params: SendCodeParams = {
         phone: this.phone
       };
@@ -181,10 +176,32 @@ struct LoginPage {
       );
 
       if (result.code === 200) {
-        promptAction.showToast({
-          message: '验证码已发送，请注意查收',
-          duration: 3000
-        });
+        if (result.data.verifyCode) {
+          // 自动填入验证码
+          this.verifyCode = result.data.verifyCode;
+
+          // 显示验证码提示
+          this.displayedVerifyCode = result.data.verifyCode;
+          this.showVerifyCodeHint = true;
+
+          // 5秒后自动隐藏验证码提示
+          setTimeout(() => {
+            this.showVerifyCodeHint = false;
+          }, 5000);
+
+          // 提示用户验证码已自动填入
+          promptAction.showToast({
+            message: `验证码已自动填入：${result.data.verifyCode}`,
+            duration: 4000
+          });
+        } else {
+          // 生产环境，正常提示
+          promptAction.showToast({
+            message: '验证码已发送，请注意查收',
+            duration: 3000
+          });
+        }
+
         this.startCountdown();
       } else if (result.code === 429) {
         promptAction.showToast({
@@ -251,7 +268,6 @@ struct LoginPage {
           duration: 2000
         });
         setTimeout((): void => {
-          // 传递完整用户信息到首页
           router.pushUrl({
             url: 'pages/Index',
             params: {
@@ -299,6 +315,9 @@ struct LoginPage {
     this.codeError = '';
     this.password = '';
     this.verifyCode = '';
+    // 切换时隐藏验证码提示
+    this.showVerifyCodeHint = false;
+    this.displayedVerifyCode = '';
   }
 
   build() {
@@ -334,7 +353,7 @@ struct LoginPage {
           // ======= Logo区域 =======
           Column() {
             LogoIcon({
-              iconSize: 56 // 登录页不显示文字，因为已经有标题了
+              iconSize: 56
             })
           }
           .width(64)
@@ -471,7 +490,7 @@ struct LoginPage {
                     width: 1.5,
                     color: this.passwordFocused ? '#2563eb' : 'transparent'
                   })
-                  .showPasswordIcon(true)  // 显示密码眼睛图标
+                  .showPasswordIcon(true)
                   .onChange((value: string): void => {
                     this.password = value;
                     if (this.passwordError.length > 0) {
@@ -579,11 +598,34 @@ struct LoginPage {
                     .width('100%')
                 }
 
-                Text('仿真提示：验证码为 123456')
-                  .fontSize(12)
-                  .fontColor('#ff9800')
-                  .margin({ top: 8 })
+                // ← 新增：显示验证码提示（开发环境）
+                if (this.showVerifyCodeHint && this.displayedVerifyCode) {
+                  Column() {
+                    Row() {
+                      Text('📱 ')
+                        .fontSize(14)
+                      Text('验证码：')
+                        .fontSize(14)
+                        .fontColor('#333333')
+                      Text(this.displayedVerifyCode)
+                        .fontSize(18)
+                        .fontWeight(FontWeight.Bold)
+                        .fontColor('#2563eb')
+                        .letterSpacing(4)
+                    }
+                    .padding({ top: 4, bottom: 4 })
+
+                    Text('（开发环境，验证码已自动填入）')
+                      .fontSize(11)
+                      .fontColor('#999999')
+                  }
                   .width('100%')
+                  .padding({ top: 8, bottom: 8 })
+                  .backgroundColor('#f0f7ff')
+                  .borderRadius(8)
+                  .margin({ top: 8 })
+                  .alignItems(HorizontalAlign.Center)
+                }
               }
               .margin({ bottom: 8 })
               .width('100%')

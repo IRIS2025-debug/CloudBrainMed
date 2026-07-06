@@ -156,17 +156,18 @@ public class AuthServiceImpl implements AuthService {
     }
 
     /**
-     * 发送验证码（仿真模式）
+     * 发送验证码
      * @param phone 手机号
-     * @return 验证码（前端模拟使用）
+     * @param skipRegisterCheck 是否跳过注册检查
+     * @return 验证码字符串（发送成功返回验证码，失败返回null）
      */
     @Override
-    public boolean sendVerifyCode(String phone, boolean skipRegisterCheck) {
+    public String sendVerifyCode(String phone, boolean skipRegisterCheck) {
         // 1. 检查手机号是否存在（改手机号场景跳过此检查，因为新号码尚未注册）
         if (!skipRegisterCheck) {
             Patient patient = patientUserMapper.selectByPhone(phone);
             if (patient == null) {
-                return false; // 手机号未注册
+                return null; // 手机号未注册
             }
         }
 
@@ -174,12 +175,13 @@ public class AuthServiceImpl implements AuthService {
         String limitKey = CODE_SEND_LIMIT_PREFIX + phone;
         Boolean hasLimit = redisTemplate.hasKey(limitKey);
         if (Boolean.TRUE.equals(hasLimit)) {
-            return false; // 发送太频繁
+            return null; // 发送太频繁
         }
 
         // 3. 生成6位随机验证码
+        // 直接用原代码的方式：使用Random生成6位数字
         String code = String.format("%06d", new Random().nextInt(999999));
-        // 如果生成的验证码不足6位，补0
+        // 如果生成的验证码不足6位，补0（其实format已经保证了6位，但保留原逻辑）
         while (code.length() < 6) {
             code = "0" + code;
         }
@@ -199,7 +201,8 @@ public class AuthServiceImpl implements AuthService {
         System.out.println("有效期: " + CODE_EXPIRE_TIME + "秒");
         System.out.println("============================");
 
-        return true;
+        // 返回验证码（方便开发测试）
+        return code;
     }
 
     /**

@@ -8,6 +8,7 @@ import com.cloudbrainmed.patient.mapper.*;
 import com.cloudbrainmed.patient.service.RegisterService;
 import com.cloudbrainmed.patient.vo.DoctorDetailVo;
 import com.cloudbrainmed.patient.vo.ScheduleVo;
+import com.cloudbrainmed.patient.vo.VisitDetail;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +29,10 @@ public class RegisterServiceImpl implements RegisterService {
     private final DoctorScheduleMapper doctorScheduleMapper;
     private final PatientMapper patientMapper;
     private final RegistrationMapper registrationMapper;
+    private final RegisterReportMapper registerReportMapper;
+    private final MedicalOrderMapper medicalOrderMapper;
+    private final MedicalOrderItemMapper medicalOrderItemMapper;
+    private final PrescriptionMapper prescriptionMapper;
 
     @Override
     public List<Dept> getAllDepts() {
@@ -154,6 +159,35 @@ public class RegisterServiceImpl implements RegisterService {
     @Override
     public Registration getRegisterDetail(String registerId) {
         return registrationMapper.selectByRegisterId(registerId);
+    }
+
+    @Override
+    public VisitDetail getVisitDetail(String registerId) {
+        VisitDetail detail = new VisitDetail();
+
+        // 1. 获取挂号信息
+        Registration registration = registrationMapper.selectByRegisterId(registerId);
+        detail.setRegister(registration);
+
+        // 2. 获取病历报告
+        RegisterReport report = registerReportMapper.selectByRegisterId(registerId);
+        detail.setReport(report);
+
+        // 3. 获取检查检验订单
+        List<MedicalOrder> orders = medicalOrderMapper.selectByRegisterId(registerId);
+        detail.setOrders(orders);
+
+        // 4. 获取检查检验明细（通过 registerId 直接查询）
+        List<MedicalOrderItem> orderItems = medicalOrderItemMapper.selectByRegisterId(registerId);
+        detail.setOrderItems(orderItems);
+
+        // 5. 获取处方项
+        if (registration != null) {
+            List<Prescription> prescriptions = prescriptionMapper.selectByRegisterId(registerId, registration.getPatientId());
+            detail.setPrescriptions(prescriptions);
+        }
+
+        return detail;
     }
 
     @Override

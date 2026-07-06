@@ -131,7 +131,7 @@ export struct PrescriptionHistory {
    */
   goToDetail(group: RegisterPrescriptionGroup): void {
     router.pushUrl({
-      url: 'pages/medical/PrescriptionDetail',
+      url: 'pages/history/PrescriptionDetail',
       params: {
         registerId: group.registerId,
         patientName: group.patientName,

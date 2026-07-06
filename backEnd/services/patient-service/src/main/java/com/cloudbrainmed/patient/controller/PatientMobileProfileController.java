@@ -111,14 +111,14 @@ public class PatientMobileProfileController {
         return Result.ok();
     }
 
-    // ==================== 4.3.2 挂号记录 ====================
-
-    /** 查询患者挂号记录列表 */
-    @GetMapping("/registers")
-    public Result<?> registers(@RequestHeader(value = "token", required = false) String token) {
-        String patientId = extractPatientId(token);
-        return Result.ok(registerService.getRegisterHistory(patientId));
-    }
+//    // ==================== 4.3.2 挂号记录 ====================
+//
+//    /** 查询患者挂号记录列表 */
+//    @GetMapping("/registers")
+//    public Result<?> registers(@RequestHeader(value = "token", required = false) String token) {
+//        String patientId = extractPatientId(token);
+//        return Result.ok(registerService.getRegisterHistory(patientId));
+//    }
 
     // ==================== 4.3.3 缴费记录 ====================
 

@@ -6,6 +6,7 @@ import com.cloudbrainmed.patient.entity.Doctor;
 import com.cloudbrainmed.patient.entity.Registration;
 import com.cloudbrainmed.patient.vo.DoctorDetailVo;
 import com.cloudbrainmed.patient.vo.ScheduleVo;
+import com.cloudbrainmed.patient.vo.VisitDetail;
 
 import java.util.List;
 import java.util.Map;
@@ -25,4 +26,6 @@ public interface RegisterService {
      * @return 是否完整及缺失字段列表
      */
     Map<String, Object> checkPatientInfo(String patientId);
+    VisitDetail getVisitDetail(String registerId);
+
 }
