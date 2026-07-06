@@ -52,6 +52,14 @@ public interface DepartmentMapper {
     List<Department> selectDepartmentsWithAvailableSlots();
 
     /**
+     * 根据科室名称查询科室
+     */
+    @Select("SELECT dept_id, dept_name, room_id, max_capacity, free_capacity, status, create_time " +
+            "FROM department " +
+            "WHERE dept_name = #{deptName} AND status = 1 ")
+    Department selectByDeptName(@Param("deptName") String deptName);
+
+    /**
      * 默认方法：获取科室ID到名称的Map
      */
     default Map<String, String> getDeptIdToNameMap() {
