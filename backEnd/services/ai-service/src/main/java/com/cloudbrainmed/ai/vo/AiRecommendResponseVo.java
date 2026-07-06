@@ -17,4 +17,5 @@ public class AiRecommendResponseVo {
     private String departmentReason;    // 科室推荐理由
     private List<RecommendDoctorVo> doctorRanking; // 医生排行榜
     private String aiAnalysisTime;      // AI分析时间戳
+    private Boolean emergency;  // 是否紧急
 }

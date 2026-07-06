@@ -16,4 +16,10 @@ public interface AiConsultService {
      * 获取所有科室列表
      */
     java.util.List<String> getAllDepartments();
+
+    // 新增带sessionId多轮问诊方法
+    AiRecommendResponseVo recommendDoctor(String sessionId, ConsultRecommendDto consultRecommendDto);
+
+    // 可选：清空当前会话记忆
+    void clearSessionMemory(String sessionId);
 }

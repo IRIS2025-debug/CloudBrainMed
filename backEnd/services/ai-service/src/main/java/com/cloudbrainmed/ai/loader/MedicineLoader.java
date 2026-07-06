@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
@@ -19,11 +20,16 @@ public class MedicineLoader implements CommandLineRunner {
     private static final Logger log= LoggerFactory.getLogger(MedicineLoader.class);
     private static final int BATCH_SIZE = 10;
 
-    @Resource
-    private MedicineMapper medicineMapper;
+    private final VectorStore vectorStore;
+    private final MedicineMapper medicineMapper;
 
-    @Resource
-    private VectorStore vectorStore;
+    // 统一构造器注入
+    public MedicineLoader(
+            @Qualifier("medicineVectorStore") VectorStore vectorStore,
+            MedicineMapper medicineMapper) {
+        this.vectorStore = vectorStore;
+        this.medicineMapper = medicineMapper;
+    }
 
     @Override
     public void run(String... args) throws Exception {
