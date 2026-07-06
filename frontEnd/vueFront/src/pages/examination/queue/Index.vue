@@ -2,9 +2,9 @@
   <div class="page">
     <header class="page-top">
       <div class="page-top-left">
-        <h2>检查检验队列</h2>
+        <h2>检查队列</h2>
         <p class="top-sub">
-          当前排队任务：<strong>{{ queueCount }}</strong> 个
+          当前排队检查任务：<strong>{{ queueCount }}</strong> 个
           | 按紧急程度和时间排序
           <el-tag size="small" type="warning" style="margin-left:8px" v-if="agedCount > 0">
             {{ agedCount }}个任务已触发老化提升
@@ -12,7 +12,7 @@
         </p>
       </div>
       <div class="page-top-right">
-        <el-button type="primary" @click="$router.push('/doctor/workbench')">
+        <el-button type="primary" @click="$router.push('/examination-doctor/workbench')">
           <el-icon style="margin-right:4px"><Monitor /></el-icon>我的工作台
         </el-button>
         <el-button @click="fetchQueue" :loading="loading">
@@ -23,7 +23,7 @@
     </header>
 
     <div class="card">
-      <el-table :data="tasks" stripe v-loading="loading" empty-text="当前没有排队任务" @sort-change="onSortChange">
+      <el-table :data="tasks" stripe v-loading="loading" empty-text="当前没有排队检查任务" @sort-change="onSortChange">
         <el-table-column label="紧急程度" width="90">
           <template #default="{ row }">
             <span class="badge" :class="['badge-' + row.urgencyLevel, { 'badge-aged': row.agingPromoted }]"
@@ -33,12 +33,7 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="itemName" label="项目名称" min-width="160" show-overflow-tooltip />
-        <el-table-column label="类别" width="70">
-          <template #default="{ row }">
-            <span>{{ row.itemCategory === 'EXAM' ? '检查' : '检验' }}</span>
-          </template>
-        </el-table-column>
+        <el-table-column prop="itemName" label="检查项目" min-width="160" show-overflow-tooltip />
         <el-table-column label="患者" width="130">
           <template #default="{ row }">
             <div class="patient-cell">

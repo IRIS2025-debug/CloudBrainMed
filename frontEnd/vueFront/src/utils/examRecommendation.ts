@@ -47,47 +47,28 @@ export interface MedicalItemOption {
 }
 
 export const medicalItemOptions: MedicalItemOption[] = [
-  { itemCode: 'CRANIAL_CT_PLAIN', itemName: '颅脑CT平扫', category: 'EXAM', dept: '影像科' },
-  { itemCode: 'CRANIAL_CT_ENHANCED', itemName: '颅脑CT增强', category: 'EXAM', dept: '影像科' },
-  { itemCode: 'CRANIAL_MRI_PLAIN', itemName: '颅脑MRI平扫', category: 'EXAM', dept: '影像科' },
-  { itemCode: 'CRANIAL_MRI_ENHANCED', itemName: '颅脑MRI增强', category: 'EXAM', dept: '影像科' },
-  { itemCode: 'HEAD_NECK_CTA', itemName: '头颈部CTA', category: 'EXAM', dept: '影像科' },
-  { itemCode: 'CRANIAL_MRA', itemName: '颅脑MRA', category: 'EXAM', dept: '影像科' },
-  { itemCode: 'CEREBRAL_DSA', itemName: '全脑血管DSA', category: 'EXAM', dept: '介入科' },
-  { itemCode: 'TCD', itemName: '经颅多普勒', category: 'EXAM', dept: '功能检查科' },
-  { itemCode: 'ROUTINE_EEG', itemName: '常规脑电图', category: 'EXAM', dept: '功能检查科' },
-  { itemCode: 'VIDEO_EEG', itemName: '视频脑电图', category: 'EXAM', dept: '功能检查科' },
-  { itemCode: 'EMG', itemName: '肌电图', category: 'EXAM', dept: '功能检查科' },
-  { itemCode: 'EVOKED_POTENTIAL', itemName: '诱发电位', category: 'EXAM', dept: '功能检查科' },
-  { itemCode: 'CSF_ROUTINE', itemName: '脑脊液常规', category: 'LAB', dept: '检验科' },
-  { itemCode: 'CSF_BIOCHEMISTRY', itemName: '脑脊液生化', category: 'LAB', dept: '检验科' },
-  { itemCode: 'CSF_CYTOLOGY', itemName: '脑脊液细胞学', category: 'LAB', dept: '检验科' },
-  { itemCode: 'CSF_CULTURE', itemName: '脑脊液培养', category: 'LAB', dept: '检验科' },
-  { itemCode: 'CSF_OLIGOCLONAL_BANDS', itemName: '脑脊液寡克隆带', category: 'LAB', dept: '检验科' },
-  { itemCode: 'AUTOIMMUNE_ENCEPHALITIS_ANTIBODY', itemName: '自身免疫性脑炎抗体', category: 'LAB', dept: '检验科' },
-  { itemCode: 'DEMYELINATING_DISEASE_ANTIBODY', itemName: '脱髓鞘疾病相关抗体', category: 'LAB', dept: '检验科' }
+  // 🏥 EXAM（检查类）
+  { itemCode: 'NEURO_CT_001', itemName: '头颅CT平扫', category: 'EXAM', dept: '影像科' },
+  { itemCode: 'NEURO_CT_002', itemName: '头颅CT增强', category: 'EXAM', dept: '影像科' },
+  { itemCode: 'NEURO_MRI_001', itemName: '脑部MRI平扫', category: 'EXAM', dept: '影像科' },
+  { itemCode: 'NEURO_MRI_002', itemName: '脑部MRI增强', category: 'EXAM', dept: '影像科' },
+  { itemCode: 'NEURO_MRA_001', itemName: '脑血管MRA检查', category: 'EXAM', dept: '影像科' },
+  // 🧪 LAB（检验类）
+  { itemCode: 'NEURO_LAB_001', itemName: '血常规检查', category: 'LAB', dept: '检验科' },
+  { itemCode: 'NEURO_LAB_002', itemName: 'C反应蛋白CRP', category: 'LAB', dept: '检验科' },
+  { itemCode: 'NEURO_LAB_003', itemName: '脑脊液常规检查', category: 'LAB', dept: '检验科' },
 ]
 
 const itemByCode = new Map(medicalItemOptions.map(item => [item.itemCode, item]))
 const medicalItemCodeByName: Record<string, string> = medicalItemOptions.reduce<Record<string, string>>((acc, item) => {
   acc[item.itemName.replace(/\s+/g, '')] = item.itemCode
   return acc
-}, {
-  头颅CT平扫: 'CRANIAL_CT_PLAIN',
-  头颅CT增强: 'CRANIAL_CT_ENHANCED',
-  头颅MRI平扫: 'CRANIAL_MRI_PLAIN',
-  脑血管DSA: 'CEREBRAL_DSA',
-  脱髓鞘疾病抗体: 'DEMYELINATING_DISEASE_ANTIBODY'
-})
+}, {})
 
 const labItemCodes = new Set([
-  'CSF_ROUTINE',
-  'CSF_BIOCHEMISTRY',
-  'CSF_CYTOLOGY',
-  'CSF_CULTURE',
-  'CSF_OLIGOCLONAL_BANDS',
-  'AUTOIMMUNE_ENCEPHALITIS_ANTIBODY',
-  'DEMYELINATING_DISEASE_ANTIBODY'
+  'NEURO_LAB_001',
+  'NEURO_LAB_002',
+  'NEURO_LAB_003'
 ])
 
 export function normalizeExamRecommendResponse(data: AiExamRecommendResponse | AiExamRecommendationItem[] | undefined) {

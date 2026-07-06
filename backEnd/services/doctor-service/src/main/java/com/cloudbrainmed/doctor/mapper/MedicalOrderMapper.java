@@ -6,6 +6,7 @@ import com.cloudbrainmed.doctor.entity.MedicalReport;
 import com.cloudbrainmed.doctor.vo.InspectionOrderVo;
 import com.cloudbrainmed.doctor.vo.MedicalReportVo;
 import lombok.Data;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.ibatis.annotations.*;
 
 import java.math.BigDecimal;
@@ -28,6 +29,20 @@ public interface MedicalOrderMapper {
         )
         """)
     int insertOrder(MedicalOrder order);
+
+    /**
+     * 原子认领任务：同时更新状态和分配医生
+     * 返回 1 表示认领成功，0 表示状态不对
+     */
+    @Update("""
+    UPDATE medical_order_item
+    SET status = 'IN_PROCESS',
+        assigned_doctor_id = #{doctorId},
+        assign_time = NOW()
+    WHERE order_item_id = #{orderItemId} AND status = 'QUEUED'
+    """)
+    int claimTaskAtomically(@Param("orderItemId") String orderItemId,
+                            @Param("doctorId") String doctorId);
 
     @Insert("""
         INSERT INTO medical_order_item (
@@ -173,8 +188,11 @@ public interface MedicalOrderMapper {
     int countInProgressByPatient(@Param("patientId") String patientId);
 
     /**
-     * 获取待调度的排队任务（按优先级排序）
-     * 返回 queued 状态，按 urgency_level (紧急优先) + create_time 排序
+     * 获取待调度的排队任务（按优先级排序，带时效老化防饥饿）
+     * 排序规则：
+     * 1. 紧急 > 加急 > 常规
+     * 2. 同级别按创建时间升序
+     * 3. 常规任务排队超过 30 分钟自动升级为加急级别
      */
     @Select("""
         SELECT moi.order_item_id, moi.order_id, moi.item_code, moi.item_name,
@@ -188,13 +206,14 @@ public interface MedicalOrderMapper {
         JOIN patient p ON mo.patient_id = p.patient_id
         WHERE moi.status = 'QUEUED' AND mo.pay_status = 'PAID'
         ORDER BY
-            CASE moi.urgency_level
-                WHEN 'EMERGENCY' THEN 1
-                WHEN 'URGENT' THEN 2
-                WHEN 'NORMAL' THEN 3
-                ELSE 4
-            END,
-            moi.create_time ASC
+          CASE
+            WHEN moi.urgency_level = 'EMERGENCY' THEN 1
+            WHEN moi.urgency_level = 'URGENT' THEN 2
+            WHEN moi.urgency_level = 'NORMAL' AND moi.create_time < NOW() - INTERVAL '30 minutes' THEN 2
+            WHEN moi.urgency_level = 'NORMAL' THEN 3
+            ELSE 4
+          END,
+          moi.create_time ASC
         LIMIT #{limit}
         """)
     @Results({
@@ -488,6 +507,63 @@ public interface MedicalOrderMapper {
         """)
     long countPublishedReportsByOrderItemId(
             @Param("orderItemId") String orderItemId);
+
+    /**
+     * 直接更新项目状态（不校验旧状态）
+     */
+    @Update("""
+        UPDATE medical_order_item SET status = #{status}
+        WHERE order_item_id = #{orderItemId}
+        """)
+    int updateItemStatusDirect(@Param("orderItemId") String orderItemId,
+                               @Param("status") String status);
+
+    /**
+     * 释放任务：将 IN_PROCESS 状态的任务回退到 QUEUED，清除医生分配
+     * 用于医生跳过任务场景
+     */
+    @Update("""
+        UPDATE medical_order_item
+        SET status = 'QUEUED',
+            assigned_doctor_id = NULL,
+            assign_time = NULL
+        WHERE order_item_id = #{orderItemId}
+          AND status = 'IN_PROCESS'
+          AND assigned_doctor_id = #{doctorId}
+        """)
+    int releaseTask(@Param("orderItemId") String orderItemId,
+                    @Param("doctorId") String doctorId);
+
+    /**
+     * 根据ID查询order_item
+     */
+    @Select("""
+        SELECT order_item_id, order_id, item_id, item_code, item_name,
+               item_category, assigned_dept_id, assigned_doctor_id,
+               urgency_level, price, status,
+               create_time, assign_time, complete_time
+        FROM medical_order_item
+        WHERE order_item_id = #{orderItemId}
+        """)
+    @Results({
+        @Result(column = "order_item_id", property = "orderItemId"),
+        @Result(column = "order_id", property = "orderId"),
+        @Result(column = "item_id", property = "itemId"),
+        @Result(column = "item_code", property = "itemCode"),
+        @Result(column = "item_name", property = "itemName"),
+        @Result(column = "item_category", property = "itemCategory"),
+        @Result(column = "assigned_dept_id", property = "assignedDeptId"),
+        @Result(column = "assigned_doctor_id", property = "assignedDoctorId"),
+        @Result(column = "urgency_level", property = "urgencyLevel"),
+        @Result(column = "price", property = "price"),
+        @Result(column = "status", property = "status"),
+        @Result(column = "create_time", property = "createTime"),
+        @Result(column = "assign_time", property = "assignTime"),
+        @Result(column = "complete_time", property = "completeTime")
+    })
+    com.cloudbrainmed.doctor.entity.MedicalOrderItem selectOrderItemById(
+            @Param("orderItemId") String orderItemId);
+
 
     @Data
     class QueuedTaskItem {

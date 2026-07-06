@@ -37,16 +37,9 @@ public class ConsultServiceImpl implements ConsultService {
     }
 
     @Override
-    public List<ConsultRecord> getList(
-            String doctorId,
-            String consultStatus,
-            String date,
-            boolean reportReturnedOnly,
-            int page,
-            int limit) {
+    public List<ConsultRecord> getList(String doctorId, String consultStatus, String date, boolean reportReturnedOnly, int page, int limit) {
         int offset = (page - 1) * limit;
-        return consultMapper.findList(
-                doctorId, consultStatus, date, reportReturnedOnly, offset, limit);
+        return consultMapper.findList(doctorId, consultStatus, date, reportReturnedOnly, offset, limit);
     }
 
     @Override
@@ -115,7 +108,7 @@ public class ConsultServiceImpl implements ConsultService {
             items = objectMapper.readValue(checkItemList,
                     new TypeReference<List<Map<String, String>>>() {});
         } catch (JsonProcessingException e) {
-            throw new BusinessException("检查项目格式错误: " + e.getMessage(), e);
+            throw new BusinessException("检查项目格式错误 " + e.getMessage(), e);
         }
         if (items.isEmpty()) {
             throw new BusinessException("检查项目列表为空");
@@ -143,12 +136,12 @@ public class ConsultServiceImpl implements ConsultService {
             }
         }
 
-        // ----- 写入主表 -----
+        // ----- 鍐欏叆涓昏〃 -----
         String orderId = "CHK" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
         consultMapper.insertCheckReport(orderId, detail.getPatientId(), registerId,
                 detail.getDoctorId(), checkItemList, urgencyLevel);
 
-        // ----- 逐项写入子表 -----
+        // ----- 閫愰」鍐欏叆瀛愯〃 -----
         BigDecimal totalAmount = BigDecimal.ZERO;
         for (Map<String, String> item : items) {
             String itemName = item.get("itemName");
@@ -178,7 +171,7 @@ public class ConsultServiceImpl implements ConsultService {
         dto.setPatientName(patientName(detail));
         dto.setOrderType("MEDICAL");
         dto.setBusinessId(orderId);
-        dto.setDescription("医技检查检验费");
+        dto.setDescription("鍖绘妧妫€鏌ユ楠岃垂");
         dto.setAmount(totalAmount == null ? BigDecimal.ZERO : totalAmount);
         Result<PayResultVo> result = paymentFeignClient.createPayOrder(dto);
         if (result == null || result.getCode() == null || result.getCode() != 200) {

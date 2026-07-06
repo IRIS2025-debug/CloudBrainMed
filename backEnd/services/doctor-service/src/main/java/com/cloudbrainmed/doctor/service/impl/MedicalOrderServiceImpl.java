@@ -314,7 +314,7 @@ public class MedicalOrderServiceImpl implements MedicalOrderService {
             throw new BusinessException("Consult record not found");
         }
         if (!hasText(doctorId) || !doctorId.equals(consult.getDoctorId())) {
-            throw new BusinessException("无权 create medical order");
+            throw new BusinessException("鏃犳潈 create medical order");
         }
         if ("COMPLETED".equals(consult.getConsultStatus())) {
             throw new BusinessException("Consult already completed");
