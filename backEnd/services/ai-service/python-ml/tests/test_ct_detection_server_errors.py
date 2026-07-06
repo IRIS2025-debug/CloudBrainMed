@@ -4,6 +4,17 @@ import unittest
 
 
 class CtDetectionServerErrorHandlingTest(unittest.TestCase):
+    def test_default_lesion_model_version_tracks_deployed_checkpoint(self):
+        source_path = Path(__file__).resolve().parents[1] / "CTDetectionServer.py"
+        module = ast.parse(source_path.read_text(encoding="utf-8"))
+        assignment = next(
+            node for node in module.body
+            if isinstance(node, ast.Assign)
+            and any(isinstance(target, ast.Name) and target.id == "LESION_MODEL_VERSION" for target in node.targets)
+        )
+
+        self.assertEqual(assignment.value.args[1].value, "lesion_attention_adamw_20260705_191345")
+
     def test_predict_ct_lesion_reraises_http_exception_before_broad_exception(self):
         source_path = Path(__file__).resolve().parents[1] / "CTDetectionServer.py"
         module = ast.parse(source_path.read_text(encoding="utf-8"))
