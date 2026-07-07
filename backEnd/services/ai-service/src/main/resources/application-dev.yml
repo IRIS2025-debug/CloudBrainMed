@@ -25,7 +25,7 @@ spring:
 
   ai:
     openai:
-      api-key: sk-ws-H.RXXHDDM.DC6H.MEQCIHMf6WYx03NG5PH0PJ2Q1ANkqO26pI4G6LJszk0d9rwrAiAHuJhzlodg6-qDB4Ka5e5CTp0xObc-EOXIA_Pzw1ZVDw
+      api-key:
       base-url: https://dashscope.aliyuncs.com/compatible-mode
       chat:
         options:
@@ -33,7 +33,7 @@ spring:
           temperature: 0.1
           max-tokens: 1024
     embedding:
-      api-key: sk-ws-H.RXEHYRL.Xh8x.MEUCIQDM788MKkZp1fE-nj4L5GTb7pJ47vVA6RHSf8gz3xv2ygIgcoK8hXdHJI0IZlNQ2F-k3NXmGOaqgXbMbAOq8sp-ZHo
+      api-key:
       base-url: https://dashscope.aliyuncs.com/compatible-mode
       model: text-embedding-v4
       dimensions: 1024
