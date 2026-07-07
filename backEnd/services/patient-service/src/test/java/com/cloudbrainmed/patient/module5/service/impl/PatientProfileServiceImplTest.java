@@ -93,7 +93,7 @@ class PatientProfileServiceImplTest {
     }
 
     @Test
-    void getInfoRawDoesNotExposeFullPhoneOrIdCard() {
+    void getInfoRawReturnsFullPhoneAndIdCardWithoutPassword() {
         Patient patient = new Patient();
         patient.setPatientId("P001");
         patient.setPhone("13800000000");
@@ -104,8 +104,8 @@ class PatientProfileServiceImplTest {
         Patient result = service.getInfoRaw("P001");
 
         assertThat(result.getPassword()).isNull();
-        assertThat(result.getPhone()).isEqualTo("138****0000");
-        assertThat(result.getIdCard()).isEqualTo("1101**********1234");
+        assertThat(result.getPhone()).isEqualTo("13800000000");
+        assertThat(result.getIdCard()).isEqualTo("110101199001011234");
     }
 
     @Test

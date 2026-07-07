@@ -1,3 +1,5 @@
+import preferences from '@ohos.data.preferences';
+
 export interface PatientInfo {
   patientId: string;
   name: string;
@@ -13,6 +15,8 @@ export interface PatientInfo {
 
 export class PatientManager {
   private static readonly KEY = 'patientInfo';
+  private static readonly PREFS_NAME = 'user_prefs';
+  private static readonly TOKEN_KEY = 'token';
 
   /**
    * 保存患者信息（仅存 AppStorage，内存级）
@@ -108,5 +112,21 @@ export class PatientManager {
   static getPhone(): string {
     const info = PatientManager.getPatientInfo();
     return info?.phone ?? '';
+  }
+
+  /**
+   * 退出登录：清除 AppStorage 与 Preferences 中的会话数据
+   */
+  static async clearSession(context?: Context): Promise<void> {
+    PatientManager.clearPatientInfo();
+    if (context) {
+      try {
+        const prefs = await preferences.getPreferences(context, PatientManager.PREFS_NAME);
+        await prefs.delete(PatientManager.TOKEN_KEY);
+        await prefs.flush();
+      } catch (e) {
+        console.error('PatientManager: 清除 Preferences 失败', JSON.stringify(e));
+      }
+    }
   }
 }
