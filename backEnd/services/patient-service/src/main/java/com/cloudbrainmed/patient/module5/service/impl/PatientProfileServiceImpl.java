@@ -52,7 +52,7 @@ public class PatientProfileServiceImpl implements PatientProfileService {
 
     @Override
     public Patient getInfoRaw(String patientId) {
-        return getInfo(patientId);
+        return getPatientRaw(patientId);
     }
 
     @Override

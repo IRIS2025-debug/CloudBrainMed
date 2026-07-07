@@ -5,8 +5,8 @@ import router from '@ohos.router';
 import picker from '@ohos.file.picker';
 import fs from '@ohos.file.fs';
 import { BusinessError } from '@ohos.base';
-import preferences from '@ohos.data.preferences';
 import { APIConfig } from '../common/APIConfig';
+import { PatientManager } from '../common/PatientManager';
 // 定义请求数据类型
 interface UpdateProfileRequest {
   name: string;
@@ -35,7 +35,11 @@ interface FunctionItem {
   action: () => void;
 }
 
-const TOKEN_KEY = 'patient_token';
+interface ApiResult {
+  code: number;
+  msg: string;
+  data?: Object;
+}
 
 @Component
 export struct PersonalCenter {
@@ -56,6 +60,8 @@ export struct PersonalCenter {
     idCard: ''
   };
   @State isLoading: boolean = true;
+  @State isSaving: boolean = false;
+  @State loadError: string = '';
 
   // 修改手机号相关状态
   @State showPhoneDialog: boolean = false;
@@ -68,6 +74,7 @@ export struct PersonalCenter {
 
   // 对话框控制
   @State showEditDialog: boolean = false;
+  @State showVerifyBeforeEditDialog: boolean = false;
   @State showPasswordDialog: boolean = false;
   @State showIdCardDialog: boolean = false;
   @State showViewDialog: boolean = false;
@@ -79,14 +86,14 @@ export struct PersonalCenter {
   @State oldPassword: string = '';
   @State newPassword: string = '';
   @State verifyPassword: string = '';
+  @State editVerifyPassword: string = '';
 
   @State rawPhone: string = '';
   @State newIdCard: string = '';
   private functionList: FunctionItem[] = [];
   // 配置文件
   private baseUrl: string = APIConfig.PATIENT_SERVICE_URL;
-
-  private Url: string = APIConfig.BASE_URL;
+  private authUrl: string = APIConfig.AUTH_SERVICE_URL;
   // 性别映射常量：女=2，男=1
   private readonly GENDER_MAP: Record<string, string> = {
     '2': '女',
@@ -165,13 +172,10 @@ export struct PersonalCenter {
       {
         title: '编辑个人信息',
         icon: '✏️',
-        desc: '修改姓名、性别、地址、出生日期等',
+        desc: '修改姓名、性别、地址、出生日期（需身份验证）',
         action: () => {
-          this.editName = this.profileData.name || '';
-          this.editGender = this.profileData.gender || '2';  // 默认 '2'（女）
-          this.editAddress = this.profileData.address || '';
-          this.editBirthday = this.profileData.birthday || '';
-          this.showEditDialog = true;
+          this.editVerifyPassword = '';
+          this.showVerifyBeforeEditDialog = true;
         }
       },
       {
@@ -196,65 +200,85 @@ export struct PersonalCenter {
         }
       },
       {
-        title: '挂号记录',
-        icon: '📋',
-        desc: '查看历史挂号记录',
-        action: () => {
-          router.pushUrl({
-            url: 'pages/profile/RegisterHistoryPage',
-            params: { patientId: this.patientId }
-          }).catch((err: Error) => {
-            console.error('跳转失败:', err);
-            promptAction.showToast({ message: '页面跳转失败，请重试', duration: 1500 });
-          });
-        }
-      },
-      {
-        title: '缴费记录',
-        icon: '💰',
-        desc: '查看缴费明细记录',
-        action: () => {
-          router.pushUrl({
-            url: 'pages/profile/PaymentHistoryPage',
-            params: { patientId: this.patientId }
-          }).catch(() => {
-            promptAction.showToast({ message: '页面开发中...', duration: 1500 });
-          });
-        }
-      },
-      {
-        title: '身份验证',
+        title: '修改身份证',
         icon: '🛡️',
         desc: '验证身份后可修改身份证信息',
         action: () => {
           this.verifyPassword = '';
+          this.newIdCard = '';
           this.showIdCardDialog = true;
         }
       }
     ];
   }
 
-  // 获取存储的token - 从 Preferences 读取
-  async getToken(): Promise<string> {
-    try {
-      const context = getContext(this);
-      const prefs = await preferences.getPreferences(context, 'user_prefs');
-      const token = await prefs.get('token', '') as string;
-      console.info('从 Preferences 读取 Token:', token ? '已获取' : '为空');
-      return token;
-    } catch (e) {
-      console.error('获取Token失败:', JSON.stringify(e));
-      return '';
+  // 解析后端返回的患者信息
+  private parseProfileResponse(raw: Record<string, Object>): PatientProfile {
+    const genderVal = raw['gender'];
+    const avatar = raw['avatar'] as string;
+    let avatarUrl = raw['avatarUrl'] as string || '';
+    if (!avatarUrl && avatar) {
+      avatarUrl = avatar.startsWith('http')
+        ? avatar
+        : `${APIConfig.BASE_URL}:8004${avatar}`;
     }
+    const birthday = (raw['birthday'] as string) || '';
+    const profile: PatientProfile = {
+      patientId: (raw['patientId'] as string) || this.patientId || '',
+      name: (raw['name'] as string) || '',
+      gender: genderVal !== undefined && genderVal !== null ? String(genderVal) : '',
+      age: (raw['age'] as number) || 0,
+      phone: (raw['phone'] as string) || '',
+      address: (raw['address'] as string) || '',
+      birthday: birthday,
+      avatarUrl: avatarUrl,
+      idCard: (raw['idCard'] as string) || ''
+    };
+    if (!profile.age && profile.birthday) {
+      profile.age = this.calculateAge(profile.birthday);
+    }
+    return profile;
+  }
+
+  // 获取 Token（统一从 PatientManager 读取）
+  getToken(): string {
+    return PatientManager.getToken();
+  }
+
+  // 同步本地缓存中的用户基本信息
+  private syncLocalPatientInfo(): void {
+    const info = PatientManager.getPatientInfo();
+    if (!info) {
+      return;
+    }
+    info.name = this.profileData.name;
+    info.phone = this.profileData.phone;
+    if (this.profileData.gender) {
+      info.gender = Number(this.profileData.gender);
+      info.genderText = this.genderToText(this.profileData.gender);
+    }
+    if (this.profileData.birthday) {
+      info.birthday = this.profileData.birthday;
+    }
+    if (this.profileData.age > 0) {
+      info.age = this.profileData.age;
+    }
+    PatientManager.savePatientInfo(info);
   }
 
   // 加载数据方法，计算年龄
   async loadProfileData() {
     this.isLoading = true;
-    try {
-      const token = await this.getToken();
+    this.loadError = '';
+    const token = this.getToken();
+    if (!token) {
+      this.isLoading = false;
+      this.loadError = '未登录，请先登录';
+      this.handleTokenExpired();
+      return;
+    }
 
-      // 第一步：获取基本信息（不包含敏感信息）
+    try {
       const httpRequest1 = http.createHttp();
       const response1 = await httpRequest1.request(
         this.baseUrl + `/profile/info`,
@@ -267,21 +291,25 @@ export struct PersonalCenter {
         }
       );
 
+      if (response1.responseCode === 401) {
+        this.handleTokenExpired();
+        return;
+      }
+
       if (response1.responseCode === 200) {
-        const result1: Record<string, Object> = JSON.parse(response1.result as string);
-        const code1 = result1['code'] as number;
-        if (code1 === 200) {
-          const data = result1['data'] as PatientProfile;
-          if (!data.age && data.birthday) {
-            data.age = this.calculateAge(data.birthday);
-          }
+        const result1: ApiResult = JSON.parse(response1.result as string);
+        if (result1.code === 200 && result1.data) {
+          const data = this.parseProfileResponse(result1.data as Record<string, Object>);
           this.profileData = data;
           this.oldPhone = data.phone || '';
+        } else {
+          this.loadError = result1.msg || '加载个人信息失败';
         }
+      } else {
+        this.loadError = `网络异常 (${response1.responseCode})`;
       }
       httpRequest1.destroy();
 
-      // 第二步：调用 info-raw 获取原始敏感信息（手机号、身份证号等）
       const httpRequest2 = http.createHttp();
       const response2 = await httpRequest2.request(
         this.baseUrl + `/profile/info-raw`,
@@ -295,28 +323,27 @@ export struct PersonalCenter {
       );
 
       if (response2.responseCode === 200) {
-        const result2: Record<string, Object> = JSON.parse(response2.result as string);
-        const code2 = result2['code'] as number;
-        if (code2 === 200) {
-          const data2 = result2['data'] as PatientProfile;
-          // ✅ 更新手机号
-          if (data2.phone) {
-            this.oldPhone = data2.phone;
-            this.profileData.phone = data2.phone;
-            console.info('获取原始手机号成功:', data2.phone);
+        const result2: ApiResult = JSON.parse(response2.result as string);
+        if (result2.code === 200 && result2.data) {
+          const rawData = result2.data as Record<string, Object>;
+          if (rawData['phone']) {
+            this.oldPhone = rawData['phone'] as string;
+            this.profileData.phone = rawData['phone'] as string;
           }
-          // ✅ 更新身份证号（从 info-raw 获取完整身份证号）
-          if (data2.idCard) {
-            this.profileData.idCard = data2.idCard;
-            console.info('获取原始身份证号成功:', data2.idCard);
+          if (rawData['idCard']) {
+            this.profileData.idCard = rawData['idCard'] as string;
           }
         }
       }
       httpRequest2.destroy();
 
+      if (!this.loadError) {
+        this.syncLocalPatientInfo();
+      }
     } catch (error) {
       const err = error as BusinessError;
       console.error('加载数据失败:', err.message);
+      this.loadError = '加载失败，请检查网络后重试';
     } finally {
       this.isLoading = false;
     }
@@ -325,7 +352,7 @@ export struct PersonalCenter {
   // 获取原始完整信息（用于修改手机号回填）
   async loadRawProfileData() {
     try {
-      const token = await this.getToken();
+      const token = this.getToken();
       const httpRequest = http.createHttp();
 
       const response = await httpRequest.request(
@@ -363,9 +390,63 @@ export struct PersonalCenter {
     }
   }
 
-  async updateProfile() {
+  // 编辑个人信息前的身份验证
+  async verifyBeforeEdit() {
+    if (!this.editVerifyPassword.trim()) {
+      promptAction.showToast({ message: '请输入登录密码' });
+      return;
+    }
+
     try {
-      const token = await this.getToken();
+      const token = this.getToken();
+      const httpRequest = http.createHttp();
+      const response = await httpRequest.request(
+        this.baseUrl + `/profile/verify-idcard`,
+        {
+          method: http.RequestMethod.POST,
+          header: {
+            'Content-Type': 'application/json',
+            'token': token
+          },
+          extraData: {
+            password: this.editVerifyPassword.trim()
+          }
+        }
+      );
+
+      if (response.responseCode === 200) {
+        const result: ApiResult = JSON.parse(response.result as string);
+        if (result.code === 200) {
+          this.showVerifyBeforeEditDialog = false;
+          this.editVerifyPassword = '';
+          this.editName = this.profileData.name || '';
+          this.editGender = this.profileData.gender || '2';
+          this.editAddress = this.profileData.address || '';
+          this.editBirthday = this.profileData.birthday || '';
+          this.showEditDialog = true;
+        } else {
+          promptAction.showToast({ message: result.msg || '身份验证失败' });
+          this.editVerifyPassword = '';
+        }
+      } else if (response.responseCode === 401) {
+        this.handleTokenExpired();
+      } else {
+        promptAction.showToast({ message: '验证失败，请稍后重试' });
+      }
+      httpRequest.destroy();
+    } catch (error) {
+      console.error('身份验证失败:', error);
+      promptAction.showToast({ message: '验证失败，请稍后重试' });
+    }
+  }
+
+  async updateProfile() {
+    if (this.isSaving) {
+      return;
+    }
+    this.isSaving = true;
+    try {
+      const token = this.getToken();
       const httpRequest = http.createHttp();
 
       let finalGender = '2';
@@ -414,17 +495,21 @@ export struct PersonalCenter {
         if (code === 200) {
           promptAction.showToast({ message: '更新成功' });
           this.showEditDialog = false;
-          this.loadProfileData();
+          await this.loadProfileData();
         } else {
           const message = result['msg'] as string;
           promptAction.showToast({ message: message || '更新失败' });
           console.error('业务错误:', message);
         }
+      } else {
+        promptAction.showToast({ message: '更新失败，请稍后重试' });
       }
       httpRequest.destroy();
     } catch (error) {
       console.error('更新失败:', error);
       promptAction.showToast({ message: '更新失败' });
+    } finally {
+      this.isSaving = false;
     }
   }
 
@@ -448,7 +533,7 @@ export struct PersonalCenter {
       fs.readSync(file.fd, buffer);
       fs.closeSync(file);
 
-      const token = await this.getToken();
+      const token = this.getToken();
       const httpRequest = http.createHttp();
 
       const response = await httpRequest.request(
@@ -498,11 +583,11 @@ export struct PersonalCenter {
     this.isSendingCode = true;
 
     try {
-      const token = await this.getToken();
+      const token = this.getToken();
       const httpRequest = http.createHttp();
 
       const response = await httpRequest.request(
-        this.Url + `:8002/auth-service/patient/send-code`,
+        this.authUrl + `/patient/send-code`,
         {
           method: http.RequestMethod.POST,
           header: {
@@ -665,7 +750,7 @@ export struct PersonalCenter {
     }
 
     try {
-      const token = await this.getToken();
+      const token = this.getToken();
       const httpRequest = http.createHttp();
 
       const response = await httpRequest.request(
@@ -739,7 +824,7 @@ export struct PersonalCenter {
     }
 
     try {
-      const token = await this.getToken();
+      const token = this.getToken();
       const httpRequest = http.createHttp();
 
       const response = await httpRequest.request(
@@ -763,7 +848,7 @@ export struct PersonalCenter {
         if (code === 200) {
           promptAction.showToast({ message: '密码修改成功，请重新登录' });
           this.showPasswordDialog = false;
-          AppStorage.delete(TOKEN_KEY);
+          await PatientManager.clearSession(getContext(this));
           router.replaceUrl({ url: 'pages/login/LoginPage' });
         } else {
           const message = result['msg'] as string;
@@ -806,7 +891,7 @@ export struct PersonalCenter {
     }
 
     try {
-      const token = await this.getToken();
+      const token = this.getToken();
       const httpRequest = http.createHttp();
 
       const response = await httpRequest.request(
@@ -931,10 +1016,23 @@ export struct PersonalCenter {
 
   // Token过期处理（复用已有的方法）
   private handleTokenExpired() {
+    PatientManager.clearPatientInfo();
     promptAction.showToast({ message: '登录已过期，请重新登录' });
     setTimeout(() => {
       router.replaceUrl({ url: 'pages/login/LoginPage' });
     }, 1500);
+  }
+
+  // 退出登录
+  async logout() {
+    try {
+      await PatientManager.clearSession(getContext(this));
+      promptAction.showToast({ message: '已退出登录' });
+      router.replaceUrl({ url: 'pages/login/LoginPage' });
+    } catch (error) {
+      console.error('退出登录失败:', error);
+      promptAction.showToast({ message: '退出失败，请重试' });
+    }
   }
 
   build() {
@@ -953,11 +1051,30 @@ export struct PersonalCenter {
         .width('100%')
         .layoutWeight(1)
         .justifyContent(FlexAlign.Center)
+      } else if (this.loadError) {
+        Column() {
+          Text(this.loadError)
+            .fontSize(14)
+            .fontColor('#999999')
+            .margin({ bottom: 16 })
+          Button('重新加载')
+            .height(40)
+            .fontSize(15)
+            .backgroundColor('#007AFF')
+            .onClick(() => {
+              this.loadProfileData();
+            })
+        }
+        .width('100%')
+        .layoutWeight(1)
+        .justifyContent(FlexAlign.Center)
       } else {
         Scroll() {
           Column() {
             this.UserInfoCard()
+            this.ProfileInfoSection()
             this.FunctionListSection()
+            this.LogoutSection()
           }
           .width('100%')
         }
@@ -966,6 +1083,9 @@ export struct PersonalCenter {
         .backgroundColor('#F5F5F5')
       }
 
+      if (this.showVerifyBeforeEditDialog) {
+        this.VerifyBeforeEditDialog()
+      }
       if (this.showEditDialog) {
         this.EditProfileDialog()
       }
@@ -1050,6 +1170,69 @@ export struct PersonalCenter {
     .margin({ top: 16, left: 16, right: 16 })
   }
 
+  // 个人信息详情区域
+  @Builder
+  ProfileInfoSection() {
+    Column() {
+      Row() {
+        Text('基本信息')
+          .fontSize(16)
+          .fontWeight(FontWeight.Medium)
+          .fontColor('#1A1A1A')
+        Blank()
+        Text('查看全部')
+          .fontSize(13)
+          .fontColor('#007AFF')
+          .onClick(() => {
+            this.showViewDialog = true;
+          })
+      }
+      .width('100%')
+      .margin({ bottom: 12 })
+
+      Column() {
+        this.InfoRow('患者ID', this.profileData.patientId || '--')
+        this.DividerLine()
+        this.InfoRow('姓名', this.profileData.name || '--')
+        this.DividerLine()
+        this.InfoRow('性别', this.genderToText(this.profileData.gender))
+        this.DividerLine()
+        this.InfoRow('年龄', this.getDisplayAge())
+        this.DividerLine()
+        this.InfoRow('手机号', this.profileData.phone || '--')
+        this.DividerLine()
+        this.InfoRow('出生日期', this.profileData.birthday || '--')
+        this.DividerLine()
+        this.InfoRow('身份证号', this.maskIdCard(this.profileData.idCard || '--'))
+        this.DividerLine()
+        this.InfoRow('地址', this.profileData.address || '--')
+      }
+      .width('100%')
+    }
+    .width('100%')
+    .padding(16)
+    .backgroundColor('#FFFFFF')
+    .borderRadius(12)
+    .margin({ top: 12, left: 16, right: 16 })
+  }
+
+  // 退出登录区域
+  @Builder
+  LogoutSection() {
+    Button('退出登录')
+      .width('100%')
+      .height(48)
+      .fontSize(16)
+      .fontWeight(FontWeight.Medium)
+      .fontColor('#FF3B30')
+      .backgroundColor('#FFFFFF')
+      .borderRadius(12)
+      .margin({ top: 16, left: 16, right: 16, bottom: 24 })
+      .onClick(() => {
+        this.logout();
+      })
+  }
+
   // 功能列表区域
   @Builder
   FunctionListSection() {
@@ -1113,6 +1296,59 @@ export struct PersonalCenter {
   // ==================== 对话框 ====================
 
   @Builder
+  VerifyBeforeEditDialog() {
+    Column() {
+      Column() {
+        Text('身份验证')
+          .fontSize(18)
+          .fontWeight(FontWeight.Medium)
+          .margin({ bottom: 8 })
+
+        Text('修改姓名等身份信息前，请输入登录密码验证')
+          .fontSize(13)
+          .fontColor('#999999')
+          .margin({ bottom: 20 })
+          .textAlign(TextAlign.Center)
+
+        Row() {
+          Text('登录密码').fontSize(14).fontColor('#666').width(80)
+          TextInput({ text: this.editVerifyPassword, placeholder: '请输入登录密码' })
+            .layoutWeight(1).height(40).fontSize(14)
+            .backgroundColor('#F5F5F5').borderRadius(4)
+            .type(InputType.Password)
+            .onChange((value: string) => { this.editVerifyPassword = value; })
+        }
+        .width('100%').margin({ bottom: 20 })
+
+        Row() {
+          Button('取消')
+            .layoutWeight(1).height(40).fontSize(15)
+            .backgroundColor('#F5F5F5').fontColor('#666')
+            .onClick(() => {
+              this.showVerifyBeforeEditDialog = false;
+              this.editVerifyPassword = '';
+            })
+
+          Button('验证并继续')
+            .layoutWeight(1).height(40).fontSize(15)
+            .backgroundColor('#007AFF').margin({ left: 12 })
+            .onClick(() => { this.verifyBeforeEdit(); })
+        }
+        .width('100%')
+      }
+      .width('80%').padding(20)
+      .backgroundColor('#FFFFFF').borderRadius(12)
+    }
+    .width('100%').height('100%')
+    .justifyContent(FlexAlign.Center)
+    .backgroundColor('#00000080')
+    .onClick(() => {
+      this.showVerifyBeforeEditDialog = false;
+      this.editVerifyPassword = '';
+    })
+  }
+
+  @Builder
   EditProfileDialog() {
     Column() {
       Column() {
@@ -1173,9 +1409,10 @@ export struct PersonalCenter {
             .backgroundColor('#F5F5F5').fontColor('#666')
             .onClick(() => { this.showEditDialog = false; })
 
-          Button('保存')
+          Button(this.isSaving ? '保存中...' : '保存')
             .layoutWeight(1).height(40).fontSize(15)
             .backgroundColor('#007AFF').margin({ left: 12 })
+            .enabled(!this.isSaving)
             .onClick(() => { this.updateProfile(); })
         }
         .width('100%').margin({ top: 20 })
@@ -1579,12 +1816,9 @@ export struct PersonalCenter {
           .margin({ top: 20 })
           .onClick(() => {
             this.showViewDialog = false;
-            this.editName = this.profileData.name || '';
-            this.editGender = this.profileData.gender || '2';  // 默认 '2'（女）
-            this.editAddress = this.profileData.address || '';
-            this.editBirthday = this.profileData.birthday || '';
+            this.editVerifyPassword = '';
             setTimeout(() => {
-              this.showEditDialog = true;
+              this.showVerifyBeforeEditDialog = true;
             }, 100);
           })
       }
