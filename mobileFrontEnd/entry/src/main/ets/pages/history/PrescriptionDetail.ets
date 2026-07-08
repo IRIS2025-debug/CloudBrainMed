@@ -1,3 +1,4 @@
+// pages/history/PrescriptionDetail.ets
 import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
 
@@ -26,16 +27,23 @@ interface DetailParams {
 
 const PayStatusText: Record<string, string> = {
   'WAITING': '待支付',
-  'PAID': '已支付',
-  'CANCELLED': '已取消',
-  'REFUNDED': '已退款'
+  'PAID': '已支付 ✓',
+  'CANCELLED': '已取消 ✗',
+  'REFUNDED': '已退款 ↩'
 };
 
 const PayStatusColor: Record<string, string> = {
-  'WAITING': '#FAAD14',
-  'PAID': '#52C41A',
-  'CANCELLED': '#FF4D4F',
-  'REFUNDED': '#999999'
+  'WAITING': '#4A90D9',
+  'PAID': '#2ECC71',
+  'CANCELLED': '#95A5A6',
+  'REFUNDED': '#95A5A6'
+};
+
+const PayStatusBgColor: Record<string, string> = {
+  'WAITING': '#E8F0FE',
+  'PAID': '#E8F8F0',
+  'CANCELLED': '#F0F0F0',
+  'REFUNDED': '#F0F0F0'
 };
 
 // ==================== 页面组件 ====================
@@ -66,37 +74,32 @@ export struct PrescriptionDetail {
     }
   }
 
-  /**
-   * 返回上一页
-   */
-  goBack(): void {
+  private goBack(): void {
     router.back();
   }
 
-  /**
-   * 获取状态颜色
-   */
   private getStatusColor(): string {
-    return PayStatusColor[this.payStatus] || '#999999';
+    return PayStatusColor[this.payStatus] || '#95A5A6';
   }
 
-  /**
-   * 获取状态文本
-   */
+  private getStatusBgColor(): string {
+    return PayStatusBgColor[this.payStatus] || '#F0F0F0';
+  }
+
   private getStatusText(): string {
     return PayStatusText[this.payStatus] || this.payStatus || '未知';
   }
 
-  /**
-   * 格式化金额
-   */
   private formatAmount(amount: number): string {
     return (amount || 0).toFixed(2);
   }
 
-  /**
-   * 去支付
-   */
+  private formatDate(dateStr: string): string {
+    if (!dateStr) return '';
+    const parts = dateStr.split('T');
+    return parts[0] || dateStr;
+  }
+
   private goToPay(): void {
     router.pushUrl({
       url: 'pages/pay/PayPage',
@@ -104,8 +107,9 @@ export struct PrescriptionDetail {
         businessId: this.registerId,
         orderType: 'PRESCRIPTION',
         amount: this.totalAmount,
-        description: `处方 ${this.registerId}`,
-        patientName: this.patientName
+        description: '处方费',
+        patientName: this.patientName,
+        returnUrl: 'pages/history/PrescriptionDetail'
       }
     }).catch((err: Error) => {
       console.error('跳转支付失败:', JSON.stringify(err));
@@ -119,188 +123,175 @@ export struct PrescriptionDetail {
   // ==================== UI构建 ====================
 
   @Builder
-  StatusTag() {
+  private StatusTag() {
     Row() {
       Circle()
-        .width(6)
-        .height(6)
+        .width(5)
+        .height(5)
         .fill(this.getStatusColor())
         .margin({ right: 4 })
       Text(this.getStatusText())
-        .fontSize(13)
+        .fontSize(11)
         .fontColor(this.getStatusColor())
         .fontWeight(FontWeight.Medium)
     }
-    .padding({ left: 12, right: 12, top: 4, bottom: 4 })
-    .backgroundColor(`${this.getStatusColor()}15`)
+    .padding({ left: 10, right: 10, top: 3, bottom: 3 })
+    .backgroundColor(this.getStatusBgColor())
     .borderRadius(12)
   }
 
   @Builder
-  InfoRow(label: string, value: string) {
+  private InfoRow(label: string, value: string) {
     Row() {
       Text(label)
-        .fontSize(14)
-        .fontColor('#999999')
-        .width(80)
+        .fontSize(13)
+        .fontColor('#8E8E93')
+        .width(72)
       Text(value || '未知')
         .fontSize(14)
-        .fontColor('#333333')
+        .fontColor('#1A1A2E')
         .layoutWeight(1)
+        .textAlign(TextAlign.End)
     }
     .width('100%')
-    .padding({ top: 4, bottom: 4 })
+    .padding({ top: 8, bottom: 8 })
+    .border({ width: { bottom: 0.5 }, color: '#F0F0F0' })
   }
 
   @Builder
-  MedicineItem(item: PrescriptionItem, index: number) {
+  private MedicineItem(item: PrescriptionItem, index: number) {
     Column() {
       Row() {
-        Text(`${index + 1}`)
-          .fontSize(12)
-          .fontColor('#FFFFFF')
-          .width(22)
-          .height(22)
-          .borderRadius(11)
-          .backgroundColor('#007AFF')
-          .textAlign(TextAlign.Center)
+        Column() {
+          Text(`${index + 1}`)
+            .fontSize(11)
+            .fontColor('#FFFFFF')
+            .width(22)
+            .height(22)
+            .borderRadius(11)
+            .backgroundColor('#4A90D9')
+            .textAlign(TextAlign.Center)
+            .lineHeight(22)
+        }
+        .width(22)
+        .height(22)
 
-        Text(item.medicineName || '未知药品')
-          .fontSize(15)
-          .fontWeight(FontWeight.Medium)
-          .fontColor('#333333')
-          .margin({ left: 10 })
-          .layoutWeight(1)
+        Column() {
+          Text(item.medicineName || '未知药品')
+            .fontSize(15)
+            .fontWeight(FontWeight.Medium)
+            .fontColor('#1A1A2E')
+          Row() {
+            if (item.spec) {
+              Text('规格: ' + item.spec)
+                .fontSize(11)
+                .fontColor('#8E8E93')
+            }
+            if (item.spec && item.usage_) {
+              Text('·')
+                .fontSize(11)
+                .fontColor('#C7C7CC')
+                .margin({ left: 4, right: 4 })
+            }
+            if (item.usage_) {
+              Text('用法: ' + item.usage_)
+                .fontSize(11)
+                .fontColor('#8E8E93')
+            }
+            if (item.num > 0) {
+              Text('· 数量: ' + item.num)
+                .fontSize(11)
+                .fontColor('#8E8E93')
+                .margin({ left: 4 })
+            }
+          }
+          .margin({ top: 2 })
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+        .margin({ left: 10 })
 
         Text(`¥${this.formatAmount(item.price)}`)
           .fontSize(15)
-          .fontColor('#FF4D4F')
+          .fontColor('#4A90D9')
           .fontWeight(FontWeight.Bold)
       }
       .width('100%')
-
-      if (item.spec) {
-        Row() {
-          Text('规格')
-            .fontSize(13)
-            .fontColor('#999999')
-            .width(36)
-          Text(item.spec)
-            .fontSize(13)
-            .fontColor('#666666')
-            .layoutWeight(1)
-        }
-        .width('100%')
-        .margin({ top: 4 })
-      }
-
-      if (item.usage_) {
-        Row() {
-          Text('用法')
-            .fontSize(13)
-            .fontColor('#999999')
-            .width(36)
-          Text(item.usage_)
-            .fontSize(13)
-            .fontColor('#666666')
-            .layoutWeight(1)
-        }
-        .width('100%')
-        .margin({ top: 2 })
-      }
-
-      if (item.num > 0) {
-        Row() {
-          Text('数量')
-            .fontSize(13)
-            .fontColor('#999999')
-            .width(36)
-          Text(`${item.num}`)
-            .fontSize(13)
-            .fontColor('#666666')
-            .layoutWeight(1)
-        }
-        .width('100%')
-        .margin({ top: 2 })
-      }
     }
     .width('100%')
     .padding(14)
-    .backgroundColor('#F8FAFF')
+    .backgroundColor('#F8F9FA')
     .borderRadius(10)
-    .margin({ bottom: 10 })
+    .margin({ bottom: 8 })
   }
 
   build() {
     Column() {
-      // ===== 顶部导航栏 =====
+      // 顶部导航栏 - 与之前界面统一
       Row() {
-        Text('‹')
-          .fontSize(28)
-          .fontColor('#333333')
-          .onClick(() => {
-            this.goBack();
-          })
+        Stack() {
+          Row()
+            .width(36)
+            .height(36)
+            .borderRadius(18)
+            .backgroundColor('rgba(0,0,0,0.04)')
+          Text('‹')
+            .fontSize(22)
+            .fontColor('#1A1A2E')
+            .fontWeight(FontWeight.Medium)
+        }
+        .width(40)
+        .height(40)
+        .onClick(() => {
+          this.goBack();
+        })
 
         Text('处方详情')
-          .fontSize(20)
-          .fontWeight(FontWeight.Bold)
-          .fontColor('#333333')
+          .fontSize(18)
+          .fontWeight(FontWeight.Medium)
+          .fontColor('#1A1A2E')
           .layoutWeight(1)
           .textAlign(TextAlign.Center)
 
-        Row()
-          .width(28)
-          .height(28)
+        Row().width(40).height(40)
       }
       .width('100%')
-      .height(56)
-      .padding({ left: 16, right: 16 })
+      .height(52)
+      .padding({ left: 12, right: 12 })
       .backgroundColor('#FFFFFF')
-      .borderRadius({ bottomLeft: 12, bottomRight: 12 })
-      .shadow({
-        radius: 4,
-        color: 'rgba(0,0,0,0.04)',
-        offsetY: 2
-      })
 
-      // ===== 内容 =====
-      List() {
+      // 内容
+      List({ space: 12 }) {
         // 基本信息卡片
         ListItem() {
           Column() {
             Row() {
-              Column() {
-                Text('处方信息')
-                  .fontSize(16)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor('#333333')
-                Text(`处方号: ${this.registerId}`)
-                  .fontSize(12)
-                  .fontColor('#999999')
-                  .margin({ top: 2 })
-              }
-              .alignItems(HorizontalAlign.Start)
+              Text('📋 处方信息')
+                .fontSize(15)
+                .fontWeight(FontWeight.Medium)
+                .fontColor('#1A1A2E')
 
               Blank()
 
               this.StatusTag()
             }
             .width('100%')
+            .margin({ bottom: 12 })
 
-            Divider()
-              .color('#F0F0F0')
-              .margin({ top: 12, bottom: 12 })
-
+            this.InfoRow('处方号', this.registerId)
             this.InfoRow('患者姓名', this.patientName)
             this.InfoRow('开方医生', this.doctorName)
-            this.InfoRow('开方日期', this.prescriptionDate)
+            this.InfoRow('开方日期', this.formatDate(this.prescriptionDate))
           }
           .width('100%')
           .padding(16)
           .backgroundColor('#FFFFFF')
-          .borderRadius(12)
-          .margin({ top: 12, bottom: 12 })
+          .borderRadius(14)
+          .shadow({
+            radius: 6,
+            color: 'rgba(0,0,0,0.04)',
+            offsetY: 2
+          })
         }
 
         // 药品列表卡片
@@ -308,15 +299,15 @@ export struct PrescriptionDetail {
           Column() {
             Row() {
               Text('💊 药品明细')
-                .fontSize(16)
-                .fontWeight(FontWeight.Bold)
-                .fontColor('#333333')
+                .fontSize(15)
+                .fontWeight(FontWeight.Medium)
+                .fontColor('#1A1A2E')
 
               Blank()
 
               Text(`共 ${this.prescriptions.length} 种`)
-                .fontSize(13)
-                .fontColor('#999999')
+                .fontSize(12)
+                .fontColor('#8E8E93')
             }
             .width('100%')
             .margin({ bottom: 12 })
@@ -326,38 +317,41 @@ export struct PrescriptionDetail {
                 this.MedicineItem(item, index)
               }, (item: PrescriptionItem, index: number) => item.prescriptionId || `medicine_${index}`)
             } else {
-              Column() {
-                Text('暂无药品信息')
-                  .fontSize(14)
-                  .fontColor('#999999')
-                  .padding(20)
-              }
-              .width('100%')
-              .backgroundColor('#F8FAFF')
-              .borderRadius(10)
+              Text('暂无药品信息')
+                .fontSize(14)
+                .fontColor('#C7C7CC')
+                .padding(30)
+                .width('100%')
+                .textAlign(TextAlign.Center)
+                .backgroundColor('#F8F9FA')
+                .borderRadius(10)
             }
           }
           .width('100%')
           .padding(16)
           .backgroundColor('#FFFFFF')
-          .borderRadius(12)
-          .margin({ bottom: 12 })
+          .borderRadius(14)
+          .shadow({
+            radius: 6,
+            color: 'rgba(0,0,0,0.04)',
+            offsetY: 2
+          })
         }
 
         // 合计金额卡片
         ListItem() {
           Column() {
             Row() {
-              Text('合计金额')
+              Text('💰 合计金额')
                 .fontSize(15)
-                .fontColor('#333333')
+                .fontColor('#1A1A2E')
                 .fontWeight(FontWeight.Medium)
 
               Blank()
 
               Text(`¥${this.formatAmount(this.totalAmount)}`)
                 .fontSize(22)
-                .fontColor('#FF4D4F')
+                .fontColor('#4A90D9')
                 .fontWeight(FontWeight.Bold)
             }
             .width('100%')
@@ -365,35 +359,40 @@ export struct PrescriptionDetail {
           .width('100%')
           .padding(16)
           .backgroundColor('#FFFFFF')
-          .borderRadius(12)
-          .margin({ bottom: 12 })
+          .borderRadius(14)
+          .shadow({
+            radius: 6,
+            color: 'rgba(0,0,0,0.04)',
+            offsetY: 2
+          })
         }
 
-        // 去支付按钮（待支付状态）
+        // 去支付按钮
         if (this.payStatus === 'WAITING') {
           ListItem() {
-            Button('去支付')
+            Button('去支付 ¥' + this.formatAmount(this.totalAmount))
               .width('100%')
               .height(48)
               .fontSize(16)
+              .fontWeight(FontWeight.Medium)
               .fontColor('#FFFFFF')
-              .backgroundColor('#007AFF')
-              .borderRadius(12)
+              .backgroundColor('#4A90D9')
+              .borderRadius(24)
               .onClick(() => {
                 this.goToPay();
               })
           }
-          .margin({ bottom: 20 })
+          .margin({ bottom: 4 })
         }
       }
       .width('100%')
-      .padding({ left: 16, right: 16 })
-      .backgroundColor('#F5F5F5')
+      .padding({ left: 16, right: 16, top: 16 })
+      .backgroundColor('#F8F9FA')
       .layoutWeight(1)
       .scrollBar(BarState.Off)
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#F5F5F5')
+    .backgroundColor('#FFFFFF')
   }
 }

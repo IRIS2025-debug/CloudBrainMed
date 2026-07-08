@@ -16,6 +16,8 @@
     "pages/history/ReportDetailPage",
     "pages/history/RegisterHistory",
     "pages/history/RegisterDetail",
-    "pages/medicineAi/MedicineAiChatPage"
+    "pages/medicineAi/MedicineAiChatPage",
+    "pages/profile/PersonalCenter",
+    "pages/profile/ProfileDetail"
   ]
 }

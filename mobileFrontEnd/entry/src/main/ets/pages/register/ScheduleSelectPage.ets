@@ -75,11 +75,23 @@ interface GeneratedTypeLiteralInterface_1 {
   index: number;
 }
 
+// 日期数据项
+interface DateItem {
+  fullDate: string;
+  displayDay: string;
+  weekday: string;
+  isAvailable: boolean;
+  isToday: boolean;
+  isSelected: boolean;
+  month: string;
+}
+
 @Entry
 @Component
 export struct ScheduleSelectPage {
   @State schedules: DoctorSchedule[] = [];
-  @State availableDates: string[] = [];
+  @State availableDateSet: Set<string> = new Set();
+  @State dateItems: DateItem[] = [];
   @State selectedDate: string = '';
   @State selectedDateSlots: TimeSlot[] = [];
   @State selectedSlotId: string = '';
@@ -87,16 +99,22 @@ export struct ScheduleSelectPage {
   @State chiefComplaint: string = '';
   @State isLoading: boolean = true;
   @State isSubmitting: boolean = false;
+  @State department: string = '';
+
   private doctorId: string = '';
   private doctorName: string = '';
   private patientId: string = '';
   private baseUrl: string = APIConfig.PATIENT_SERVICE_URL;
+  private scrollCtrl: Scroller = new Scroller();
+  private totalDays: number = 90;
+  private today: Date = new Date();
 
   aboutToAppear(): void {
     const params = router.getParams() as Record<string, string>;
     this.doctorId = params?.['doctorId'] || '';
     this.doctorName = params?.['doctorName'] || '';
     this.patientId = params?.['patientId'] || '';
+    this.department = params?.['department'] || '';
     this.loadSchedules();
   }
 
@@ -110,7 +128,6 @@ export struct ScheduleSelectPage {
       );
       if (result.code === 200) {
         const allSchedules: DoctorSchedule[] = result.data;
-        // 过滤有号源的排班
         const availableSchedules: DoctorSchedule[] = [];
         const dateSet: Set<string> = new Set();
 
@@ -122,11 +139,13 @@ export struct ScheduleSelectPage {
         }
 
         this.schedules = availableSchedules;
-        this.availableDates = Array.from(dateSet).sort();
+        this.availableDateSet = dateSet;
 
-        // 默认选中第一个有排班的日期
-        if (this.availableDates.length > 0) {
-          this.selectedDate = this.availableDates[0];
+        this.buildDateItems();
+
+        const firstAvailable = this.dateItems.find(item => item.isAvailable);
+        if (firstAvailable) {
+          this.selectedDate = firstAvailable.fullDate;
           this.updateSlotsForDate(this.selectedDate);
         }
       } else {
@@ -146,6 +165,89 @@ export struct ScheduleSelectPage {
     }
   }
 
+  // ===== 构建日期列表（从今天开始往后90天） =====
+  private buildDateItems(): void {
+    const items: DateItem[] = [];
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth();
+
+    for (let i = 0; i < this.totalDays; i++) {
+      const date = new Date(currentYear, currentMonth, today.getDate() + i);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const fullDate = year + '-' + month + '-' + day;
+
+      const todayStr = today.getFullYear() + '-' +
+      String(today.getMonth() + 1).padStart(2, '0') + '-' +
+      String(today.getDate()).padStart(2, '0');
+
+      const isToday = fullDate === todayStr;
+      const isAvailable = this.availableDateSet.has(fullDate);
+
+      const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+      const weekday = weekdays[date.getDay()];
+
+      // 每月第一天显示月份
+      const monthDisplay = (i === 0 || date.getDate() === 1) ? (date.getMonth() + 1) + '月' : '';
+
+      items.push({
+        fullDate: fullDate,
+        displayDay: String(date.getDate()),
+        weekday: '周' + weekday,
+        isAvailable: isAvailable,
+        isToday: isToday,
+        isSelected: false,
+        month: monthDisplay
+      });
+    }
+
+    this.dateItems = items;
+  }
+
+  // ===== 加载更多日期（滚动到底部时触发） =====
+  private loadMoreDates(): void {
+    const lastItem = this.dateItems[this.dateItems.length - 1];
+    if (!lastItem) return;
+
+    // 从最后一天的后一天开始追加
+    const lastDate = new Date(lastItem.fullDate);
+    const startOffset = 1;
+
+    for (let i = startOffset; i <= 10; i++) {
+      const date = new Date(lastDate);
+      date.setDate(date.getDate() + i);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const fullDate = year + '-' + month + '-' + day;
+
+      const today = new Date();
+      const todayStr = today.getFullYear() + '-' +
+      String(today.getMonth() + 1).padStart(2, '0') + '-' +
+      String(today.getDate()).padStart(2, '0');
+
+      const isToday = fullDate === todayStr;
+      const isAvailable = this.availableDateSet.has(fullDate);
+
+      const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+      const weekday = weekdays[date.getDay()];
+
+      const monthDisplay = (date.getDate() === 1) ? (date.getMonth() + 1) + '月' : '';
+
+      this.dateItems.push({
+        fullDate: fullDate,
+        displayDay: String(date.getDate()),
+        weekday: '周' + weekday,
+        isAvailable: isAvailable,
+        isToday: isToday,
+        isSelected: false,
+        month: monthDisplay
+      });
+    }
+  }
+
   private updateSlotsForDate(date: string): void {
     const slots: TimeSlot[] = [];
     for (let i = 0; i < this.schedules.length; i++) {
@@ -162,17 +264,22 @@ export struct ScheduleSelectPage {
         });
       }
     }
-    // 按开始时间排序
     slots.sort((a: TimeSlot, b: TimeSlot) => {
       return a.startTime.localeCompare(b.startTime);
     });
     this.selectedDateSlots = slots;
-    // 清空选中的时间段
     this.selectedSlotId = '';
     this.selectedTime = '';
+
+    this.dateItems.forEach(item => {
+      item.isSelected = item.fullDate === date;
+    });
   }
 
   private selectDate(date: string): void {
+    if (!this.availableDateSet.has(date)) {
+      return;
+    }
     this.selectedDate = date;
     this.updateSlotsForDate(date);
   }
@@ -191,13 +298,6 @@ export struct ScheduleSelectPage {
     return dateStr;
   }
 
-  private getWeekday(dateStr: string): string {
-    if (!dateStr) return '';
-    const date = new Date(dateStr);
-    const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
-    return '周' + weekdays[date.getDay()];
-  }
-
   private getSelectedPrice(): number {
     for (let i = 0; i < this.selectedDateSlots.length; i++) {
       if (this.selectedDateSlots[i].scheduleId === this.selectedSlotId) {
@@ -214,15 +314,6 @@ export struct ScheduleSelectPage {
       }
     }
     return '';
-  }
-
-  private getSelectedRemainNum(): number {
-    for (let i = 0; i < this.selectedDateSlots.length; i++) {
-      if (this.selectedDateSlots[i].scheduleId === this.selectedSlotId) {
-        return this.selectedDateSlots[i].remainNum;
-      }
-    }
-    return 0;
   }
 
   private async checkPatientInfo(): Promise<boolean> {
@@ -289,6 +380,7 @@ export struct ScheduleSelectPage {
 
     this.isSubmitting = true;
     try {
+      // 检查患者信息是否完整
       const isComplete = await this.checkPatientInfo();
 
       if (!isComplete) {
@@ -297,97 +389,143 @@ export struct ScheduleSelectPage {
         return;
       }
 
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const day = String(now.getDate()).padStart(2, '0');
-      const visitDate = year + '-' + month + '-' + day;
-
-      const requestData: SubmitRegisterRequest = {
-        patientId: this.patientId,
-        doctorId: this.doctorId,
-        scheduleId: this.selectedSlotId,
-        chiefComplaint: this.chiefComplaint,
-        visitDate: visitDate,
-        consultTime: this.selectedTime
-      };
-
-      const context = getContext(this);
-
-      const result = await HttpUtil.post<ApiResponse<Registration>>(
-        this.baseUrl + '/register/submit',
-        requestData,
-        context
-      );
-
-      if (result.code === 200) {
-        promptAction.showToast({
-          message: '预约成功，请前往支付',
-          duration: 2000
-        });
-        setTimeout((): void => {
-          router.pushUrl({
-            url: 'pages/register/OrderSuccessPage',
-            params: {
-              registerId: result.data.registerId
-            }
-          });
-        }, 1500);
-      } else {
-        if (result.message && result.message.indexOf('患者信息不完整') !== -1) {
-          this.showIncompleteDialog();
-        } else {
-          promptAction.showToast({
-            message: result.message || '预约失败',
-            duration: 2000
-          });
+      // 获取当前选中的时间段信息
+      let selectedSlot: TimeSlot | null = null;
+      for (let i = 0; i < this.selectedDateSlots.length; i++) {
+        if (this.selectedDateSlots[i].scheduleId === this.selectedSlotId) {
+          selectedSlot = this.selectedDateSlots[i];
+          break;
         }
       }
-    } catch (error) {
-      console.error('提交挂号失败：' + JSON.stringify(error));
-      const errorStr: string = JSON.stringify(error);
-      if (errorStr.indexOf('患者信息不完整') !== -1) {
-        this.showIncompleteDialog();
-      } else {
+
+      if (!selectedSlot) {
+        this.isSubmitting = false;
         promptAction.showToast({
-          message: '网络请求失败，请稍后重试',
+          message: '请选择有效的就诊时间',
           duration: 2000
         });
+        return;
       }
-    } finally {
+
+      // 跳转到预约确认页面，传递挂号信息但不创建
+      router.pushUrl({
+        url: 'pages/register/OrderSuccessPage',
+        params: {
+          // 传递挂号所需的所有信息
+          doctorId: this.doctorId,
+          doctorName: this.doctorName,
+          patientId: this.patientId,
+          scheduleId: this.selectedSlotId,
+          chiefComplaint: this.chiefComplaint,
+          visitDate: this.selectedDate,
+          consultTime: this.selectedTime,
+          price: selectedSlot.price,
+          room: selectedSlot.room,
+          department: this.department || '待获取',
+          status: 'pending_confirm'
+        }
+      }).then(() => {
+        console.info('跳转到预约确认页面成功');
+        this.isSubmitting = false;
+      }).catch((err: Error) => {
+        console.error('跳转失败：' + JSON.stringify(err));
+        this.isSubmitting = false;
+        promptAction.showToast({
+          message: '页面跳转失败，请重试',
+          duration: 2000
+        });
+      });
+
+    } catch (error) {
+      console.error('提交挂号失败：' + JSON.stringify(error));
       this.isSubmitting = false;
+      promptAction.showToast({
+        message: '网络请求失败，请稍后重试',
+        duration: 2000
+      });
     }
+  }
+
+  @Builder
+  DateItemBuilder(item: DateItem) {
+    Column() {
+      if (item.month) {
+        Text(item.month)
+          .fontSize(11)
+          .fontColor('#999999')
+          .margin({ bottom: 4 })
+      } else {
+        Text('')
+          .height(18)
+          .margin({ bottom: 4 })
+      }
+
+      Text(item.displayDay)
+        .fontSize(18)
+        .fontWeight(item.isSelected ? FontWeight.Bold : FontWeight.Normal)
+        .fontColor(item.isAvailable ? (item.isSelected ? '#FFFFFF' : '#1A1A1A') : '#CCCCCC')
+        .width(40)
+        .height(40)
+        .borderRadius(20)
+        .backgroundColor(item.isSelected ? '#007AFF' : 'transparent')
+        .textAlign(TextAlign.Center)
+        .lineHeight(40)
+
+      Text(item.weekday)
+        .fontSize(11)
+        .fontColor(item.isAvailable ? (item.isSelected ? '#007AFF' : '#888888') : '#DDDDDD')
+        .margin({ top: 4 })
+    }
+    .width(50)
+    .padding({ top: 4, bottom: 8 })
+    .borderRadius(12)
+    .backgroundColor(item.isSelected ? '#E6F2FF' : 'transparent')
+    .onClick(() => {
+      if (item.isAvailable) {
+        this.selectDate(item.fullDate);
+      }
+    })
+    .opacity(item.isAvailable ? 1.0 : 0.5)
   }
 
   build() {
     Column() {
       Row() {
-        Text('←')
-          .fontSize(24)
+        Text('‹')
+          .fontSize(28)
+          .fontColor('#333333')
+          .width(44)
+          .height(44)
+          .textAlign(TextAlign.Center)
+          .lineHeight(44)
           .onClick((): void => {
             router.back();
           })
+
         Text('选择就诊时间')
-          .fontSize(20)
-          .fontWeight(FontWeight.Bold)
+          .fontSize(18)
+          .fontWeight(FontWeight.Medium)
+          .fontColor('#1A1A1A')
           .layoutWeight(1)
           .textAlign(TextAlign.Center)
-        Blank().width(24)
+
+        Row().width(44).height(44)
       }
       .width('100%')
-      .padding(16)
+      .height(56)
+      .padding({ left: 8, right: 8 })
       .backgroundColor('#FFFFFF')
 
       if (this.isLoading) {
         Column() {
           LoadingProgress()
-            .width(60)
-            .height(60)
+            .width(36)
+            .height(36)
             .color('#007AFF')
           Text('加载中...')
             .fontSize(14)
             .fontColor('#999')
-            .margin({ top: 16 })
+            .margin({ top: 12 })
         }
         .width('100%')
         .height('100%')
@@ -395,43 +533,42 @@ export struct ScheduleSelectPage {
       } else {
         Scroll() {
           Column() {
-            // 医生信息
-            Column() {
-              Row() {
-                Text('👨‍⚕️')
-                  .fontSize(40)
-                  .margin({ right: 16 })
-                Column() {
-                  Text(this.doctorName)
-                    .fontSize(20)
-                    .fontWeight(FontWeight.Bold)
-                    .fontColor('#333333')
-                  Text('就诊医生')
-                    .fontSize(13)
-                    .fontColor('#999999')
-                    .margin({ top: 2 })
-                }
-                .alignItems(HorizontalAlign.Start)
-                .layoutWeight(1)
+            // ===== 医生信息 =====
+            Row() {
+              Text(this.doctorName.charAt(0) || '医')
+                .fontSize(22)
+                .fontWeight(FontWeight.Medium)
+                .fontColor('#FFFFFF')
+                .width(48)
+                .height(48)
+                .borderRadius(24)
+                .backgroundColor('#B8C5D6')
+                .textAlign(TextAlign.Center)
+                .lineHeight(48)
+
+              Column() {
+                Text(this.doctorName)
+                  .fontSize(17)
+                  .fontWeight(FontWeight.Medium)
+                  .fontColor('#1A1A1A')
+                Text('就诊医生 · ' + (this.department || '科室待获取'))
+                  .fontSize(12)
+                  .fontColor('#999999')
+                  .margin({ top: 2 })
               }
-              .width('100%')
-              .padding(16)
+              .alignItems(HorizontalAlign.Start)
+              .margin({ left: 14 })
+              .layoutWeight(1)
             }
             .width('100%')
+            .padding(16)
             .backgroundColor('#FFFFFF')
-            .borderRadius(16)
+            .borderRadius(12)
             .margin({ bottom: 12 })
 
-            // 日历日期选择
+            // ===== 日期选择器 =====
             Column() {
-              Text('请选择就诊日期')
-                .fontSize(16)
-                .fontWeight(FontWeight.Bold)
-                .fontColor('#333333')
-                .margin({ bottom: 16 })
-                .alignSelf(ItemAlign.Start)
-
-              if (this.availableDates.length === 0) {
+              if (this.dateItems.length === 0) {
                 Column() {
                   Text('📋')
                     .fontSize(48)
@@ -439,50 +576,66 @@ export struct ScheduleSelectPage {
                   Text('暂无可用排班')
                     .fontSize(16)
                     .fontColor('#999999')
-                  Text('请选择其他医生或稍后再试')
-                    .fontSize(12)
-                    .fontColor('#CCCCCC')
-                    .margin({ top: 4 })
                 }
                 .width('100%')
                 .padding(40)
                 .justifyContent(FlexAlign.Center)
                 .alignItems(HorizontalAlign.Center)
               } else {
-                // 日期横向滚动
-                Scroll() {
+                // ---- 周标题 ----
+                Row() {
+                  ForEach(['日', '一', '二', '三', '四', '五', '六'], (day: string) => {
+                    Text(day)
+                      .fontSize(12)
+                      .fontColor('#999999')
+                      .flexGrow(1)
+                      .textAlign(TextAlign.Center)
+                  })
+                }
+                .width('100%')
+                .padding({ bottom: 8, top: 4 })
+
+                // ---- 日期横向滚动 ----
+                Scroll(this.scrollCtrl) {
                   Row() {
-                    ForEach(this.availableDates, (date: string) => {
-                      Column() {
-                        Text(this.formatDateDisplay(date))
-                          .fontSize(14)
-                          .fontWeight(this.selectedDate === date ? FontWeight.Bold : FontWeight.Normal)
-                          .fontColor(this.selectedDate === date ? '#007AFF' : '#666666')
-                        Text(this.getWeekday(date))
-                          .fontSize(12)
-                          .fontColor(this.selectedDate === date ? '#007AFF' : '#999999')
-                          .margin({ top: 4 })
-                      }
-                      .width(70)
-                      .height(70)
-                      .backgroundColor(this.selectedDate === date ? '#E6F2FF' : '#F5F7FA')
-                      .borderRadius(12)
-                      .justifyContent(FlexAlign.Center)
-                      .alignItems(HorizontalAlign.Center)
-                      .margin({ right: 10 })
-                      .onClick(() => {
-                        this.selectDate(date);
+                    ForEach(this.dateItems, (item: DateItem) => {
+                      this.DateItemBuilder(item)
+                    }, (item: DateItem) => item.fullDate)
+
+                    // 加载更多占位（透明）
+                    Column()
+                      .width(10)
+                      .height(1)
+                      .onAppear(() => {
+                        this.loadMoreDates();
                       })
-                    }, (date: string) => date)
                   }
                   .padding({ left: 4, right: 4 })
                 }
                 .scrollable(ScrollDirection.Horizontal)
                 .scrollBar(BarState.Off)
                 .width('100%')
-                .margin({ bottom: 16 })
+                .height(110)
+                .margin({ bottom: 4 })
+                .onScrollEnd(() => {
+                  // 使用 ESObject 或 any 绕过类型检查（ArkTS 允许）
+                  const offset: ESObject = this.scrollCtrl.currentOffset;
+                  if (offset && (offset as Record<string, number>)['xOffset'] && (offset as Record<string, number>)['xOffset'] > 500) {
+                    this.loadMoreDates();
+                  }
+                })
 
-                // 当前选中日期的时间段
+                // ---- 月份指示 ----
+                Row() {
+                  Text(this.dateItems.find(d => d.isSelected)?.month || '')
+                    .fontSize(13)
+                    .fontColor('#666666')
+                }
+                .width('100%')
+                .margin({ top: 4, bottom: 12 })
+                .justifyContent(FlexAlign.Center)
+
+                // ===== 时间段选择 =====
                 if (this.selectedDateSlots.length > 0) {
                   Column() {
                     Text(this.formatDateDisplay(this.selectedDate) + ' 可预约时段')
@@ -496,15 +649,14 @@ export struct ScheduleSelectPage {
                         GridItem() {
                           Column() {
                             Text(slot.time)
-                              .height(36)
                               .fontSize(13)
-                              .fontWeight(FontWeight.Medium)
-                              .textAlign(TextAlign.Center)
-                              .backgroundColor(this.selectedSlotId === slot.scheduleId ? '#007AFF' : '#F5F7FA')
-                              .fontColor(this.selectedSlotId === slot.scheduleId ? '#FFFFFF' : '#333333')
-                              .borderRadius(18)
-                              .padding({ left: 12, right: 12 })
+                              .fontWeight(this.selectedSlotId === slot.scheduleId ? FontWeight.Medium : FontWeight.Normal)
+                              .fontColor(this.selectedSlotId === slot.scheduleId ? '#007AFF' : '#333333')
+                              .padding({ left: 12, right: 12, top: 6, bottom: 6 })
+                              .borderRadius(16)
+                              .backgroundColor(this.selectedSlotId === slot.scheduleId ? '#E6F2FF' : '#F5F6FA')
                               .width('100%')
+                              .textAlign(TextAlign.Center)
 
                             Row() {
                               Text('剩余')
@@ -512,19 +664,19 @@ export struct ScheduleSelectPage {
                                 .fontColor('#999999')
                               Text(String(slot.remainNum))
                                 .fontSize(12)
-                                .fontWeight(FontWeight.Bold)
-                                .fontColor(slot.remainNum <= 5 ? '#FF4D4F' : '#52C41A')
+                                .fontWeight(FontWeight.Medium)
+                                .fontColor(slot.remainNum <= 3 ? '#FF4D4F' : '#52C41A')
                                 .margin({ left: 2, right: 2 })
                               Text('号')
                                 .fontSize(10)
                                 .fontColor('#999999')
                             }
-                            .margin({ top: 2 })
+                            .margin({ top: 4 })
                           }
                           .width('100%')
-                          .padding({ top: 8, bottom: 8 })
+                          .padding({ top: 10, bottom: 10 })
                           .borderRadius(12)
-                          .backgroundColor(this.selectedSlotId === slot.scheduleId ? '#E6F2FF' : 'transparent')
+                          .backgroundColor(this.selectedSlotId === slot.scheduleId ? '#F0F7FF' : 'transparent')
                           .onClick((): void => {
                             this.selectTimeSlot(slot);
                           })
@@ -532,15 +684,15 @@ export struct ScheduleSelectPage {
                       }, (slot: TimeSlot) => slot.scheduleId)
                     }
                     .columnsTemplate('1fr 1fr')
-                    .rowsGap(12)
-                    .columnsGap(12)
+                    .rowsGap(10)
+                    .columnsGap(10)
                     .width('100%')
                   }
                   .width('100%')
                   .alignItems(HorizontalAlign.Start)
                 }
 
-                // 选中详情
+                // ===== 选中详情 =====
                 if (this.selectedSlotId.length > 0) {
                   Divider()
                     .color('#F0F0F0')
@@ -553,8 +705,8 @@ export struct ScheduleSelectPage {
                         .fontColor('#999999')
                       Text(this.selectedTime)
                         .fontSize(14)
-                        .fontColor('#007AFF')
-                        .fontWeight(FontWeight.Bold)
+                        .fontColor('#1A1A1A')
+                        .fontWeight(FontWeight.Medium)
                         .margin({ top: 4 })
                     }
                     .alignItems(HorizontalAlign.Start)
@@ -566,7 +718,7 @@ export struct ScheduleSelectPage {
                         .fontColor('#999999')
                       Text(this.getSelectedRoom())
                         .fontSize(14)
-                        .fontColor('#333333')
+                        .fontColor('#1A1A1A')
                         .fontWeight(FontWeight.Medium)
                         .margin({ top: 4 })
                     }
@@ -578,9 +730,9 @@ export struct ScheduleSelectPage {
                         .fontSize(12)
                         .fontColor('#999999')
                       Text('¥' + this.getSelectedPrice().toFixed(2))
-                        .fontSize(14)
+                        .fontSize(15)
                         .fontColor('#FF6B6B')
-                        .fontWeight(FontWeight.Bold)
+                        .fontWeight(FontWeight.Medium)
                         .margin({ top: 4 })
                     }
                     .alignItems(HorizontalAlign.End)
@@ -593,25 +745,25 @@ export struct ScheduleSelectPage {
             .width('100%')
             .padding(16)
             .backgroundColor('#FFFFFF')
-            .borderRadius(16)
+            .borderRadius(12)
             .margin({ bottom: 12 })
             .alignItems(HorizontalAlign.Start)
 
-            // 主诉
+            // ===== 主诉 =====
             Column() {
               Text('主诉')
                 .fontSize(16)
-                .fontWeight(FontWeight.Bold)
-                .fontColor('#333333')
+                .fontWeight(FontWeight.Medium)
+                .fontColor('#1A1A1A')
                 .margin({ bottom: 12 })
                 .alignSelf(ItemAlign.Start)
 
               TextArea({ placeholder: '请简要描述您的症状（如：头痛、发热等）', text: this.chiefComplaint })
                 .width('100%')
                 .height(100)
-                .backgroundColor('#F8F9FA')
+                .backgroundColor('#F5F6FA')
                 .borderRadius(12)
-                .padding(12)
+                .padding(14)
                 .fontSize(14)
                 .placeholderColor('#BFBFBF')
                 .onChange((value: string): void => {
@@ -621,28 +773,26 @@ export struct ScheduleSelectPage {
             .width('100%')
             .padding(16)
             .backgroundColor('#FFFFFF')
-            .borderRadius(16)
+            .borderRadius(12)
             .margin({ bottom: 80 })
             .alignItems(HorizontalAlign.Start)
           }
           .width('100%')
           .padding(16)
-          .alignItems(HorizontalAlign.Start)
         }
         .scrollable(ScrollDirection.Vertical)
         .scrollBar(BarState.Off)
         .layoutWeight(1)
-        .align(Alignment.TopStart)
+        .backgroundColor('#F5F6FA')
 
-        Button(this.isSubmitting ? '提交中...' : '确认预约')
+        Button(this.isSubmitting ? '提交中...' : '确认挂号信息')
           .width('90%')
           .height(50)
           .fontSize(16)
           .fontWeight(FontWeight.Medium)
           .fontColor('#FFFFFF')
-          .backgroundColor(this.isSubmitting ? '#D9D9D9' : '#007AFF')
+          .backgroundColor(this.isSubmitting ? '#CCCCCC' : '#007AFF')
           .borderRadius(25)
-          .margin({ bottom: 20 })
           .position({ x: '5%', y: '92%' })
           .enabled(!this.isSubmitting)
           .onClick((): void => {
@@ -652,6 +802,6 @@ export struct ScheduleSelectPage {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#F5F5F5')
+    .backgroundColor('#F5F6FA')
   }
 }
