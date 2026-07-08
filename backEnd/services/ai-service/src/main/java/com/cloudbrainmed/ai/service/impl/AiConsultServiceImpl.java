@@ -10,12 +10,10 @@ import com.cloudbrainmed.ai.service.AiConsultService;
 import com.cloudbrainmed.ai.tool.RagKnowledgeTool;
 import com.cloudbrainmed.ai.vo.AiRecommendResponseVo;
 import com.cloudbrainmed.ai.vo.RecommendDoctorVo;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.openai.OpenAiChatOptions;
@@ -32,20 +30,18 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
- * AI智能问诊服务实现
- * 新增内存临时会话记忆，支持多轮连贯问诊
+ * AI智能问诊服务
+ * 已彻底移除所有会话短期记忆，每次接口请求独立分析，仅读取本次主诉文本
+ * 支持多症状返回多个细分科室，自动匹配院内大类科室
  */
 @Service
 @Slf4j
 public class AiConsultServiceImpl implements AiConsultService {
 
-    // ===================== 新增：内存临时会话缓存 =====================
-    // key: sessionId 会话标识  value: 当前会话完整对话消息列表
-    private final ConcurrentHashMap<String, List<Message>> sessionMemory = new ConcurrentHashMap<>();
+    // ========== 已全部删除会话缓存相关变量 ==========
 
     private final ChatClient chatClient;
     private final DoctorMapper doctorMapper;
@@ -108,9 +104,7 @@ public class AiConsultServiceImpl implements AiConsultService {
     @PostConstruct
     public void init() {
         loadPromptFiles();
-        log.info("✅ AiConsultService 初始化完成（Tool模式+内存会话记忆），全局人设长度: {} 字符，科室推荐提示词长度: {} 字符",
-                globalSystemPrompt != null ? globalSystemPrompt.length() : 0,
-                consultationSystemPrompt != null ? consultationSystemPrompt.length() : 0);
+        log.info("✅ AiConsultService 初始化完成（无会话记忆，每轮独立问诊）");
     }
 
     private void loadPromptFiles() {
@@ -146,68 +140,59 @@ public class AiConsultServiceImpl implements AiConsultService {
 
     private String getDefaultGlobalPrompt() {
         return """
-                你是一位拥有15年临床经验的智慧医疗AI助手。
-                你的核心使命是辅助医护人员提升诊疗效率，为患者提供专业、安全、有温度的智能医疗服务。
-                你具备三甲医院主治医师级别的医学知识储备。
-                绝不替代执业医师进行最终诊断，绝不提供具体药品处方。
-                所有建议必须标注"建议由执业医师确认"。
-                危重症状必须明确提示"请立即就医"。
+                你是一位拥有15年临床经验的三甲医院AI问诊助手。
+                仅根据用户当前单次输入的主诉分析，无任何历史对话参考。
+                不能替代执业医师诊断，所有就诊建议标注需医师确认；出现剧烈胸痛、大出血、意识丧失等急症提示立刻前往急诊。
                 """;
     }
 
     private String getDefaultConsultationPrompt() {
         return """
-                你是一位三甲医院全科主治医师，拥有10年临床经验。
-                你的任务是根据患者主诉，从科室列表中选择最匹配的科室。
-                
-                推荐逻辑：
-                1. 一级推荐（精准匹配）：症状典型，直接对应科室
-                2. 二级推荐（相关科室）：症状不典型，推荐相关科室
-                
-                常见症状映射：
-                - 发热+咳嗽+咽痛 → 呼吸内科
-                - 胸痛+心悸+气短 → 心血管内科
-                - 腹痛+腹泻+恶心 → 消化内科
-                - 头痛+头晕+恶心 → 神经内科
-                - 关节痛+肿胀 → 骨科
-                - 腰痛+腿麻 → 骨科
-                - 尿频+尿急+尿痛 → 泌尿外科
-                - 皮疹+瘙痒 → 皮肤科
-                - 失眠+焦虑+抑郁 → 心理科
-                - 儿童症状 → 儿科
-                - 孕妇不适 → 妇产科
-                - 胸痛+大汗+濒死感 → 急诊科
+                按用户本次主诉匹配标准医学细分科室；多处不同部位症状必须输出多个科室放入数组。
+                固定映射规则：
+                腹痛/肚子疼 → 消化内科；皮肤红痒皮疹 → 皮肤科；脖子/关节痛 → 骨科；眼痛眼干 → 眼科；头痛头晕 → 神经内科
+                细分内科专科统一归属内科大类；骨科、普外科等外科细分归属外科大类。
                 """;
     }
 
-    // ==================== 会话记忆工具方法 ====================
-    /**
-     * 获取当前会话历史消息，不存在则新建空列表
-     */
-    private List<Message> getSessionHistory(String sessionId) {
-        return sessionMemory.computeIfAbsent(sessionId, k -> new ArrayList<>());
-    }
-
-    /**
-     * 保存一轮用户+AI对话到内存记忆
-     */
-    private void saveSessionMessage(String sessionId, UserMessage userMsg, AssistantMessage assistantMsg) {
-        List<Message> history = getSessionHistory(sessionId);
-        history.add(userMsg);
-        history.add(assistantMsg);
-        log.info("会话{}，已保存多轮对话，累计消息数：{}", sessionId, history.size());
-    }
-
-    /**
-     * 清空指定会话记忆
-     */
+    // ==================== 清空会话接口（空实现，无缓存） ====================
     @Override
     public void clearSessionMemory(String sessionId) {
-        sessionMemory.remove(sessionId);
-        log.info("已清空会话{}临时记忆", sessionId);
+        log.info("当前服务无会话记忆缓存，无需清空操作");
     }
 
-    // ==================== 核心业务方法（新增sessionId多轮问诊） ====================
+    // ==================== 细分科室匹配院内大类工具 ====================
+    private String matchHospitalRealDept(String aiStandardDept, List<String> hospitalDeptList) {
+        // 1. 精确匹配优先
+        if (hospitalDeptList.contains(aiStandardDept)) {
+            return aiStandardDept;
+        }
+        // 2. 细分科室映射大类
+        Map<String, String> subToBigMap = new HashMap<>();
+        // 内科细分映射内科大类
+        subToBigMap.put("消化内科", "内科");
+        subToBigMap.put("呼吸内科", "内科");
+        subToBigMap.put("心血管内科", "内科");
+        subToBigMap.put("神经内科", "内科");
+        subToBigMap.put("肾内科", "内科");
+        subToBigMap.put("内分泌科", "内科");
+        // 外科细分映射外科大类
+        subToBigMap.put("骨科", "外科");
+        subToBigMap.put("普外科", "外科");
+        subToBigMap.put("泌尿外科", "外科");
+        subToBigMap.put("心胸外科", "外科");
+
+        if (subToBigMap.containsKey(aiStandardDept)) {
+            String bigDept = subToBigMap.get(aiStandardDept);
+            if (hospitalDeptList.contains(bigDept)) {
+                return bigDept;
+            }
+        }
+        // 3. 无匹配
+        return null;
+    }
+
+    // ==================== 核心业务方法（纯单次主诉，无任何历史对话） ====================
     @Override
     public AiRecommendResponseVo recommendDoctor(String sessionId, ConsultRecommendDto consultRecommendDto) {
         String chiefComplaint = consultRecommendDto.getChiefComplaint();
@@ -215,45 +200,86 @@ public class AiConsultServiceImpl implements AiConsultService {
         String deptList = String.join("、", deptNames);
         String combinedSystemPrompt = buildToolSystemPrompt();
 
-        // 传入会话ID，携带历史多轮上下文分析
-        AiDepartmentRecommendationDto aiResult = analyzeWithTools(sessionId, chiefComplaint, deptList, combinedSystemPrompt);
-        String recommendedDept = aiResult.getRecommendedDepartment();
+        // AI仅分析本次输入文本，空上下文，无历史
+        AiDepartmentRecommendationDto aiResult = analyzeSingleDept(chiefComplaint, deptList, combinedSystemPrompt);
+        List<String> aiStandardDeptList = aiResult.getRecommendedDepartments();
+        if (aiStandardDeptList == null || aiStandardDeptList.isEmpty()) {
+            aiStandardDeptList = Collections.singletonList("全科");
+        }
+        log.info("【单次独立问诊】AI输出细分科室数组:{}，院内科室列表:{}", aiStandardDeptList, deptNames);
 
-        Department department = departmentMapper.selectByDeptName(recommendedDept);
-        // 匹配不到科室，自动切换有医生的兜底科室
-        if (department == null) {
-            String defaultDept = getDefaultDepartmentWithDoctor();
-            department = departmentMapper.selectByDeptName(defaultDept);
-            if (department == null) {
-                return AiRecommendResponseVo.builder()
-                        .parsedDiagnosis(aiResult.getParsedDiagnosis())
-                        .recommendedDepartment(recommendedDept)
-                        .departmentReason("系统暂无对应科室，请联系管理员")
-                        .doctorRanking(new ArrayList<>())
-                        .aiAnalysisTime(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))
-                        .emergency(aiResult.getEmergency())
-                        .build();
+        List<String> existHospitalDept = new ArrayList<>();
+        List<String> noExistStandardDept = new ArrayList<>();
+        Map<String, String> subToRealMap = new HashMap<>();
+
+        // 循环匹配每个AI推荐细分科室
+        for (String subDept : aiStandardDeptList) {
+            String realDept = matchHospitalRealDept(subDept, deptNames);
+            if (StringUtils.hasText(realDept)) {
+                existHospitalDept.add(realDept);
+                subToRealMap.put(subDept, realDept);
+            } else {
+                noExistStandardDept.add(subDept);
             }
         }
+        log.info("本院可就诊科室:{}，无对应科室:{}", existHospitalDept, noExistStandardDept);
 
-        List<Doctor> doctors = doctorMapper.selectByDepartmentId(department.getDeptId());
-        log.info("科室【{}】下共有 {} 位医生", department.getDeptName(), doctors.size());
-        List<RecommendDoctorVo> rankedDoctors = calculateMatchScores(doctors, chiefComplaint);
+        // 拼接前端展示说明文案
+        StringBuilder reasonSb = new StringBuilder();
+        reasonSb.append(aiResult.getDepartmentReason()).append("\n");
+
+        if (!existHospitalDept.isEmpty()) {
+            reasonSb.append("✅ 本院可就诊科室：");
+            List<String> showTips = new ArrayList<>();
+            for (Map.Entry<String, String> entry : subToRealMap.entrySet()) {
+                String sub = entry.getKey();
+                String real = entry.getValue();
+                if (sub.equals(real)) {
+                    showTips.add(sub);
+                } else {
+                    showTips.add(sub + "（本院无细分专科，可就诊" + real + "）");
+                }
+            }
+            reasonSb.append(String.join("、", showTips)).append("\n");
+        }
+        if (!noExistStandardDept.isEmpty()) {
+            reasonSb.append("❌ 本院暂无对应科室：");
+            reasonSb.append(String.join("、", noExistStandardDept));
+            reasonSb.append("，建议更换其他医院就诊");
+        }
+
+        // 合并所有匹配科室医生，全局匹配度排序取前5
+        List<String> distinctRealDept = existHospitalDept.stream().distinct().collect(Collectors.toList());
+        List<RecommendDoctorVo> allDoctorList = new ArrayList<>();
+        for (String realDept : distinctRealDept) {
+            Department department = departmentMapper.selectByDeptName(realDept);
+            List<Doctor> doctors = doctorMapper.selectByDepartmentId(department.getDeptId());
+            List<RecommendDoctorVo> singleDeptDoctor = calculateMatchScores(doctors, chiefComplaint);
+            allDoctorList.addAll(singleDeptDoctor);
+        }
+        List<RecommendDoctorVo> top5Doctors = allDoctorList.stream()
+                .sorted((a, b) -> b.getMatchScore().compareTo(a.getMatchScore()))
+                .limit(5)
+                .collect(Collectors.toList());
+
+        String showMainDept = String.join("、", distinctRealDept);
+        if (StringUtils.isEmpty(showMainDept)) {
+            showMainDept = String.join("、", noExistStandardDept);
+        }
 
         return AiRecommendResponseVo.builder()
                 .parsedDiagnosis(aiResult.getParsedDiagnosis())
-                .recommendedDepartment(department.getDeptName())
-                .departmentReason(aiResult.getDepartmentReason())
-                .doctorRanking(rankedDoctors)
+                .recommendedDepartment(showMainDept)
+                .departmentReason(reasonSb.toString())
+                .doctorRanking(top5Doctors)
                 .aiAnalysisTime(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))
                 .emergency(aiResult.getEmergency())
                 .build();
     }
 
-    // 兼容旧接口，废弃单轮无记忆调用
+    // 兼容无sessionId旧接口
     @Override
     public AiRecommendResponseVo recommendDoctor(ConsultRecommendDto consultRecommendDto) {
-        // 生成临时随机sessionId，单轮独立会话
         String tempSession = UUID.randomUUID().toString().substring(0, 16);
         return recommendDoctor(tempSession, consultRecommendDto);
     }
@@ -263,18 +289,17 @@ public class AiConsultServiceImpl implements AiConsultService {
         return getAllDepartmentNamesFromDB();
     }
 
-    // ==================== Tool分析核心（新增sessionId，携带历史消息） ====================
-    private AiDepartmentRecommendationDto analyzeWithTools(String sessionId, String chiefComplaint, String deptList, String systemPrompt) {
+    // ==================== AI单次问诊调用（空历史，无记忆） ====================
+    private AiDepartmentRecommendationDto analyzeSingleDept(String chiefComplaint, String deptList, String systemPrompt) {
         try {
-            String userPrompt = buildToolUserPrompt(chiefComplaint, deptList);
-            List<Message> historyMsgList = getSessionHistory(sessionId);
-            log.info("🤖 会话{}启动Tool模式AI多轮分析，当前主诉: {}，历史对话数量: {}", sessionId, chiefComplaint, historyMsgList.size());
+            String userPrompt = buildSingleUserPrompt(chiefComplaint, deptList);
+            List<Message> emptyHistory = new ArrayList<>();
+            log.info("🤖 单次独立问诊启动AI分析，当前主诉: {}，无任何历史对话", chiefComplaint);
 
-            // 修改：直接传入字符串内容，而不是 UserMessage 对象
             String responseStr = chatClient.prompt()
                     .system(systemPrompt)
-                    .messages(historyMsgList) // 注入历史会话记忆
-                    .user(userPrompt)  // 直接传入字符串，而不是 (Resource) currentUserMsg
+                    .messages(emptyHistory)
+                    .user(userPrompt)
                     .options(OpenAiChatOptions.builder()
                             .model(modelName)
                             .temperature(temperature)
@@ -286,15 +311,9 @@ public class AiConsultServiceImpl implements AiConsultService {
 
             log.info("🤖 Tool模式AI原始响应: {}", responseStr);
             AiDepartmentRecommendationDto dto = parseResponse(responseStr);
-
-            // 保存本轮对话到内存
-            UserMessage currentUserMsg = new UserMessage(userPrompt);
-            AssistantMessage assistantMsg = new AssistantMessage(responseStr);
-            saveSessionMessage(sessionId, currentUserMsg, assistantMsg);
-
             return dto;
         } catch (Exception e) {
-            log.error("Tool模式AI分析失败", e);
+            log.error("单次独立问诊AI分析失败", e);
             return getFallbackResult();
         }
     }
@@ -309,104 +328,58 @@ public class AiConsultServiceImpl implements AiConsultService {
             combined.append(consultationSystemPrompt);
         }
 
-        combined.append("\n\n【工具使用说明】\n");
-        combined.append("你可以使用 retrieveMedicalKnowledge 检索医学知识库辅助判断。\n");
-        combined.append("当前为多轮问诊，必须结合用户全部历史症状综合判断，不要忽略之前描述的不适。\n");
-
-        // 强制约束，杜绝多余文字、外层包装
-        combined.append("\n\n【强制输出规则，违反则结果无效】\n");
-        combined.append("1. 禁止输出任何解释、分析、前言、总结、markdown、```标记；\n");
-        combined.append("2. 禁止包装 code、message、disclaimer、data 等外层字段；\n");
-        combined.append("3. 仅输出纯JSON，字段严格如下，不能增减：\n");
-        combined.append("{\"parsed_diagnosis\":\"\",\"recommended_department\":\"\",\"department_reason\":\"\",\"emergency\":false}\n");
-        combined.append("4. recommended_department 必须从提供的科室列表中选取；\n");
-        combined.append("5. parsed_diagnosis 整合全部历史症状，20字以内，department_reason 30字以内。");
+        combined.append("\n【关键规则】仅分析用户本次输入文字，不存在任何历史对话记录；多处症状必须输出多个细分科室数组。\n");
+        combined.append("输出固定JSON格式，禁止任何markdown、注释、多余文字：\n");
+        combined.append("{\"parsed_diagnosis\":\"\",\"recommended_departments\":[\"科室1\",\"科室2\"],\"department_reason\":\"\",\"emergency\":false}");
         return combined.toString();
     }
 
-    private String buildToolUserPrompt(String chiefComplaint, String deptList) {
+    private String buildSingleUserPrompt(String chiefComplaint, String deptList) {
         return String.format("""
-                【患者本次新增主诉】
-                %s
-                
-                【系统可用科室列表】
-                %s
-                
-                任务：结合用户全部历史症状综合提取病情，匹配科室，必要时调用知识库工具。
-                严格遵守上方输出规则，只返回标准JSON，不要任何附加文字。
+                患者单次主诉：%s
+                本院科室列表（仅作参考，不限制科室输出）：%s
+                要求：多处不同部位症状输出多个细分科室到recommended_departments数组，单一症状数组仅一个值；只返回纯净JSON文本。
                 """, chiefComplaint, deptList);
     }
 
-    // 增强解析：兼容多余文字、markdown、外层data包装
+    // JSON清洗解析工具
     private AiDepartmentRecommendationDto parseResponse(String response) {
         try {
             String cleanJson = extractPureJson(response);
-            return objectMapper.readValue(cleanJson, AiDepartmentRecommendationDto.class);
+            log.info("清洗后JSON字符串:{}", cleanJson);
+            AiDepartmentRecommendationDto dto = objectMapper.readValue(cleanJson, AiDepartmentRecommendationDto.class);
+            log.info("JSON解析完成，AI推荐科室数组:{}", dto.getRecommendedDepartments());
+            return dto;
         } catch (Exception e) {
-            log.warn("直接解析JSON失败，尝试兜底", e);
+            log.warn("JSON解析失败，使用全科兜底返回", e);
             return getFallbackResult();
         }
     }
 
-    private String extractPureJson(String response) throws Exception {
-        if (!StringUtils.hasText(response)) {
-            throw new RuntimeException("空响应");
-        }
-        // 清除代码块标记
+    private String extractPureJson(String response) {
+        if (!StringUtils.hasText(response)) return "";
         String raw = response.replaceAll("```json", "").replaceAll("```", "").trim();
         int jsonStart = raw.indexOf('{');
         int jsonEnd = raw.lastIndexOf('}');
-        if (jsonStart < 0 || jsonEnd <= jsonStart) {
-            throw new RuntimeException("无有效JSON");
+        if (jsonStart >= 0 && jsonEnd > jsonStart) {
+            return raw.substring(jsonStart, jsonEnd + 1);
         }
-        String jsonStr = raw.substring(jsonStart, jsonEnd + 1);
-
-        // 判断是否外层套了data（如{"code":200,"data":{...}}）
-        Map<String, Object> rootMap = objectMapper.readValue(jsonStr, new TypeReference<>() {});
-        if (rootMap.containsKey("data")) {
-            return objectMapper.writeValueAsString(rootMap.get("data"));
-        }
-        return jsonStr;
+        return raw;
     }
 
-    // ==================== 科室缓存 & 优化兜底逻辑 ====================
+    // ==================== 院内科室缓存加载 ====================
     private List<String> getAllDepartmentNamesFromDB() {
         if (allDepartmentNames == null || allDepartmentNames.isEmpty()) {
             allDepartmentNames = departmentMapper.selectAllDeptNames();
-            log.info("从数据库加载科室列表，共 {} 个科室", allDepartmentNames.size());
+            log.info("加载院内科室列表，共{}个科室：{}", allDepartmentNames.size(), allDepartmentNames);
         }
         return allDepartmentNames;
-    }
-
-    /** 优化兜底：自动找存在医生的科室，避免返回空医生列表 */
-    private String getDefaultDepartmentWithDoctor() {
-        List<String> deptNames = getAllDepartmentNamesFromDB();
-        if (deptNames.isEmpty()) {
-            return "全科";
-        }
-        for (String deptName : deptNames) {
-            // 参数用循环变量 deptName，接收对象改名 deptObj 避免重名
-            Department deptObj = departmentMapper.selectByDeptName(deptName);
-            if (deptObj != null) {
-                List<Doctor> docList = doctorMapper.selectByDepartmentId(deptObj.getDeptId());
-                if (!docList.isEmpty()) {
-                    return deptName;
-                }
-            }
-        }
-        // 所有科室都无医生，返回第一个
-        return deptNames.get(0);
-    }
-
-    // 旧方法保留兼容
-    private String getDefaultDepartment() {
-        return getDefaultDepartmentWithDoctor();
     }
 
     private Map<String, List<String>> getDepartmentRelationMap() {
         if (departmentRelationMap == null) {
             departmentRelationMap = buildDepartmentRelationMap();
-            log.info("从数据库构建科室关联关系，共 {} 个科室有关联", departmentRelationMap.size());
+            log.info("构建科室关联映射，存在关联科室共{}组", departmentRelationMap.size());
         }
         return departmentRelationMap;
     }
@@ -418,22 +391,24 @@ public class AiConsultServiceImpl implements AiConsultService {
             String deptName = dept.getDeptName();
             List<String> related = new ArrayList<>();
             if (deptName.contains("内科")) {
-                for (String name : allDepartmentNames) {
-                    if (name.contains("内科") && !name.equals(deptName)) related.add(name);
-                }
+                allDepartmentNames.stream()
+                        .filter(name -> name.contains("内科") && !name.equals(deptName))
+                        .forEach(related::add);
             }
             if (deptName.contains("外科")) {
-                for (String name : allDepartmentNames) {
-                    if (name.contains("外科") && !name.equals(deptName)) related.add(name);
-                }
+                allDepartmentNames.stream()
+                        .filter(name -> name.contains("外科") && !name.equals(deptName))
+                        .forEach(related::add);
             }
             String keyword = extractKeyword(deptName);
-            if (StringUtils.hasText(keyword) && !keyword.equals(deptName)) {
-                for (String name : allDepartmentNames) {
-                    if (name.contains(keyword) && !name.equals(deptName)) related.add(name);
-                }
+            if (StringUtils.hasText(keyword)) {
+                allDepartmentNames.stream()
+                        .filter(name -> name.contains(keyword) && !name.equals(deptName))
+                        .forEach(related::add);
             }
-            if (!related.isEmpty()) relationMap.put(deptName, related);
+            if (!related.isEmpty()) {
+                relationMap.put(deptName, related);
+            }
         }
         return relationMap;
     }
@@ -448,39 +423,40 @@ public class AiConsultServiceImpl implements AiConsultService {
         return deptName;
     }
 
+    // AI解析异常兜底返回
     private AiDepartmentRecommendationDto getFallbackResult() {
-        String safeDept = getDefaultDepartmentWithDoctor();
         return AiDepartmentRecommendationDto.builder()
-                .parsedDiagnosis("根据您的描述，建议进一步就医检查")
-                .recommendedDepartment(safeDept)
-                .departmentReason("AI分析异常，为您匹配现有可就诊科室")
+                .parsedDiagnosis("症状解析异常")
+                .recommendedDepartments(Collections.singletonList("全科"))
+                .departmentReason("AI解析失败，建议前往全科初步就诊")
                 .emergency(false)
                 .build();
     }
 
-    // ==================== 医生匹配评分 ====================
+    // ==================== 医生匹配评分逻辑 ====================
     private List<RecommendDoctorVo> calculateMatchScores(List<Doctor> doctors, String chiefComplaint) {
-        if (doctors == null || doctors.isEmpty()) {
-            return new ArrayList<>();
-        }
-        Map<String, String> deptIdToName = departmentMapper.getDeptIdToNameMap();
+        if (doctors == null || doctors.isEmpty()) return new ArrayList<>();
+        Map<String, String> deptIdNameMap = departmentMapper.getDeptIdToNameMap();
         List<RecommendDoctorVo> result = new ArrayList<>();
-        for (Doctor doctor : doctors) {
-            if (doctor.getStatus() == null || doctor.getStatus() != 1) continue;
-            if (doctor.getIsDeleted() != null && doctor.getIsDeleted() == 1) continue;
-            BigDecimal matchScore = calculateDoctorMatchScore(doctor, chiefComplaint);
-            String departmentName = deptIdToName.getOrDefault(doctor.getDepartmentId(), "未知科室");
+        for (Doctor doc : doctors) {
+            // 修复Integer isDeleted语法报错
+            if (doc.getStatus() == null || doc.getStatus() != 1
+                    || (doc.getIsDeleted() != null && doc.getIsDeleted() == 1)) {
+                continue;
+            }
+            BigDecimal matchScore = calculateDoctorMatchScore(doc, chiefComplaint);
+            String departmentName = deptIdNameMap.getOrDefault(doc.getDepartmentId(), "未知科室");
             RecommendDoctorVo vo = RecommendDoctorVo.builder()
-                    .doctorId(doctor.getDoctorId())
-                    .name(doctor.getName())
-                    .position(doctor.getPosition())
-                    .goodAt(doctor.getGoodAt())
-                    .introduction(doctor.getIntroduction())
-                    .avatar(doctor.getAvatar())
-                    .departmentId(doctor.getDepartmentId())
+                    .doctorId(doc.getDoctorId())
+                    .name(doc.getName())
+                    .position(doc.getPosition())
+                    .goodAt(doc.getGoodAt())
+                    .introduction(doc.getIntroduction())
+                    .avatar(doc.getAvatar())
+                    .departmentId(doc.getDepartmentId())
                     .departmentName(departmentName)
-                    .matchScore(matchScore)
-                    .matchReason(buildMatchReason(doctor, matchScore))
+                    .matchScore(BigDecimal.valueOf(matchScore.intValue()))
+                    .matchReason(buildMatchReason(doc, matchScore))
                     .build();
             result.add(vo);
         }
@@ -490,10 +466,10 @@ public class AiConsultServiceImpl implements AiConsultService {
     }
 
     private BigDecimal calculateDoctorMatchScore(Doctor doctor, String chiefComplaint) {
-        BigDecimal positionScore = calculatePositionMatch(doctor);
+        BigDecimal posScore = calculatePositionMatch(doctor);
         BigDecimal goodAtScore = calculateGoodAtMatch(doctor, chiefComplaint);
         BigDecimal introScore = calculateIntroductionMatch(doctor, chiefComplaint);
-        return positionScore.add(goodAtScore).add(introScore)
+        return posScore.add(goodAtScore).add(introScore)
                 .setScale(2, RoundingMode.HALF_UP);
     }
 
@@ -511,49 +487,46 @@ public class AiConsultServiceImpl implements AiConsultService {
     private BigDecimal calculateGoodAtMatch(Doctor doctor, String chiefComplaint) {
         String goodAt = doctor.getGoodAt();
         if (!StringUtils.hasText(goodAt) || !StringUtils.hasText(chiefComplaint)) return BigDecimal.ZERO;
-        List<String> keywords = extractKeywords(chiefComplaint);
-        int matchCount = 0;
-        for (String keyword : keywords) {
-            if (goodAt.contains(keyword)) matchCount++;
-        }
-        return new BigDecimal(Math.min(matchCount * 5, 20));
+        List<String> keywords = extractSymptomKeywords(chiefComplaint);
+        long hitCount = keywords.stream().filter(goodAt::contains).count();
+        return new BigDecimal(Math.min(hitCount * 5, 20));
     }
 
     private BigDecimal calculateIntroductionMatch(Doctor doctor, String chiefComplaint) {
-        String introduction = doctor.getIntroduction();
-        if (!StringUtils.hasText(introduction) || !StringUtils.hasText(chiefComplaint)) return BigDecimal.ZERO;
-        List<String> keywords = extractKeywords(chiefComplaint);
-        int matchCount = 0;
-        for (String keyword : keywords) {
-            if (introduction.contains(keyword)) matchCount++;
-        }
-        return new BigDecimal(Math.min(matchCount * 2, 10));
+        String intro = doctor.getIntroduction();
+        if (!StringUtils.hasText(intro) || !StringUtils.hasText(chiefComplaint)) return BigDecimal.ZERO;
+        List<String> keywords = extractSymptomKeywords(chiefComplaint);
+        long hitCount = keywords.stream().filter(intro::contains).count();
+        return new BigDecimal(Math.min(hitCount * 2, 10));
     }
 
-    private List<String> extractKeywords(String text) {
+    private List<String> extractSymptomKeywords(String text) {
         List<String> keywords = new ArrayList<>();
-        String[] symptomKeywords = {"发热", "咳嗽", "头痛", "腹痛", "恶心", "呕吐", "腹泻", "便秘",
-                "胸痛", "心悸", "气短", "头晕", "乏力", "皮疹", "瘙痒", "关节痛",
-                "腰痛", "背痛", "失眠", "焦虑", "抑郁", "视力模糊", "耳鸣"};
-        for (String keyword : symptomKeywords) {
-            if (text.contains(keyword)) keywords.add(keyword);
+        String[] symptomArr = {
+                "发热", "咳嗽", "头痛", "腹痛", "肚子疼", "恶心", "呕吐", "腹泻", "便秘",
+                "胸痛", "心悸", "气短", "头晕", "乏力", "皮疹", "瘙痒", "发红", "皮肤红",
+                "关节痛", "脖子疼", "眼痛", "眼睛疼", "腰痛", "背痛", "失眠", "焦虑", "视力模糊"
+        };
+        for (String word : symptomArr) {
+            if (text.contains(word)) keywords.add(word);
         }
         return keywords;
     }
 
     private String buildMatchReason(Doctor doctor, BigDecimal matchScore) {
-        List<String> reasons = new ArrayList<>();
-        if (StringUtils.hasText(doctor.getPosition())) reasons.add("职称：" + doctor.getPosition());
+        List<String> tags = new ArrayList<>();
+        if (StringUtils.hasText(doctor.getPosition())) tags.add("职称：" + doctor.getPosition());
         if (StringUtils.hasText(doctor.getGoodAt())) {
-            String shortGoodAt = doctor.getGoodAt().length() > 30 ?
-                    doctor.getGoodAt().substring(0, 30) + "..." : doctor.getGoodAt();
-            reasons.add("擅长：" + shortGoodAt);
+            String goodStr = doctor.getGoodAt().length() > 30
+                    ? doctor.getGoodAt().substring(0, 30) + "..."
+                    : doctor.getGoodAt();
+            tags.add("擅长：" + goodStr);
         }
         if (matchScore.compareTo(new BigDecimal("80")) >= 0) {
-            reasons.add("高度匹配");
+            tags.add("高度匹配");
         } else if (matchScore.compareTo(new BigDecimal("60")) >= 0) {
-            reasons.add("较好匹配");
+            tags.add("较好匹配");
         }
-        return String.join("；", reasons);
+        return String.join("；", tags);
     }
 }
