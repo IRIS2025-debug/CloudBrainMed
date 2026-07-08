@@ -355,40 +355,43 @@ public interface MedicalOrderMapper {
      * 根据ID查询任务详情
      */
     @Select("""
-        SELECT moi.order_item_id, moi.order_id, moi.item_code, moi.item_name,
-               moi.item_category, moi.urgency_level, moi.price,
-               moi.status, moi.create_time, moi.assign_time, moi.complete_time,
-               moi.assigned_doctor_id,
-               mo.patient_id, mo.register_id, mo.doctor_id AS requester_doctor_id,
-               p.name AS patient_name, p.gender, p.birthday,
-               EXTRACT(YEAR FROM AGE(CURRENT_DATE, p.birthday)) AS age,
-               mo.clinical_summary
-        FROM medical_order_item moi
-        JOIN medical_order mo ON moi.order_id = mo.order_id
-        JOIN patient p ON mo.patient_id = p.patient_id
-        WHERE moi.order_item_id = #{orderItemId}
-        """)
+    SELECT moi.order_item_id, moi.order_id, moi.item_code, moi.item_name,
+           moi.item_category, moi.urgency_level, moi.price,
+           moi.status, moi.create_time, moi.assign_time, moi.complete_time,
+           moi.assigned_doctor_id,
+           d.name AS assigned_doctor_name,
+           mo.patient_id, mo.register_id, mo.doctor_id AS requester_doctor_id,
+           p.name AS patient_name, p.gender, p.birthday,
+           EXTRACT(YEAR FROM AGE(CURRENT_DATE, p.birthday)) AS age,
+           mo.clinical_summary
+    FROM medical_order_item moi
+    JOIN medical_order mo ON moi.order_id = mo.order_id
+    JOIN patient p ON mo.patient_id = p.patient_id
+    LEFT JOIN doctor d ON moi.assigned_doctor_id = d.doctor_id
+    WHERE moi.order_item_id = #{orderItemId}
+    """)
     @Results({
-        @Result(column = "order_item_id", property = "orderItemId"),
-        @Result(column = "order_id", property = "orderId"),
-        @Result(column = "item_code", property = "itemCode"),
-        @Result(column = "item_name", property = "itemName"),
-        @Result(column = "item_category", property = "itemCategory"),
-        @Result(column = "urgency_level", property = "urgencyLevel"),
-        @Result(column = "price", property = "price"),
-        @Result(column = "status", property = "status"),
-        @Result(column = "create_time", property = "createTime"),
-        @Result(column = "assign_time", property = "assignTime"),
-        @Result(column = "complete_time", property = "completeTime"),
-        @Result(column = "assigned_doctor_id", property = "assignedDoctorId"),
-        @Result(column = "patient_id", property = "patientId"),
-        @Result(column = "register_id", property = "registerId"),
-        @Result(column = "requester_doctor_id", property = "requesterDoctorId"),
-        @Result(column = "patient_name", property = "patientName"),
-        @Result(column = "gender", property = "gender"),
-        @Result(column = "birthday", property = "birthday"),
-        @Result(column = "age", property = "age"),
-        @Result(column = "clinical_summary", property = "clinicalSummary")
+            @Result(column = "order_item_id", property = "orderItemId"),
+            @Result(column = "order_id", property = "orderId"),
+            @Result(column = "item_code", property = "itemCode"),
+            @Result(column = "item_name", property = "itemName"),
+            @Result(column = "item_category", property = "itemCategory"),
+            @Result(column = "urgency_level", property = "urgencyLevel"),
+            @Result(column = "price", property = "price"),
+            @Result(column = "status", property = "status"),
+            @Result(column = "create_time", property = "createTime"),
+            @Result(column = "assign_time", property = "assignTime"),
+            @Result(column = "complete_time", property = "completeTime"),
+            @Result(column = "assigned_doctor_id", property = "assignedDoctorId"),
+            @Result(column = "assigned_doctor_name", property = "assignedDoctorName"),  // 新增
+            @Result(column = "patient_id", property = "patientId"),
+            @Result(column = "register_id", property = "registerId"),
+            @Result(column = "requester_doctor_id", property = "requesterDoctorId"),
+            @Result(column = "patient_name", property = "patientName"),
+            @Result(column = "gender", property = "gender"),
+            @Result(column = "birthday", property = "birthday"),
+            @Result(column = "age", property = "age"),
+            @Result(column = "clinical_summary", property = "clinicalSummary")
     })
     DoctorTaskDetailVo selectTaskDetailById(@Param("orderItemId") String orderItemId);
 
@@ -606,6 +609,7 @@ public interface MedicalOrderMapper {
 
     @Data
     class DoctorTaskDetailVo {
+        private String assignedDoctorName;  // 新增：医生姓名
         private String orderItemId;
         private String orderId;
         private String itemCode;

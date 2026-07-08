@@ -27,5 +27,6 @@ export function analyzeCtReportInput(data: {
   reportType: string
   reportInput: Record<string, any>
 }) {
-  return request.post('/ai-service/report/analyze', data, { timeout: 120000 })
+  console.log("调用接口")
+  return request.post('/exam-service/report/analyze', data, { timeout: 120000 })
 }

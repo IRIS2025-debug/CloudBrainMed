@@ -151,7 +151,7 @@ const handleLogin = async (): Promise<void> => {
         const doctorType = result.data.doctorType ?? 1
         if (doctorType === 2) {
           // 检查医生 → 检查医生首页
-          await router.push({ name: 'ExaminationHome' })
+          await router.push({ name: 'ExaminationWorkbench' })
         } else if (doctorType === 3) {
           // 检验医生 → 检验医生工作台
           await router.push({ name: 'InspectionHome' })

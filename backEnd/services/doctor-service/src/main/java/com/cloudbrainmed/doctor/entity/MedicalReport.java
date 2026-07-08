@@ -20,4 +20,5 @@ public class MedicalReport {
     private LocalDateTime reportTime;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
+    private String followUpAdvice;
 }

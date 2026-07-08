@@ -221,6 +221,8 @@ public class DoctorTaskServiceImpl implements DoctorTaskService {
 
     private DoctorTaskDetailVo convertToDetailVo(MedicalOrderMapper.DoctorTaskDetailVo detail) {
         DoctorTaskDetailVo vo = new DoctorTaskDetailVo();
+
+        vo.setAssignedDoctorName(detail.getAssignedDoctorName());
         vo.setOrderItemId(detail.getOrderItemId());
         vo.setOrderId(detail.getOrderId());
         vo.setItemCode(detail.getItemCode());

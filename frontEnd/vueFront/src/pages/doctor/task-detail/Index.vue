@@ -47,6 +47,17 @@
               开始处理
             </el-button>
             <template v-if="task.status === 'IN_PROCESS'">
+              <!-- 新增：上传影像按钮 仅影像检查显示 -->
+              <el-button
+                v-if="task.itemCategory === 'EXAM'"
+                type="warning"
+                size="large"
+                :icon="UploadFilled"
+                @click="goUploadImage"
+              >
+                上传影像
+              </el-button>
+
               <el-button
                 v-if="task.itemCategory === 'LAB'"
                 type="primary"
@@ -57,7 +68,7 @@
                 生成检验报告
               </el-button>
               <el-button
-                type="warning"
+                type="primary"
                 size="large"
                 :icon="CircleCheck"
                 @click="handleComplete"
@@ -182,17 +193,17 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { getTaskDetail, startTask, completeTask } from '@/api/doctor/task'
-import { generateLabReport } from '@/api/doctor/task'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   ArrowLeft, Clock, Loading, CircleCheckFilled, InfoFilled,
   VideoPlay, CircleCheck, DocumentAdd, Collection, Notebook,
-  Timer, UserFilled, WarningFilled
+  Timer, UserFilled, WarningFilled, UploadFilled
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
+const router = useRouter()
 const task = ref<any>(null)
 const loading = ref(false)
 const orderItemId = route.params.id as string
@@ -217,6 +228,20 @@ function urgencyTagType(level: string) {
 
 function statusTagType(status: string) {
   return { QUEUED: '', IN_PROCESS: 'warning', COMPLETED: 'success' }[status] || 'info'
+}
+
+// 跳转上传影像页面，携带挂号ID、患者信息
+const goUploadImage = () => {
+  const data = task.value
+  router.push({
+    path: '/examination-doctor/ct-inference',
+    query: {
+      registerId: data.registerId,
+      name: data.patientName,
+      age: data.age,
+      gender: data.genderLabel
+    }
+  })
 }
 
 async function handleStart() {

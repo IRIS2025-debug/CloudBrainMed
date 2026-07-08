@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
  */
 @Data
 public class DoctorTaskDetailVo {
+    private String assignedDoctorName;
     private String orderItemId;
     private String orderId;
     private String itemCode;

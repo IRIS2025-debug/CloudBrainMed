@@ -39,9 +39,16 @@
     </aside>
 
     <main class="main">
-      <RouterView />
+      <!-- ========== 核心修改：添加 keep-alive 缓存指定页面 ========== -->
+      <router-view v-slot="{ Component }">
+        <!-- include 填写两个页面组件name，逗号分隔 -->
+        <keep-alive include="CtWorkbench,ReportGeneration">
+          <component :is="Component" />
+        </keep-alive>
+      </router-view>
     </main>
   </div>
+  <!-- 登录页无侧边栏，不缓存 -->
   <RouterView v-else />
 </template>
 
@@ -92,12 +99,10 @@ const iconMap: Record<string, any> = {
 // ==================== 菜单配置（包含首页概览）====================
 const doctorMenus = [
   // ====== 检查医生（type=2） ======
-  { path: '/examination-doctor/home', title: '检查工作台', icon: 'HomeFilled', group: '检查医生' },
-  { path: '/examination-doctor/application', title: '查看检查申请', icon: 'List', group: '检查医生' },
-  { path: '/examination-doctor/ct-inference', title: 'CT 模型推理', icon: 'Camera', group: '检查医生' },
-  { path: '/examination-doctor/report', title: '生成检查报告', icon: 'CollectionTag', group: '检查医生' },
   { path: '/examination-doctor/workbench', title: '检查医生工作台', icon: 'Monitor', group: '检查医生' },
   { path: '/examination-doctor/queue', title: '检查队列', icon: 'List', group: '检查医生' },
+  { path: '/examination-doctor/ct-inference', title: 'CT 模型推理', icon: 'Camera', group: '检查医生' },
+  { path: '/examination-doctor/report', title: '生成检查报告', icon: 'CollectionTag', group: '检查医生' },
   { path: '/doctor/home', title: '首页概览', icon: 'HomeFilled', group: '医生端' },
   { path: '/doctor/profile', title: '医生个人信息', icon: 'UserFilled', group: '医生端' },
   { path: '/doctor/consult', title: '接诊工作台', icon: 'List', group: '医生端' },
@@ -224,7 +229,6 @@ function showGroupLabel(item: { path: string; title: string; icon: string; group
   // 如果与前一项分组不同，显示标签
   return prevItem.group !== item.group
 }
-
 </script>
 
 <style>
