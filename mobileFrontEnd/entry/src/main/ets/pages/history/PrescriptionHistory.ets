@@ -41,20 +41,27 @@ interface ApiResponse<T> {
   data: T;
 }
 
-// ==================== 常量定义 ====================
+// ==================== 医院风格常量 ====================
 
-const PayStatusText: Record<string, string> = {
+const STATUS_COLOR: Record<string, string> = {
+  'WAITING': '#1890FF',
+  'PAID': '#52C41A',
+  'CANCELLED': '#FF4D4F',
+  'REFUNDED': '#999999'
+};
+
+const STATUS_BG_COLOR: Record<string, string> = {
+  'WAITING': '#E6F7FF',
+  'PAID': '#F6FFED',
+  'CANCELLED': '#FFF1F0',
+  'REFUNDED': '#F5F5F5'
+};
+
+const STATUS_TEXT: Record<string, string> = {
   'WAITING': '待支付',
   'PAID': '已支付',
   'CANCELLED': '已取消',
   'REFUNDED': '已退款'
-};
-
-const PayStatusColor: Record<string, string> = {
-  'WAITING': '#FAAD14',
-  'PAID': '#52C41A',
-  'CANCELLED': '#FF4D4F',
-  'REFUNDED': '#999999'
 };
 
 // ==================== 页面组件 ====================
@@ -72,19 +79,13 @@ export struct PrescriptionHistory {
 
   aboutToAppear(): void {
     const params = router.getParams() as Record<string, Object>;
-    console.info('PrescriptionHistory 接收参数:', JSON.stringify(params));
-
     if (params) {
       this.patientId = (params['patientId'] as string) || '';
       this.userName = (params['userName'] as string) || (params['name'] as string) || '';
     }
-
     this.loadPrescriptionHistory();
   }
 
-  /**
-   * 加载处方历史
-   */
   async loadPrescriptionHistory(): Promise<void> {
     if (!this.patientId) {
       this.isLoading = false;
@@ -97,15 +98,11 @@ export struct PrescriptionHistory {
 
     try {
       const context = getContext(this);
-      const url: string = `${this.baseUrl}/prescription/grouped/${this.patientId}`;
-      console.info('请求处方历史:', url);
-
+      const url = `${this.baseUrl}/prescription/grouped/${this.patientId}`;
       const result = await HttpUtil.get<ApiResponse<RegisterPrescriptionGroup[]>>(url, context);
-      console.info('处方历史响应:', JSON.stringify(result));
 
       if (result.code === 200 && result.data) {
         this.groups = result.data;
-        console.info(`加载成功，共 ${this.groups.length} 张处方`);
       } else {
         this.errorMessage = result.message || '加载失败';
         this.groups = [];
@@ -119,17 +116,11 @@ export struct PrescriptionHistory {
     }
   }
 
-  /**
-   * 返回上一页
-   */
-  goBack(): void {
+  private goBack(): void {
     router.back();
   }
 
-  /**
-   * 查看处方详情
-   */
-  goToDetail(group: RegisterPrescriptionGroup): void {
+  private goToDetail(group: RegisterPrescriptionGroup): void {
     router.pushUrl({
       url: 'pages/history/PrescriptionDetail',
       params: {
@@ -141,8 +132,7 @@ export struct PrescriptionHistory {
         payStatus: group.payStatus,
         prescriptions: group.prescriptions
       }
-    }).catch((err: Error) => {
-      console.error('跳转处方详情失败:', JSON.stringify(err));
+    }).catch(() => {
       promptAction.showToast({
         message: '页面跳转失败',
         duration: 1500
@@ -150,30 +140,22 @@ export struct PrescriptionHistory {
     });
   }
 
-  /**
-   * 获取状态颜色
-   */
   private getStatusColor(status: string): string {
-    return PayStatusColor[status] || '#999999';
+    return STATUS_COLOR[status] || '#999999';
   }
 
-  /**
-   * 获取状态文本
-   */
+  private getStatusBgColor(status: string): string {
+    return STATUS_BG_COLOR[status] || '#F5F5F5';
+  }
+
   private getStatusText(status: string): string {
-    return PayStatusText[status] || status;
+    return STATUS_TEXT[status] || status;
   }
 
-  /**
-   * 格式化金额
-   */
   private formatAmount(amount: number): string {
     return (amount || 0).toFixed(2);
   }
 
-  /**
-   * 获取药品名称摘要
-   */
   private getMedicineNames(prescriptions: PrescriptionItem[]): string {
     if (!prescriptions || prescriptions.length === 0) {
       return '暂无药品';
@@ -181,10 +163,8 @@ export struct PrescriptionHistory {
     return prescriptions.map(p => p.medicineName).join('、');
   }
 
-  // ==================== UI构建 ====================
-
   @Builder
-  StatusTag(status: string) {
+  private StatusTag(status: string) {
     Row() {
       Circle()
         .width(6)
@@ -197,83 +177,98 @@ export struct PrescriptionHistory {
         .fontWeight(FontWeight.Medium)
     }
     .padding({ left: 10, right: 10, top: 4, bottom: 4 })
-    .backgroundColor(`${this.getStatusColor(status)}15`)
+    .backgroundColor(this.getStatusBgColor(status))
     .borderRadius(12)
   }
 
   @Builder
-  PrescriptionCard(group: RegisterPrescriptionGroup) {
+  private PrescriptionCard(group: RegisterPrescriptionGroup) {
     Column() {
-      // ===== 顶部：日期、医生、状态 =====
-      Row() {
-        Column() {
-          Text(group.prescriptionDate || '未知日期')
-            .fontSize(15)
-            .fontColor('#1A1A1A')
-            .fontWeight(FontWeight.Medium)
+      // 顶部蓝色装饰条
+      Row()
+        .width('100%')
+        .height(4)
+        .backgroundColor('#1890FF')
+        .borderRadius({ topLeft: 12, topRight: 12 })
 
-          Text(`医生: ${group.doctorName || '未知医生'}`)
+      Column() {
+        Row() {
+          Column() {
+            // 日期 - 使用蓝色
+            Text(group.prescriptionDate || '未知日期')
+              .fontSize(15)
+              .fontColor('#1890FF')
+              .fontWeight(FontWeight.Medium)
+            Text(`医生: ${group.doctorName || '未知医生'}`)
+              .fontSize(13)
+              .fontColor('#8C8C8C')
+              .margin({ top: 2 })
+          }
+          .alignItems(HorizontalAlign.Start)
+
+          Blank()
+
+          this.StatusTag(group.payStatus)
+        }
+        .width('100%')
+
+        Divider()
+          .color('#E8F4FF')
+          .margin({ top: 10, bottom: 10 })
+
+        Row() {
+          // 蓝色药丸图标
+          Column() {
+            Text('💊')
+              .fontSize(18)
+          }
+          .width(32)
+          .height(32)
+          .backgroundColor('#E6F7FF')
+          .borderRadius(8)
+          .justifyContent(FlexAlign.Center)
+          .alignItems(HorizontalAlign.Center)
+          .margin({ right: 10 })
+
+          Text(this.getMedicineNames(group.prescriptions))
+            .fontSize(14)
+            .fontColor('#333333')
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .layoutWeight(1)
+        }
+        .width('100%')
+
+        Row() {
+          Text(`共 ${group.prescriptionCount} 种药品`)
             .fontSize(13)
             .fontColor('#8C8C8C')
-            .margin({ top: 2 })
+
+          Blank()
+
+          Text(`¥${this.formatAmount(group.totalAmount)}`)
+            .fontSize(18)
+            .fontColor('#1890FF')
+            .fontWeight(FontWeight.Bold)
+
+          Text('›')
+            .fontSize(18)
+            .fontColor('#1890FF')
+            .margin({ left: 4 })
         }
-        .alignItems(HorizontalAlign.Start)
-
-        Blank()
-
-        this.StatusTag(group.payStatus)
+        .width('100%')
+        .margin({ top: 8 })
       }
-      .width('100%')
-
-      Divider()
-        .color('#F0F0F0')
-        .margin({ top: 10, bottom: 10 })
-
-      // ===== 药品摘要 =====
-      Row() {
-        Text('💊')
-          .fontSize(18)
-          .margin({ right: 8 })
-
-        Text(this.getMedicineNames(group.prescriptions))
-          .fontSize(14)
-          .fontColor('#333333')
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-          .layoutWeight(1)
-      }
-      .width('100%')
-
-      // ===== 底部：数量、总金额 =====
-      Row() {
-        Text(`共 ${group.prescriptionCount} 种药品`)
-          .fontSize(13)
-          .fontColor('#8C8C8C')
-
-        Blank()
-
-        Text(`¥${this.formatAmount(group.totalAmount)}`)
-          .fontSize(18)
-          .fontColor('#EF4444')
-          .fontWeight(FontWeight.Bold)
-
-        Text('›')
-          .fontSize(18)
-          .fontColor('#CCCCCC')
-          .margin({ left: 4 })
-      }
-      .width('100%')
-      .margin({ top: 8 })
+      .padding({ left: 16, right: 16, top: 12, bottom: 14 })
     }
     .width('100%')
-    .padding({ left: 16, right: 16, top: 14, bottom: 14 })
     .backgroundColor('#FFFFFF')
     .borderRadius(12)
     .shadow({
       radius: 8,
-      color: 'rgba(0, 0, 0, 0.06)',
+      color: 'rgba(24, 144, 255, 0.10)',
       offsetX: 0,
-      offsetY: 2
+      offsetY: 3
     })
     .margin({ bottom: 12 })
     .onClick(() => {
@@ -282,7 +277,52 @@ export struct PrescriptionHistory {
   }
 
   @Builder
-  EmptyState() {
+  private LoadingState() {
+    Column() {
+      LoadingProgress()
+        .width(40)
+        .height(40)
+        .color('#1890FF')
+      Text('加载中...')
+        .fontSize(14)
+        .fontColor('#999999')
+        .margin({ top: 12 })
+    }
+    .width('100%')
+    .height(200)
+    .justifyContent(FlexAlign.Center)
+  }
+
+  @Builder
+  private ErrorState() {
+    Column() {
+      Text('⚠️')
+        .fontSize(48)
+        .margin({ bottom: 16 })
+      Text(this.errorMessage)
+        .fontSize(14)
+        .fontColor('#8C8C8C')
+        .textAlign(TextAlign.Center)
+        .margin({ bottom: 20 })
+      Button('重新加载')
+        .fontSize(14)
+        .fontColor('#FFFFFF')
+        .backgroundColor('#1890FF')
+        .borderRadius(20)
+        .height(36)
+        .padding({ left: 24, right: 24 })
+        .onClick(() => {
+          this.loadPrescriptionHistory();
+        })
+    }
+    .width('100%')
+    .height(200)
+    .justifyContent(FlexAlign.Center)
+    .alignItems(HorizontalAlign.Center)
+  }
+
+  @Builder
+  private EmptyState() {
     Column() {
       Text('💊')
         .fontSize(56)
@@ -302,59 +342,17 @@ export struct PrescriptionHistory {
     .alignItems(HorizontalAlign.Center)
   }
 
-  @Builder
-  LoadingState() {
-    Column() {
-      LoadingProgress()
-        .width(40)
-        .height(40)
-        .color('#007AFF')
-      Text('加载中...')
-        .fontSize(14)
-        .fontColor('#999999')
-        .margin({ top: 12 })
-    }
-    .width('100%')
-    .height(200)
-    .justifyContent(FlexAlign.Center)
-    .backgroundColor('#F5F5F5')
-  }
-
-  @Builder
-  ErrorState() {
-    Column() {
-      Text('📋')
-        .fontSize(48)
-        .margin({ bottom: 16 })
-      Text(this.errorMessage)
-        .fontSize(14)
-        .fontColor('#8C8C8C')
-        .textAlign(TextAlign.Center)
-        .margin({ bottom: 20 })
-      Button('重新加载')
-        .fontSize(14)
-        .fontColor('#FFFFFF')
-        .backgroundColor('#007AFF')
-        .borderRadius(20)
-        .height(36)
-        .padding({ left: 24, right: 24 })
-        .onClick(() => {
-          this.loadPrescriptionHistory();
-        })
-    }
-    .width('100%')
-    .height(200)
-    .justifyContent(FlexAlign.Center)
-    .alignItems(HorizontalAlign.Center)
-  }
-
   build() {
     Column() {
-      // ===== 顶部导航栏 =====
+      // 顶部导航栏 - 白色背景，蓝色文字
       Row() {
         Text('‹')
           .fontSize(28)
-          .fontColor('#333333')
+          .fontColor('#1890FF')
+          .width(40)
+          .height(40)
+          .textAlign(TextAlign.Center)
+          .lineHeight(40)
           .onClick(() => {
             this.goBack();
           })
@@ -362,14 +360,13 @@ export struct PrescriptionHistory {
         Text('中医处方')
           .fontSize(20)
           .fontWeight(FontWeight.Bold)
-          .fontColor('#333333')
+          .fontColor('#1890FF')
           .layoutWeight(1)
           .textAlign(TextAlign.Center)
 
-        // 右侧占位保持对称
         Row()
-          .width(28)
-          .height(28)
+          .width(40)
+          .height(40)
       }
       .width('100%')
       .height(56)
@@ -378,11 +375,11 @@ export struct PrescriptionHistory {
       .borderRadius({ bottomLeft: 12, bottomRight: 12 })
       .shadow({
         radius: 4,
-        color: 'rgba(0,0,0,0.04)',
+        color: 'rgba(24, 144, 255, 0.08)',
         offsetY: 2
       })
 
-      // ===== 内容区域 =====
+      // 内容区域
       if (this.isLoading) {
         this.LoadingState()
       } else if (this.errorMessage) {
@@ -391,12 +388,11 @@ export struct PrescriptionHistory {
         this.EmptyState()
       } else {
         List() {
-          // 统计信息
           ListItem() {
             Row() {
               Text(`共 ${this.groups.length} 张处方`)
                 .fontSize(13)
-                .fontColor('#999999')
+                .fontColor('#8C8C8C')
             }
             .width('100%')
             .padding({ left: 4, top: 4, bottom: 8 })
@@ -410,12 +406,12 @@ export struct PrescriptionHistory {
         }
         .width('100%')
         .padding({ left: 16, right: 16, top: 12 })
-        .backgroundColor('#F5F5F5')
+        .backgroundColor('#F5F8FC')
         .layoutWeight(1)
       }
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#F5F5F5')
+    .backgroundColor('#F5F8FC')
   }
 }
