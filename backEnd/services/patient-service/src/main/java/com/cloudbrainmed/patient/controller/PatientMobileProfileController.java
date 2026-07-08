@@ -70,7 +70,10 @@ public class PatientMobileProfileController {
                                   @RequestParam("file") MultipartFile file) throws IOException {
         String patientId = extractPatientId(token);
         String url = profileService.uploadAvatar(patientId, file.getBytes(), file.getOriginalFilename());
-        return Result.ok(Map.of("avatarUrl", url));
+        Map<String, String> data = new HashMap<>();
+        data.put("avatar", url);
+        data.put("avatarUrl", url);
+        return Result.ok(data);
     }
 
     /** 4.3.1.4 修改手机号 */

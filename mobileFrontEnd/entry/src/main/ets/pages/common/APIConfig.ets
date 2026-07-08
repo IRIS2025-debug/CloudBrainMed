@@ -12,4 +12,14 @@ export class APIConfig {
   static readonly PATIENT_SERVICE_URL: string = `${APIConfig.BASE_URL}:8004/patient-service`;
   static readonly PAYMENT_SERVICE_URL: string = `${APIConfig.BASE_URL}:8005/payment-service`;
 
+  /** 将患者头像相对路径转为可访问的完整 URL */
+  static resolvePatientAvatarUrl(avatarPath: string): string {
+    if (!avatarPath) {
+      return '';
+    }
+    if (avatarPath.startsWith('http://') || avatarPath.startsWith('https://')) {
+      return avatarPath;
+    }
+    return `${APIConfig.BASE_URL}:8004${avatarPath}`;
+  }
 }

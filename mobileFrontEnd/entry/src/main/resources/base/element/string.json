@@ -15,6 +15,10 @@
     {
       "name": "internet_reason",
       "value": "用于连接服务器，实现登录、注册、挂号、查询病历等功能"
+    },
+    {
+      "name": "image_reason",
+      "value": "用于从相册选择图片并上传个人头像"
     }
   ]
 }

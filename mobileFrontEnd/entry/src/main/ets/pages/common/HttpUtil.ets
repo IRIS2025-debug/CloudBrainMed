@@ -1,5 +1,7 @@
 // common/HttpUtil.ets
 import http from '@ohos.net.http';
+import { fileIo } from '@kit.CoreFileKit';
+import util from '@ohos.util';
 import promptAction from '@ohos.promptAction';
 import router from '@ohos.router';
 import { PatientManager } from './PatientManager';
@@ -10,6 +12,14 @@ export interface RequestConfig {
   method: http.RequestMethod;
   data?: object;
   header?: Record<string, string>;
+}
+
+export interface UploadFileOptions {
+  url: string;
+  fileUri: string;
+  fieldName?: string;
+  fileName?: string;
+  mimeType?: string;
 }
 
 export class HttpUtil {
@@ -149,5 +159,88 @@ export class HttpUtil {
       method: http.RequestMethod.DELETE
     };
     return HttpUtil.request<T>(requestConfig, context);
+  }
+
+  /**
+   * Multipart 文件上传（用于头像等场景）
+   */
+  static async uploadFile(options: UploadFileOptions): Promise<string> {
+    const fieldName = options.fieldName ?? 'file';
+    const fileName = options.fileName ?? 'avatar.jpg';
+    const mimeType = options.mimeType ?? 'image/jpeg';
+    const boundary = `----HarmonyOSBoundary${Date.now()}`;
+    const token = PatientManager.getToken();
+
+    let fileHandle: fileIo.File | null = null;
+    try {
+      fileHandle = fileIo.openSync(options.fileUri, fileIo.OpenMode.READ_ONLY);
+      const stat = fileIo.statSync(fileHandle.fd);
+      const fileBuffer = new ArrayBuffer(stat.size);
+      fileIo.readSync(fileHandle.fd, fileBuffer);
+
+      const headerPart =
+        `--${boundary}\r\n` +
+        `Content-Disposition: form-data; name="${fieldName}"; filename="${fileName}"\r\n` +
+        `Content-Type: ${mimeType}\r\n\r\n`;
+      const footerPart = `\r\n--${boundary}--\r\n`;
+
+      const headerBytes = HttpUtil.encodeText(headerPart);
+      const contentBytes = new Uint8Array(fileBuffer);
+      const footerBytes = HttpUtil.encodeText(footerPart);
+      const body = new Uint8Array(headerBytes.length + contentBytes.length + footerBytes.length);
+      body.set(headerBytes, 0);
+      body.set(contentBytes, headerBytes.length);
+      body.set(footerBytes, headerBytes.length + contentBytes.length);
+
+      const headers: Record<string, string> = {
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        'Accept': 'application/json'
+      };
+      if (token && token.length > 0) {
+        headers['token'] = token;
+      }
+
+      const httpRequest = http.createHttp();
+      try {
+        const response = await httpRequest.request(options.url, {
+          method: http.RequestMethod.POST,
+          header: headers,
+          extraData: body.buffer,
+          connectTimeout: 30000,
+          readTimeout: 30000
+        });
+
+        if (response.responseCode === 401) {
+          PatientManager.clearPatientInfo();
+          promptAction.showToast({ message: '登录已过期，请重新登录', duration: 2000 });
+          setTimeout(() => {
+            router.replaceUrl({ url: 'pages/login/LoginPage' });
+          }, 500);
+          throw new Error('Unauthorized');
+        }
+
+        if (response.responseCode === 200) {
+          return response.result as string;
+        }
+
+        try {
+          const errorResult = JSON.parse(response.result as string) as Record<string, string>;
+          throw new Error(errorResult?.msg || errorResult?.message || `上传失败 (${response.responseCode})`);
+        } catch (parseError) {
+          throw new Error(`上传失败，状态码: ${response.responseCode}`);
+        }
+      } finally {
+        httpRequest.destroy();
+      }
+    } finally {
+      if (fileHandle !== null) {
+        fileIo.closeSync(fileHandle);
+      }
+    }
+  }
+
+  private static encodeText(text: string): Uint8Array {
+    const encoder = new util.TextEncoder();
+    return encoder.encodeInto(text);
   }
 }

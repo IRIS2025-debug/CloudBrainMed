@@ -38,6 +38,7 @@ class PatientProfileServiceImplTest {
         authFeignClient = mock(AuthFeignClient.class);
         service = new PatientProfileServiceImpl(patientMapper, authFeignClient);
         ReflectionTestUtils.setField(service, "avatarUploadDir", tempDir.toString());
+        ReflectionTestUtils.setField(service, "avatarLegacyDir", tempDir.resolve("legacy").toString());
     }
 
     @Test
@@ -63,7 +64,7 @@ class PatientProfileServiceImplTest {
 
         String avatarUrl = service.uploadAvatar("P001", new byte[] {1}, "avatar.png");
 
-        assertThat(avatarUrl).startsWith("/files/avatar/patient/P001_");
+        assertThat(avatarUrl).isEqualTo("/avatar/P001.png");
         assertThat(avatarUrl).endsWith(".png");
         assertThat(Files.list(tempDir)).anyMatch(path -> path.getFileName().toString().endsWith(".png"));
         verify(patientMapper).updateAvatar("P001", avatarUrl);

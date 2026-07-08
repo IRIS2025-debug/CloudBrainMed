@@ -2,10 +2,12 @@
 import http from '@ohos.net.http';
 import promptAction from '@ohos.promptAction';
 import router from '@ohos.router';
-import picker from '@ohos.file.picker';
-import fs from '@ohos.file.fs';
-import { BusinessError } from '@ohos.base';
+import { photoAccessHelper } from '@kit.MediaLibraryKit';
+import { fileIo } from '@kit.CoreFileKit';
+import { abilityAccessCtrl, common, Permissions } from '@kit.AbilityKit';
+import { BusinessError } from '@kit.BasicServicesKit';
 import { APIConfig } from '../common/APIConfig';
+import { HttpUtil, UploadFileOptions } from '../common/HttpUtil';
 import { PatientManager } from '../common/PatientManager';
 // 定义请求数据类型
 interface UpdateProfileRequest {
@@ -41,6 +43,35 @@ interface ApiResult {
   data?: Object;
 }
 
+interface ImageMeta {
+  fileName: string;
+  mimeType: string;
+}
+
+interface DialogButton {
+  text: string;
+  color: string;
+}
+
+interface DialogResult {
+  index: number;
+}
+
+interface AvatarUploadData {
+  avatar?: string;
+  avatarUrl?: string;
+}
+
+interface VerifyPasswordRequest {
+  password: string;
+}
+
+interface ShowDialogOptions {
+  title: string;
+  message: string;
+  buttons: DialogButton[];
+}
+
 @Component
 export struct PersonalCenter {
   // 接收外部参数
@@ -61,6 +92,7 @@ export struct PersonalCenter {
   };
   @State isLoading: boolean = true;
   @State isSaving: boolean = false;
+  @State isUploadingAvatar: boolean = false;
   @State loadError: string = '';
 
   // 修改手机号相关状态
@@ -216,12 +248,8 @@ export struct PersonalCenter {
   private parseProfileResponse(raw: Record<string, Object>): PatientProfile {
     const genderVal = raw['gender'];
     const avatar = raw['avatar'] as string;
-    let avatarUrl = raw['avatarUrl'] as string || '';
-    if (!avatarUrl && avatar) {
-      avatarUrl = avatar.startsWith('http')
-        ? avatar
-        : `${APIConfig.BASE_URL}:8004${avatar}`;
-    }
+    const avatarUrlField = raw['avatarUrl'] as string || '';
+    const avatarPath = avatar || avatarUrlField;
     const birthday = (raw['birthday'] as string) || '';
     const profile: PatientProfile = {
       patientId: (raw['patientId'] as string) || this.patientId || '',
@@ -231,7 +259,7 @@ export struct PersonalCenter {
       phone: (raw['phone'] as string) || '',
       address: (raw['address'] as string) || '',
       birthday: birthday,
-      avatarUrl: avatarUrl,
+      avatarUrl: avatarPath ? `${APIConfig.resolvePatientAvatarUrl(avatarPath)}?t=${Date.now()}` : '',
       idCard: (raw['idCard'] as string) || ''
     };
     if (!profile.age && profile.birthday) {
@@ -400,6 +428,9 @@ export struct PersonalCenter {
     try {
       const token = this.getToken();
       const httpRequest = http.createHttp();
+      const verifyBody: VerifyPasswordRequest = {
+        password: this.editVerifyPassword.trim()
+      };
       const response = await httpRequest.request(
         this.baseUrl + `/profile/verify-idcard`,
         {
@@ -408,9 +439,7 @@ export struct PersonalCenter {
             'Content-Type': 'application/json',
             'token': token
           },
-          extraData: {
-            password: this.editVerifyPassword.trim()
-          }
+          extraData: verifyBody
         }
       );
 
@@ -513,53 +542,179 @@ export struct PersonalCenter {
     }
   }
 
-  // 上传头像
-  async uploadAvatar() {
-    try {
-      const photoPicker = new picker.PhotoViewPicker();
-      const photoResult = await photoPicker.select({
-        MIMEType: picker.PhotoViewMIMETypes.IMAGE_TYPE,
-        maxSelectNumber: 1
-      });
+  // 点击头像：确认后选择并上传
+  onAvatarClick() {
+    if (this.isUploadingAvatar) {
+      return;
+    }
+    // 鸿蒙规范：取消在左(index=0)，确认在右(index=1)
+    const cancelBtn: DialogButton = { text: '取消', color: '#999999' };
+    const confirmBtn: DialogButton = { text: '确认', color: '#007AFF' };
+    const dialogButtons: DialogButton[] = [cancelBtn, confirmBtn];
+    const dialogOptions: ShowDialogOptions = {
+      title: '更换头像',
+      message: '是否更换头像？',
+      buttons: dialogButtons
+    };
+    promptAction.showDialog(dialogOptions).then((result: DialogResult) => {
+      if (result.index === 1) {
+        // 等待对话框完全关闭后再打开相册，避免被遮挡无响应
+        setTimeout(() => {
+          this.pickAndUploadAvatar();
+        }, 300);
+      }
+    }).catch(() => {
+      // 用户取消对话框
+    });
+  }
 
-      if (photoResult.photoUris.length === 0) {
+  private async ensureImagePermission(): Promise<boolean> {
+    const context = getContext(this) as common.UIAbilityContext;
+    const atManager = abilityAccessCtrl.createAtManager();
+    const permission: Permissions = 'ohos.permission.READ_IMAGEVIDEO';
+    try {
+      const tokenId = context.applicationInfo.accessTokenId;
+      const grantStatus = await atManager.checkAccessToken(tokenId, permission);
+      if (grantStatus === abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED) {
+        return true;
+      }
+      const requestResult = await atManager.requestPermissionsFromUser(context, [permission]);
+      const granted = requestResult.authResults[0] === abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED;
+      if (!granted) {
+        promptAction.showToast({ message: '需要相册权限才能更换头像' });
+      }
+      return granted;
+    } catch (error) {
+      console.error('申请相册权限失败:', JSON.stringify(error));
+      // 权限申请异常时不阻断，系统相册选择器可能仍可正常使用
+      return true;
+    }
+  }
+
+  private isUserCancelError(err: BusinessError): boolean {
+    if (err.code === 13900042 || err.code === 13900001) {
+      return true;
+    }
+    const msg = err.message || '';
+    return msg.includes('cancel') || msg.includes('Cancel') || msg.includes('取消');
+  }
+
+  private getImageMetaFromUri(uri: string): ImageMeta {
+    const lower = uri.toLowerCase();
+    if (lower.includes('.png')) {
+      const meta: ImageMeta = { fileName: 'avatar.png', mimeType: 'image/png' };
+      return meta;
+    }
+    if (lower.includes('.gif')) {
+      const meta: ImageMeta = { fileName: 'avatar.gif', mimeType: 'image/gif' };
+      return meta;
+    }
+    if (lower.includes('.webp')) {
+      const meta: ImageMeta = { fileName: 'avatar.webp', mimeType: 'image/webp' };
+      return meta;
+    }
+    if (lower.includes('.jpeg')) {
+      const meta: ImageMeta = { fileName: 'avatar.jpeg', mimeType: 'image/jpeg' };
+      return meta;
+    }
+    const defaultMeta: ImageMeta = { fileName: 'avatar.jpg', mimeType: 'image/jpeg' };
+    return defaultMeta;
+  }
+
+  private isAllowedImageType(fileName: string): boolean {
+    const lower = fileName.toLowerCase();
+    return lower.endsWith('.jpg') || lower.endsWith('.jpeg') ||
+      lower.endsWith('.png') || lower.endsWith('.gif') || lower.endsWith('.webp');
+  }
+
+  async pickAndUploadAvatar() {
+    if (this.isUploadingAvatar) {
+      return;
+    }
+
+    const hasPermission = await this.ensureImagePermission();
+    if (!hasPermission) {
+      promptAction.showToast({ message: '请授予相册权限后重试' });
+      return;
+    }
+
+    try {
+      console.info('开始打开相册选择器');
+      const photoPicker = new photoAccessHelper.PhotoViewPicker();
+      const selectOptions = new photoAccessHelper.PhotoSelectOptions();
+      selectOptions.MIMEType = photoAccessHelper.PhotoViewMIMETypes.IMAGE_TYPE;
+      selectOptions.maxSelectNumber = 1;
+
+      promptAction.showToast({ message: '请选择图片', duration: 1500 });
+      const photoResult = await photoPicker.select(selectOptions);
+
+      if (!photoResult.photoUris || photoResult.photoUris.length === 0) {
         return;
       }
 
       const uri = photoResult.photoUris[0];
-      const file = fs.openSync(uri, fs.OpenMode.READ_ONLY);
-      const stat = fs.statSync(file.fd);
-      const buffer = new ArrayBuffer(stat.size);
-      fs.readSync(file.fd, buffer);
-      fs.closeSync(file);
-
-      const token = this.getToken();
-      const httpRequest = http.createHttp();
-
-      const response = await httpRequest.request(
-        this.baseUrl + `/profile/avatar-upload`,
-        {
-          method: http.RequestMethod.POST,
-          header: {
-            'Content-Type': 'multipart/form-data',
-            'token': token
-          },
-          extraData: buffer
-        }
-      );
-
-      if (response.responseCode === 200) {
-        const result: Record<string, Object> = JSON.parse(response.result as string);
-        const code = result['code'] as number;
-        if (code === 200) {
-          const data = result['data'] as Record<string, Object>;
-          this.profileData.avatarUrl = data['avatarUrl'] as string;
-          promptAction.showToast({ message: '头像上传成功' });
-        }
+      const imageMeta = this.getImageMetaFromUri(uri);
+      if (!this.isAllowedImageType(imageMeta.fileName)) {
+        promptAction.showToast({ message: '仅支持 jpg、jpeg、png、gif、webp 格式' });
+        return;
       }
-      httpRequest.destroy();
+
+      let fileSize = 0;
+      const fileHandle = fileIo.openSync(uri, fileIo.OpenMode.READ_ONLY);
+      try {
+        fileSize = fileIo.statSync(fileHandle.fd).size;
+      } finally {
+        fileIo.closeSync(fileHandle);
+      }
+
+      const maxSize = 2 * 1024 * 1024;
+      if (fileSize <= 0) {
+        promptAction.showToast({ message: '图片文件为空，请重新选择' });
+        return;
+      }
+      if (fileSize > maxSize) {
+        promptAction.showToast({ message: '图片不能超过 2MB' });
+        return;
+      }
+
+      this.isUploadingAvatar = true;
+      const uploadOptions: UploadFileOptions = {
+        url: this.baseUrl + '/profile/avatar-upload',
+        fileUri: uri,
+        fieldName: 'file',
+        fileName: imageMeta.fileName,
+        mimeType: imageMeta.mimeType
+      };
+      const responseText = await HttpUtil.uploadFile(uploadOptions);
+
+      const result = JSON.parse(responseText) as ApiResult;
+      if (result.code === 200 && result.data) {
+        const data = result.data as AvatarUploadData;
+        const avatarPath = data.avatar || data.avatarUrl || '';
+        if (avatarPath) {
+          this.profileData.avatarUrl =
+            APIConfig.resolvePatientAvatarUrl(avatarPath) + `?t=${Date.now()}`;
+          this.syncLocalPatientInfo();
+        }
+        promptAction.showToast({ message: '头像上传成功' });
+        await this.loadProfileData();
+      } else {
+        promptAction.showToast({ message: result.msg || '头像上传失败' });
+      }
     } catch (error) {
-      promptAction.showToast({ message: '上传头像失败' });
+      const err = error as BusinessError;
+      if (this.isUserCancelError(err)) {
+        return;
+      }
+      console.error('上传头像失败:', JSON.stringify(error));
+      const message = err.message && err.message !== 'Unauthorized'
+        ? err.message
+        : '上传头像失败，请检查网络后重试';
+      if (err.message !== 'Unauthorized') {
+        promptAction.showToast({ message: message });
+      }
+    } finally {
+      this.isUploadingAvatar = false;
     }
   }
 
@@ -1113,23 +1268,53 @@ export struct PersonalCenter {
     Column() {
       Row() {
         if (this.profileData.avatarUrl) {
-          Image(this.profileData.avatarUrl)
-            .width(72)
-            .height(72)
-            .borderRadius(36)
-            .objectFit(ImageFit.Cover)
-            .onClick(() => {
-              this.uploadAvatar();
-            })
+          Stack() {
+            Image(this.profileData.avatarUrl)
+              .width(72)
+              .height(72)
+              .borderRadius(36)
+              .objectFit(ImageFit.Cover)
+            if (this.isUploadingAvatar) {
+              Column() {
+                LoadingProgress()
+                  .width(24)
+                  .height(24)
+                  .color('#FFFFFF')
+              }
+              .width(72)
+              .height(72)
+              .borderRadius(36)
+              .backgroundColor('#00000060')
+              .justifyContent(FlexAlign.Center)
+            }
+          }
+          .onClick(() => {
+            this.onAvatarClick();
+          })
         } else {
-          Image($r('app.media.default_avatar'))
-            .width(72)
-            .height(72)
-            .borderRadius(36)
-            .objectFit(ImageFit.Cover)
-            .onClick(() => {
-              this.uploadAvatar();
-            })
+          Stack() {
+            Image($r('app.media.default_avatar'))
+              .width(72)
+              .height(72)
+              .borderRadius(36)
+              .objectFit(ImageFit.Cover)
+            if (this.isUploadingAvatar) {
+              Column() {
+                LoadingProgress()
+                  .width(24)
+                  .height(24)
+                  .color('#FFFFFF')
+              }
+              .width(72)
+              .height(72)
+              .borderRadius(36)
+              .backgroundColor('#00000060')
+              .justifyContent(FlexAlign.Center)
+            }
+          }
+          .onClick(() => {
+            this.onAvatarClick();
+          })
         }
 
         Column() {
@@ -1775,12 +1960,20 @@ export struct PersonalCenter {
               .height(80)
               .borderRadius(40)
               .objectFit(ImageFit.Cover)
+              .onClick(() => {
+                this.showViewDialog = false;
+                this.onAvatarClick();
+              })
           } else {
             Image($r('app.media.default_avatar'))
               .width(80)
               .height(80)
               .borderRadius(40)
               .objectFit(ImageFit.Cover)
+              .onClick(() => {
+                this.showViewDialog = false;
+                this.onAvatarClick();
+              })
           }
         }
         .width('100%')

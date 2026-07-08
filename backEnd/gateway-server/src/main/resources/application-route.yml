@@ -21,6 +21,10 @@ spring:
         - id: patient-avatar-route
           uri: lb://patient-service
           predicates:
+            - Path=/avatar/**
+        - id: patient-avatar-legacy-route
+          uri: lb://patient-service
+          predicates:
             - Path=/files/avatar/patient/**
         - id: ai-service-route
           uri: lb://ai-service

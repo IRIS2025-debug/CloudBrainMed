@@ -22,7 +22,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.UUID;
 
 @Service
 public class PatientProfileServiceImpl implements PatientProfileService {
@@ -34,8 +33,11 @@ public class PatientProfileServiceImpl implements PatientProfileService {
     private final PatientMapper patientMapper;
     private final AuthFeignClient authFeignClient;
 
-    @Value("${upload.avatar.patient-dir:${user.dir}/uploads/avatar/patient}")
+    @Value("${upload.avatar.patient-dir:${user.dir}/upload/avatar}")
     private String avatarUploadDir;
+
+    @Value("${upload.avatar.patient-legacy-dir:${user.dir}/uploads/avatar/patient}")
+    private String avatarLegacyDir;
 
     public PatientProfileServiceImpl(PatientMapper patientMapper, AuthFeignClient authFeignClient) {
         this.patientMapper = patientMapper;
@@ -73,17 +75,39 @@ public class PatientProfileServiceImpl implements PatientProfileService {
         validateAvatar(fileBytes, originalFilename);
 
         String ext = originalFilename.substring(originalFilename.lastIndexOf(".")).toLowerCase(Locale.ROOT);
-        String filename = patientId + "_" + UUID.randomUUID().toString().replace("-", "") + ext;
+        String filename = patientId + ext;
         try {
             Path dir = Paths.get(avatarUploadDir);
             Files.createDirectories(dir);
+            deleteOldAvatarFile(patient.getAvatar());
             Files.write(dir.resolve(filename), fileBytes);
         } catch (IOException e) {
             throw new BusinessException("\u5934\u50cf\u4e0a\u4f20\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5");
         }
-        String avatarUrl = "/files/avatar/patient/" + filename;
+        String avatarUrl = "/avatar/" + filename;
         patientMapper.updateAvatar(patientId, avatarUrl);
         return avatarUrl;
+    }
+
+    private void deleteOldAvatarFile(String avatarPath) {
+        if (avatarPath == null || avatarPath.isBlank()) {
+            return;
+        }
+        try {
+            String filename = avatarPath;
+            if (filename.startsWith("/avatar/")) {
+                filename = filename.substring("/avatar/".length());
+            } else if (filename.startsWith("/files/avatar/patient/")) {
+                filename = filename.substring("/files/avatar/patient/".length());
+                Path legacyPath = Paths.get(avatarLegacyDir).resolve(filename);
+                Files.deleteIfExists(legacyPath);
+                return;
+            }
+            Path filePath = Paths.get(avatarUploadDir).resolve(filename);
+            Files.deleteIfExists(filePath);
+        } catch (IOException e) {
+            // 删除旧文件失败不影响新头像上传
+        }
     }
 
     @Override
