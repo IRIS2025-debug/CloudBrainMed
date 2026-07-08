@@ -4,15 +4,22 @@
       <div class="brand" @click="$router.push('/')">
         <div class="brand-icon">
           <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-            <rect width="28" height="28" rx="8" fill="#2563eb"/>
-            <path d="M6 14h4l2-5 4 10 2-5h4" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <rect width="28" height="28" rx="8" fill="#2563eb" />
+            <path
+              d="M6 14h4l2-5 4 10 2-5h4"
+              stroke="#fff"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
           </svg>
         </div>
-        <span class="brand-text" v-show="!collapsed">CloudBrain<span class="brand-accent">Med</span></span>
+        <span class="brand-text" v-show="!collapsed">
+          CloudBrain<span class="brand-accent">Med</span>
+        </span>
       </div>
 
       <nav class="nav">
-        <!-- 不再硬编码，统一用 v-for 渲染 -->
         <template v-for="item in menuItems" :key="item.path">
           <div class="nav-group-label" v-show="!collapsed && showGroupLabel(item)">
             {{ item.group }}
@@ -39,40 +46,32 @@
     </aside>
 
     <main class="main">
-      <!-- ========== 核心修改：添加 keep-alive 缓存指定页面 ========== -->
-      <router-view v-slot="{ Component }">
-        <!-- include 填写两个页面组件name，逗号分隔 -->
-        <keep-alive include="CtWorkbench,ReportGeneration">
-          <component :is="Component" />
-        </keep-alive>
-      </router-view>
+      <RouterView />
     </main>
   </div>
-  <!-- 登录页无侧边栏，不缓存 -->
   <RouterView v-else />
 </template>
 
 <script setup lang="ts">
-import { useRoute, useRouter } from 'vue-router'
 import { computed, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElIcon, ElMessage } from 'element-plus'
 import {
-  UserFilled,
-  List,
-  DataAnalysis,
-  CollectionTag,
-  Cpu,
   Camera,
+  CollectionTag,
+  DataAnalysis,
   HomeFilled,
+  List,
   Monitor,
   SwitchButton,
+  UserFilled,
 } from '@element-plus/icons-vue'
+import { getDoctorMenuItems, type DoctorMenuItem } from '@/app/doctorMenu'
 
 const route = useRoute()
 const router = useRouter()
 const collapsed = ref(false)
 
-// 退出登录
 const handleLogout = () => {
   sessionStorage.removeItem('token')
   sessionStorage.removeItem('roleType')
@@ -84,155 +83,71 @@ const handleLogout = () => {
 
 const showSidebar = computed(() => route.path !== '/login')
 
-// 图标映射（新增 HomeFilled）
 const iconMap: Record<string, any> = {
-  HomeFilled,    // 新增
+  HomeFilled,
   UserFilled,
   List,
   DataAnalysis,
   CollectionTag,
-  Cpu,
   Camera,
   Monitor,
 }
 
-// ==================== 菜单配置（包含首页概览）====================
-const doctorMenus = [
-  // ====== 检查医生（type=2） ======
-  { path: '/examination-doctor/workbench', title: '检查医生工作台', icon: 'Monitor', group: '检查医生' },
-  { path: '/examination-doctor/queue', title: '检查队列', icon: 'List', group: '检查医生' },
-  { path: '/examination-doctor/ct-inference', title: 'CT 模型推理', icon: 'Camera', group: '检查医生' },
-  { path: '/examination-doctor/report', title: '生成检查报告', icon: 'CollectionTag', group: '检查医生' },
-  { path: '/doctor/home', title: '首页概览', icon: 'HomeFilled', group: '医生端' },
-  { path: '/doctor/profile', title: '医生个人信息', icon: 'UserFilled', group: '医生端' },
-  { path: '/doctor/consult', title: '接诊工作台', icon: 'List', group: '医生端' },
-  { path: '/doctor/ai-exam-generate', title: 'AI检查检验项目生成', icon: 'DataAnalysis', group: '医生端' },
-  { path: '/doctor/ai-medicine', title: 'AI 药物推荐', icon: 'DataAnalysis', group: '医生端' },
-  { path: '/doctor/schedule', title: '值班查询', icon: 'List', group: '医生端' },
-  { path: '/doctor/workbench', title: '检查检验工作台', icon: 'Monitor', group: '医生端' },
-  { path: '/doctor/queue', title: '检查检验队列', icon: 'List', group: '医生端' },
-  // ====== 检验医生（type=3）======
-  { path: '/inspection-doctor/home', title: '检验工作台', icon: 'HomeFilled', group: '检验医生' },
-  { path: '/inspection-doctor/order-list', title: '查看检查/检验申请', icon: 'List', group: '检验医生' },
-]
-
-const adminMenus = [
-  { path: '/admin/home', title: '首页概览', icon: 'HomeFilled', group: '管理员端' },     // 新增
+const adminMenus: DoctorMenuItem[] = [
+  { path: '/admin/home', title: '首页概览', icon: 'HomeFilled', group: '管理员端' },
   { path: '/admin/profile', title: '管理员个人信息', icon: 'UserFilled', group: '管理员端' },
   { path: '/admin/userManage', title: '账号权限管理', icon: 'List', group: '管理员端' },
   { path: '/admin/medicine', title: '药品管理', icon: 'UserFilled', group: '管理员端' },
-  { path: '/admin/scheduling', title: '值班管理', icon: 'DataAnalysis', group: '管理员端' },
+  { path: '/admin/scheduling', title: '排班管理', icon: 'DataAnalysis', group: '管理员端' },
   { path: '/admin/ml/dashboard', title: 'AI 推理看板', icon: 'DataAnalysis', group: '管理员端' },
-  { path: '/admin/ml/samples', title: '样本标注', icon: 'CollectionTag', group: '管理员端' },
-  { path: '/admin/ml/models', title: '模型管理', icon: 'Cpu', group: '管理员端' },
 ]
 
-// ==================== 角色判断（从 sessionStorage 获取）====================
 const currentRole = ref<'doctor' | 'admin'>('doctor')
-const doctorType = ref<number>(0)
+const doctorType = ref(0)
 
-// 从 sessionStorage 读取角色
 const getRoleFromSession = (): 'doctor' | 'admin' => {
-  const role = sessionStorage.getItem('userRole')
-  if (role === 'admin') return 'admin'
-  return 'doctor'
+  return sessionStorage.getItem('userRole') === 'admin' ? 'admin' : 'doctor'
 }
 
-// 同步 sessionStorage 中的 doctorType 到响应式 ref
 const syncDoctorType = () => {
-  doctorType.value = Number(sessionStorage.getItem('doctorType'))
+  doctorType.value = Number(sessionStorage.getItem('doctorType') || '0')
 }
 
-// 根据当前路由路径自动更新角色
 const updateRoleFromPath = () => {
   if (route.path.startsWith('/admin')) {
     currentRole.value = 'admin'
-  } else if (route.path.startsWith('/doctor')) {
+  } else if (
+    route.path.startsWith('/doctor')
+    || route.path.startsWith('/examination-doctor')
+    || route.path.startsWith('/inspection-doctor')
+  ) {
     currentRole.value = 'doctor'
   } else {
-    // 首页等通用路径，保持已有角色或从 sessionStorage 读取
     currentRole.value = getRoleFromSession()
   }
-  // 每次路由变化时同步 doctorType，确保 computed 重新计算
+
   syncDoctorType()
 }
 
-// 监听路由变化，自动切换角色
-watch(() => route.path, () => {
-  updateRoleFromPath()
-}, { immediate: true })
+watch(() => route.path, updateRoleFromPath, { immediate: true })
 
-// 根据角色动态计算菜单项，并根据医生类型过滤
 const menuItems = computed(() => {
-  if (currentRole.value === 'doctor') {
-    const dt = doctorType.value
-
-    // 根据医生类型确定首页路径
-    let homePath = '/'
-    if (dt === 2) homePath = '/examination-doctor/home'
-    else if (dt === 3) homePath = '/inspection-doctor/home'
-
-    return doctorMenus.filter(item => {
-      // 接诊工作台：仅看诊医生（1）可见
-      if (item.path === '/doctor/consult') return dt === 1
-
-      // AI检查检验已内置到接诊详情页，保留路由兼容但不作为菜单入口
-      if (item.path === '/doctor/ai-exam-generate') return false
-
-      // 检查医生专属（type=2）
-      if (item.group === '检查医生') return dt === 2
-      
-      // 检验医生专属（type=3）
-      if (item.group === '检验医生') return dt === 3
-
-      // AI药物推荐已内置到接诊详情页处方区域，保留路由兼容但不作为接诊菜单入口
-      if (item.path === '/doctor/ai-medicine') return dt !== 1 && dt === 3
-
-      // 检查检验工作台、队列：仅检验医生(3)可见
-      if (item.path === '/doctor/workbench' || item.path === '/doctor/queue') return dt === 3
-
-      // 首页概览，仅看诊医生（1）可见与检验医生（3）可见
-      if (item.path === '/') return dt === 1 || dt === 3
-      // 其他菜单所有医生都可访问
-      return true
-    }).map(item => {
-      // 将首页概览路径替换为对应医生类型的首页
-      if (item.path === '/') return { ...item, path: homePath }
-      // 根据医生类型改标题：检查医生→检查工作台，检验医生→检验工作台
-      if (item.path === '/doctor/workbench') {
-        if (dt === 3) return { ...item, title: '检验工作台' }
-      }
-      // 根据医生类型改标题：检查医生→检查队列，检验医生→检验队列
-      if (item.path === '/doctor/queue') {
-        if (dt === 2) return { ...item, title: '检查队列' }
-        if (dt === 3) return { ...item, title: '检验队列' }
-      }
-      return item
-    })
-  }
-  return adminMenus
+  return currentRole.value === 'doctor'
+    ? getDoctorMenuItems(doctorType.value)
+    : adminMenus
 })
 
-// 判断是否显示分组标签
-function showGroupLabel(item: { path: string; title: string; icon: string; group: string }) {
+function showGroupLabel(item: DoctorMenuItem) {
   const items = menuItems.value
-  const idx = items.findIndex(i => i.path === item.path)
-  if (idx === -1) return false
+  const idx = items.findIndex((menuItem) => menuItem.path === item.path)
 
-  // 如果是第一项，显示标签
-  if (idx === 0) return true
+  if (idx <= 0) return idx === 0
 
-  // 增加空值判断，防止 undefined
-  const prevItem = items[idx - 1]
-  if (!prevItem) return false
-
-  // 如果与前一项分组不同，显示标签
-  return prevItem.group !== item.group
+  return items[idx - 1]?.group !== item.group
 }
 </script>
 
 <style>
-/* 样式保持你原来的不变 */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 :root {
@@ -246,61 +161,174 @@ function showGroupLabel(item: { path: string; title: string; icon: string; group
   --text-muted: #64748b;
   --border: #e2e8f0;
   --radius: 12px;
-  --shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
-  --shadow-md: 0 4px 6px rgba(0,0,0,.04), 0 2px 4px rgba(0,0,0,.04);
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.04), 0 2px 4px rgba(0, 0, 0, 0.04);
 }
 
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', sans-serif; background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
-#app { width: 100%; height: 100vh; }
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  width: 100%;
+  height: 100vh;
+}
 </style>
 
 <style scoped>
-.app-shell { display: flex; height: 100vh; overflow: hidden; }
+.app-shell {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
 
 .sidebar {
-  width: var(--sidebar-w); min-width: var(--sidebar-w);
+  width: var(--sidebar-w);
+  min-width: var(--sidebar-w);
   background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
-  display: flex; flex-direction: column;
-  transition: width .25s ease, min-width .25s ease;
-  position: relative; z-index: 10;
+  display: flex;
+  flex-direction: column;
+  transition: width 0.25s ease, min-width 0.25s ease;
+  position: relative;
+  z-index: 10;
 }
-.sidebar.collapsed { width: 68px; min-width: 68px; }
+
+.sidebar.collapsed {
+  width: 68px;
+  min-width: 68px;
+}
 
 .brand {
-  display: flex; align-items: center; gap: 10px;
-  padding: 22px 20px; cursor: pointer;
-  border-bottom: 1px solid rgba(255,255,255,.06);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 22px 20px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
-.brand-icon { flex-shrink: 0; }
-.brand-text { font-size: 18px; font-weight: 700; color: #f1f5f9; letter-spacing: -.3px; white-space: nowrap; }
-.brand-accent { color: #60a5fa; }
 
-.nav { flex: 1; padding: 12px 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
-.nav-group-label { font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: .5px; padding: 12px 12px 4px; margin-top: 4px; }
+.brand-icon {
+  flex-shrink: 0;
+}
+
+.brand-text {
+  font-size: 18px;
+  font-weight: 700;
+  color: #f1f5f9;
+  letter-spacing: -0.3px;
+  white-space: nowrap;
+}
+
+.brand-accent {
+  color: #60a5fa;
+}
+
+.nav {
+  flex: 1;
+  padding: 12px 10px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nav-group-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 12px 12px 4px;
+  margin-top: 4px;
+}
+
 .nav-item {
-  display: flex; align-items: center; gap: 12px;
-  padding: 10px 12px; border-radius: 8px;
-  color: #94a3b8; text-decoration: none;
-  font-size: 14px; font-weight: 500;
-  transition: all .15s ease; white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: #94a3b8;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  white-space: nowrap;
   position: relative;
 }
-.nav-item:hover { background: rgba(255,255,255,.06); color: #e2e8f0; }
-.nav-item.router-link-active { background: rgba(37,99,235,.25); color: #bfdbfe; }
-.nav-item.router-link-active::before { content: ''; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px; background: var(--brand); border-radius: 0 3px 3px 0; }
+
+.nav-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #e2e8f0;
+}
+
+.nav-item.router-link-active {
+  background: rgba(37, 99, 235, 0.25);
+  color: #bfdbfe;
+}
+
+.nav-item.router-link-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  background: var(--brand);
+  border-radius: 0 3px 3px 0;
+}
 
 .sidebar-footer {
-  padding: 10px 20px; border-top: 1px solid rgba(255,255,255,.06);
-  display: flex; flex-direction: column; gap: 8px;
-  font-size: 12px; color: #64748b;
+  padding: 10px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+  color: #64748b;
 }
-.footer-status { display: flex; align-items: center; gap: 8px; }
-.status-dot { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,.5); }
-.logout-btn {
-  justify-content: flex-start; width: 100%; color: #94a3b8; font-size: 13px; padding: 6px 8px; border-radius: 8px;
-}
-.logout-btn:hover { color: #ef4444; background: rgba(239,68,68,.12); }
 
-.main { flex: 1; overflow-y: auto; overflow-x: hidden; background: var(--bg); }
+.footer-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.5);
+}
+
+.logout-btn {
+  justify-content: flex-start;
+  width: 100%;
+  color: #94a3b8;
+  font-size: 13px;
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+
+.logout-btn:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.main {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--bg);
+}
 </style>

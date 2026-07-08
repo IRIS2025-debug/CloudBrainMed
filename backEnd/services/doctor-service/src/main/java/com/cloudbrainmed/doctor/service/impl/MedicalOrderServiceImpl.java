@@ -69,98 +69,15 @@ public class MedicalOrderServiceImpl implements MedicalOrderService {
     }
 
     @Override
-    public MedicalOrder getByOrderId(String orderId) {
-        return medicalOrderMapper.selectByOrderId(orderId);
+    public MedicalOrder getByOrderItemId(String orderItemId) {
+        return medicalOrderMapper.selectByOrderItemId(orderItemId);
     }
-/*
+
     @Override
     @Transactional
     public MedicalOrderConfirmResponse confirm(
             MedicalOrderConfirmRequest request, String doctorId) {
-        ConsultRecord consult = requireOwnedConsult(
-                request.getRegisterId(), doctorId);
-        String requestedOrderUrgency =
-                parseUrgency(request.getUrgencyLevel());
-        List<ResolvedItem> resolvedItems = resolveItems(
-                request.getItems(), requestedOrderUrgency);
-        String orderUrgency = highestUrgency(
-                requestedOrderUrgency, resolvedItems);
-        LocalDateTime now = LocalDateTime.now();
-        String orderId = newId("MO", 30);
-        boolean aiAssisted = hasText(request.getAiTraceId());
-        String aiTraceId = aiAssisted
-                ? request.getAiTraceId().trim() : null;
-        if (aiAssisted) {
-            validateAiRecommendation(
-                    aiTraceId, consult, resolvedItems);
-        }
-
-        MedicalOrder order = new MedicalOrder();
-        order.setOrderId(orderId);
-        order.setPatientId(consult.getPatientId());
-        order.setRegisterId(consult.getRegisterId());
-        order.setDoctorId(doctorId);
-        order.setClinicalSummary(request.getClinicalSummary().trim());
-        order.setUrgencyLevel(orderUrgency);
-        order.setSourceType(aiAssisted ? "AI_ASSISTED" : "MANUAL");
-        order.setAiTraceId(aiTraceId);
-        order.setStatus("WAITING_ASSIGN");
-        order.setPayStatus("WAITING");
-        order.setConfirmedTime(now);
-        order.setCreateTime(now);
-        medicalOrderMapper.insertOrder(order);
-
-        BigDecimal totalAmount = BigDecimal.ZERO;
-        for (ResolvedItem resolved : resolvedItems) {
-            MedicalItem source = resolved.item();
-            MedicalOrderItem orderItem = new MedicalOrderItem();
-            orderItem.setOrderItemId(newId("MOI", 29));
-            orderItem.setOrderId(orderId);
-            orderItem.setItemId(source.getItemId());
-            orderItem.setItemCode(source.getItemCode());
-            orderItem.setItemName(source.getItemName());
-            orderItem.setItemCategory(source.getItemCategory());
-            orderItem.setAssignedDeptId(source.getDeptId());
-            orderItem.setUrgencyLevel(resolved.urgencyLevel());
-            orderItem.setPrice(source.getPrice() == null
-                    ? BigDecimal.ZERO : source.getPrice());
-            orderItem.setStatus("WAITING_ASSIGN");
-            orderItem.setCreateTime(now);
-            medicalOrderMapper.insertOrderItem(orderItem);
-            totalAmount = totalAmount.add(orderItem.getPrice());
-        }
-
-        if (medicalOrderMapper.keepConsultInProgress(
-                consult.getRegisterId(), doctorId) != 1) {
-            throw new BusinessException("更新接诊状态失败");
-        }
-        return new MedicalOrderConfirmResponse(
-                orderId,
-                order.getSourceType(),
-                resolvedItems.size(),
-                totalAmount);
-    }
-
-    private ConsultRecord requireOwnedConsult(
-            String registerId, String doctorId) {
-        ConsultRecord consult = consultMapper.findDetail(registerId);
-        if (consult == null) {
-            throw new BusinessException("就诊记录不存在");
-        }
-        if (!hasText(doctorId) || !doctorId.equals(consult.getDoctorId())) {
-            throw new BusinessException("无权为该患者开具检查检验申请");
-        }
-        if ("COMPLETED".equals(consult.getConsultStatus())) {
-            throw new BusinessException("接诊已完成，不能继续开具检查检验申请");
-        }
-        return consult;
-    }
-*/
-    @Override
-    @Transactional
-    public MedicalOrderConfirmResponse confirm(
-            MedicalOrderConfirmRequest request, String doctorId) {
-        ConsultRecord consult = requireOwnedConsult(
+        ConsultRecord consult = requireActionConsult(
                 request.getRegisterId(), doctorId);
         String requestedOrderUrgency =
                 parseUrgency(request.getUrgencyLevel());
@@ -236,23 +153,23 @@ public class MedicalOrderServiceImpl implements MedicalOrderService {
 
     @Override
     @Transactional
-    public MedicalOrder assignOrder(String orderId, String assignedRoom) {
-        MedicalOrder order = medicalOrderMapper.selectByOrderId(orderId);
+    public MedicalOrder assignOrderItem(String orderItemId, String assignedRoom) {
+        MedicalOrder order = medicalOrderMapper.selectByOrderItemId(orderItemId);
         if (order == null) {
-            throw new BusinessException("medical order not found");
+            throw new BusinessException("medical order item not found");
         }
         if (!"PAID".equals(order.getPayStatus())) {
             throw new BusinessException("medical order pay status is not PAID");
-        }
-        if (!"WAITING_ASSIGN".equals(order.getStatus())) {
-            throw new BusinessException("medical order is not waiting assignment");
         }
         if (!hasText(assignedRoom)) {
             throw new BusinessException("assigned room is required");
         }
         String room = assignedRoom.trim();
-        if (medicalOrderMapper.assignOrder(orderId, room) != 1) {
-            throw new BusinessException("assign medical order failed");
+        if (medicalOrderMapper.assignOrderRoom(order.getOrderId(), room) != 1) {
+            throw new BusinessException("assign medical order room failed");
+        }
+        if (medicalOrderMapper.enqueueOrderItemForAssignment(orderItemId) != 1) {
+            throw new BusinessException("medical order item is not waiting assignment");
         }
         order.setStatus("QUEUED");
         order.setAssignedRoom(room);
@@ -307,15 +224,10 @@ public class MedicalOrderServiceImpl implements MedicalOrderService {
         return consult.getName();
     }
 
-    private ConsultRecord requireOwnedConsult(
+    private ConsultRecord requireActionConsult(
             String registerId, String doctorId) {
-        ConsultRecord consult = consultMapper.findDetail(registerId);
-        if (consult == null) {
-            throw new BusinessException("Consult record not found");
-        }
-        if (!hasText(doctorId) || !doctorId.equals(consult.getDoctorId())) {
-            throw new BusinessException("鏃犳潈 create medical order");
-        }
+        ConsultRecord consult = ConsultAccessGuard.requireActionAccess(
+                consultMapper, registerId, doctorId);
         if ("COMPLETED".equals(consult.getConsultStatus())) {
             throw new BusinessException("Consult already completed");
         }

@@ -140,8 +140,8 @@ public class RegisterServiceImpl implements RegisterService {
         registration.setChiefComplaint(dto.getChiefComplaint());
         registration.setDepartment(dept.getDeptName());
         registration.setConsultRoom(schedule.getRoom());
-        registration.setVisitDate(dto.getVisitDate());
-        registration.setConsultTime(dto.getConsultTime());
+        registration.setVisitDate(schedule.getWorkDate());
+        registration.setConsultTime(formatConsultTime(schedule));
         registration.setPrice(schedule.getPrice());
         registration.setPayStatus("WAITING");
         registration.setCreateTime(OffsetDateTime.now(ZoneOffset.ofHours(8)));
@@ -246,6 +246,15 @@ public class RegisterServiceImpl implements RegisterService {
             }
         }
         return String.format("reg%03d", nextNum);
+    }
+
+    private String formatConsultTime(DoctorSchedule schedule) {
+        if (schedule.getStartTime() == null || schedule.getEndTime() == null) {
+            return null;
+        }
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm");
+        return schedule.getStartTime().format(formatter)
+                + "-" + schedule.getEndTime().format(formatter);
     }
 
     private void validatePatientInfo(Patient patient) {

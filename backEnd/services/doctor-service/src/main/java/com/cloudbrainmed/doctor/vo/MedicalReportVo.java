@@ -18,6 +18,7 @@ public class MedicalReportVo {
     private String conclusion;
     private String abnormalFlag;
     private String attachmentUrl;
+    private String aiResultJson;
     private String reportDoctorId;
     private String status;
     private LocalDateTime performedTime;

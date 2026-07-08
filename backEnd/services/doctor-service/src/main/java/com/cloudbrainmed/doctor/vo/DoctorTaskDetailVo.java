@@ -11,7 +11,6 @@ import java.time.LocalDateTime;
  */
 @Data
 public class DoctorTaskDetailVo {
-    private String assignedDoctorName;
     private String orderItemId;
     private String orderId;
     private String itemCode;
@@ -23,9 +22,12 @@ public class DoctorTaskDetailVo {
     private LocalDateTime createTime;
     private LocalDateTime assignTime;
     private LocalDateTime completeTime;
+    private String assignedDoctorId;
     private String patientId;
     private String registerId;
     private String requesterDoctorId;
+    private String requesterDoctorName;
+    private String assignedDeptName;
     private String patientName;
     private Integer gender;
     private LocalDate birthday;
@@ -35,6 +37,7 @@ public class DoctorTaskDetailVo {
     private String statusLabel;
     /** 紧急程度标签（由服务端计算，包含老化提升标识） */
     private String urgencyLabel;
+    private MedicalReportVo report;
 
     public String getGenderLabel() {
         return gender == 1 ? "男" : gender == 0 ? "女" : "未知";

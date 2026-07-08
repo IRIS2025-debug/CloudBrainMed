@@ -26,7 +26,6 @@ class InferenceEngineTest {
     void constructorUsesConfiguredPythonServiceUrlWithoutTrailingSlash() {
         InferenceEngine engine = new InferenceEngine(
                 mock(AiInferenceLogMapper.class),
-                mock(ModelLoader.class),
                 "http://python-service:8000/");
 
         assertThat(engine.getPythonServiceUrl()).isEqualTo("http://python-service:8000");
@@ -36,7 +35,6 @@ class InferenceEngineTest {
     void constructorTrimsConfiguredPythonServiceUrl() {
         InferenceEngine engine = new InferenceEngine(
                 mock(AiInferenceLogMapper.class),
-                mock(ModelLoader.class),
                 "  http://python-service:8000/  ");
 
         assertThat(engine.getPythonServiceUrl()).isEqualTo("http://python-service:8000");
@@ -46,7 +44,6 @@ class InferenceEngineTest {
     void constructorDefaultsPythonServiceUrlToPort8010WhenBlank() {
         InferenceEngine engine = new InferenceEngine(
                 mock(AiInferenceLogMapper.class),
-                mock(ModelLoader.class),
                 "  ");
 
         assertThat(engine.getPythonServiceUrl()).isEqualTo("http://localhost:8010");
@@ -56,7 +53,6 @@ class InferenceEngineTest {
     void constructorConfiguresTimeoutsForMultipartInferenceRequests() {
         InferenceEngine engine = new InferenceEngine(
                 mock(AiInferenceLogMapper.class),
-                mock(ModelLoader.class),
                 "http://python-service:8000");
 
         RestTemplate restTemplate = (RestTemplate) ReflectionTestUtils.getField(engine, "restTemplate");
@@ -83,7 +79,6 @@ class InferenceEngineTest {
         try {
             InferenceEngine engine = new InferenceEngine(
                     mock(AiInferenceLogMapper.class),
-                    mock(ModelLoader.class),
                     "http://localhost:" + server.getAddress().getPort());
             MockMultipartFile file = new MockMultipartFile(
                     "file", "scan.nii.gz", "application/gzip", "ct-bytes".getBytes(StandardCharsets.UTF_8));
@@ -124,7 +119,6 @@ class InferenceEngineTest {
         try {
             InferenceEngine engine = new InferenceEngine(
                     mock(AiInferenceLogMapper.class),
-                    mock(ModelLoader.class),
                     "http://localhost:" + server.getAddress().getPort());
             MockMultipartFile file = new MockMultipartFile(
                     "file", "scan.nii.gz", "application/gzip", "ct-bytes".getBytes(StandardCharsets.UTF_8));
@@ -163,7 +157,6 @@ class InferenceEngineTest {
         try {
             InferenceEngine engine = new InferenceEngine(
                     mock(AiInferenceLogMapper.class),
-                    mock(ModelLoader.class),
                     "http://localhost:" + server.getAddress().getPort());
             MockMultipartFile file = new MockMultipartFile(
                     "file", "scan.nii.gz", "application/gzip", "ct-bytes".getBytes(StandardCharsets.UTF_8));
@@ -197,7 +190,6 @@ class InferenceEngineTest {
         try {
             InferenceEngine engine = new InferenceEngine(
                     mock(AiInferenceLogMapper.class),
-                    mock(ModelLoader.class),
                     "http://localhost:" + server.getAddress().getPort());
             MultipartFile file = new StreamOnlyMultipartFile(
                     "file", "scan.nii.gz", "application/gzip", "ct-bytes".getBytes(StandardCharsets.UTF_8));
@@ -227,7 +219,6 @@ class InferenceEngineTest {
         try {
             InferenceEngine engine = new InferenceEngine(
                     mock(AiInferenceLogMapper.class),
-                    mock(ModelLoader.class),
                     "http://localhost:" + server.getAddress().getPort());
 
             byte[] result = engine.downloadPreview("scan_preview_z1.png");

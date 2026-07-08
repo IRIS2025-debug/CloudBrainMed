@@ -18,6 +18,7 @@ public interface AdminFeignClient {
      */
     @GetMapping("/admin-service/schedule/ai/doctor/{doctorId}")
     Result<List<DoctorSchedule>> getDoctorSchedulesForAI(
+            @RequestHeader("token") String token,
             @PathVariable("doctorId") String doctorId,
             @RequestParam("startDate") String startDate,
             @RequestParam("endDate") String endDate
@@ -27,11 +28,15 @@ public interface AdminFeignClient {
      * 批量创建排班（AI生成后调用）
      */
     @PostMapping("/admin-service/schedule/ai/batch-create")
-    Result<List<DoctorSchedule>> batchCreateSchedules(@RequestBody List<ScheduleSaveDto> dtoList);
+    Result<List<DoctorSchedule>> batchCreateSchedules(
+            @RequestHeader("token") String token,
+            @RequestBody List<ScheduleSaveDto> dtoList);
 
     /**
      * 检查排班冲突
      */
     @PostMapping("/admin-service/schedule/ai/check-conflict")
-    Result<Boolean> checkConflict(@RequestBody DoctorSchedule schedule);
+    Result<Boolean> checkConflict(
+            @RequestHeader("token") String token,
+            @RequestBody DoctorSchedule schedule);
 }

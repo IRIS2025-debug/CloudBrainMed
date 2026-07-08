@@ -49,7 +49,7 @@
 </template>
 
 <script setup lang="ts">
-import { ArrowRight, Calendar, Check, Cpu, DataAnalysis, List, UserFilled } from '@element-plus/icons-vue'
+import { ArrowRight, Calendar, Check, Cpu, List, UserFilled } from '@element-plus/icons-vue'
 
 const stats = [
   { label: '今日接诊', value: '--', icon: UserFilled, color: '#2563eb' },
@@ -61,7 +61,6 @@ const stats = [
 const modules = [
   { path: '/doctor/profile', title: '医生个人信息', desc: '查看编辑资料、头像上传、密码修改', icon: UserFilled, color: '#2563eb' },
   { path: '/doctor/consult', title: '接诊工作台', desc: '患者接诊列表、病历编辑、检查申请', icon: List, color: '#0d9488' },
-  { path: '/doctor/ai-medicine', title: 'AI 药物推荐', desc: '药品智能查询与用药建议', icon: DataAnalysis, color: '#2563eb' },
   { path: '/doctor/schedule', title: '值班查询', desc: '查看医生排班安排', icon: Calendar, color: '#7c3aed' },
 ]
 

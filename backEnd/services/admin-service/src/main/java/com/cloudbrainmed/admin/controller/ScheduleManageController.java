@@ -5,6 +5,7 @@ import com.cloudbrainmed.admin.dto.ScheduleSaveDto;
 import com.cloudbrainmed.admin.dto.ScheduleUpdateDto;
 import com.cloudbrainmed.admin.entity.DoctorSchedule;
 import com.cloudbrainmed.admin.service.ScheduleManageService;
+import com.cloudbrainmed.admin.support.AdminAuthHelper;
 import com.cloudbrainmed.common.result.Result;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +21,7 @@ import java.util.Map;
 public class ScheduleManageController {
 
     private final ScheduleManageService scheduleService;
+    private final AdminAuthHelper adminAuthHelper;
 
     // ========== 前端接口 ==========
 
@@ -27,7 +29,10 @@ public class ScheduleManageController {
      * 分页查询排班列表（前端用）
      */
     @PostMapping("/list")
-    public Result<Page<DoctorSchedule>> queryList(@RequestBody ScheduleQueryDto dto) {
+    public Result<Page<DoctorSchedule>> queryList(
+            @RequestHeader(value = "token", required = false) String token,
+            @RequestBody ScheduleQueryDto dto) {
+        adminAuthHelper.requireAdmin(token);
         return Result.success(scheduleService.queryScheduleList(dto));
     }
 
@@ -36,8 +41,10 @@ public class ScheduleManageController {
      */
     @GetMapping("/weekly/{doctorId}")
     public Result<Map<String, List<DoctorSchedule>>> getWeeklySchedule(
+            @RequestHeader(value = "token", required = false) String token,
             @PathVariable String doctorId,
             @RequestParam(required = false) String weekStart) {
+        adminAuthHelper.requireAdmin(token);
 
         LocalDate start = weekStart != null ? LocalDate.parse(weekStart) : LocalDate.now();
         LocalDate monday = start.with(java.time.DayOfWeek.MONDAY);
@@ -49,7 +56,9 @@ public class ScheduleManageController {
      */
     @GetMapping("/weekly/all")
     public Result<Map<String, Map<String, List<DoctorSchedule>>>> getAllWeeklySchedule(
+            @RequestHeader(value = "token", required = false) String token,
             @RequestParam(required = false) String weekStart) {
+        adminAuthHelper.requireAdmin(token);
 
         LocalDate start = weekStart != null ? LocalDate.parse(weekStart) : LocalDate.now();
         LocalDate monday = start.with(java.time.DayOfWeek.MONDAY);
@@ -60,7 +69,10 @@ public class ScheduleManageController {
      * 获取排班详情（前端用）
      */
     @GetMapping("/detail/{scheduleId}")
-    public Result<DoctorSchedule> getDetail(@PathVariable String scheduleId) {
+    public Result<DoctorSchedule> getDetail(
+            @RequestHeader(value = "token", required = false) String token,
+            @PathVariable String scheduleId) {
+        adminAuthHelper.requireAdmin(token);
         return Result.success(scheduleService.getScheduleDetail(scheduleId));
     }
 
@@ -68,7 +80,10 @@ public class ScheduleManageController {
      * 创建排班（前端用）
      */
     @PostMapping("/create")
-    public Result<DoctorSchedule> create(@RequestBody ScheduleSaveDto dto) {
+    public Result<DoctorSchedule> create(
+            @RequestHeader(value = "token", required = false) String token,
+            @RequestBody ScheduleSaveDto dto) {
+        adminAuthHelper.requireAdmin(token);
         return Result.success(scheduleService.createSchedule(dto));
     }
 
@@ -76,7 +91,10 @@ public class ScheduleManageController {
      * 更新排班（前端用）
      */
     @PutMapping("/update")
-    public Result<DoctorSchedule> update(@RequestBody ScheduleUpdateDto dto) {
+    public Result<DoctorSchedule> update(
+            @RequestHeader(value = "token", required = false) String token,
+            @RequestBody ScheduleUpdateDto dto) {
+        adminAuthHelper.requireAdmin(token);
         return Result.success(scheduleService.updateSchedule(dto));
     }
 
@@ -84,7 +102,10 @@ public class ScheduleManageController {
      * 删除排班（前端用）
      */
     @DeleteMapping("/delete/{scheduleId}")
-    public Result<Boolean> delete(@PathVariable String scheduleId) {
+    public Result<Boolean> delete(
+            @RequestHeader(value = "token", required = false) String token,
+            @PathVariable String scheduleId) {
+        adminAuthHelper.requireAdmin(token);
         return Result.success(scheduleService.deleteSchedule(scheduleId));
     }
 
@@ -96,9 +117,11 @@ public class ScheduleManageController {
      */
     @GetMapping("/ai/doctor/{doctorId}")
     public Result<List<DoctorSchedule>> getSchedulesForAI(
+            @RequestHeader(value = "token", required = false) String token,
             @PathVariable String doctorId,
             @RequestParam String startDate,
             @RequestParam String endDate) {
+        adminAuthHelper.requireAdmin(token);
 
         LocalDate start = LocalDate.parse(startDate);
         LocalDate end = LocalDate.parse(endDate);
@@ -110,7 +133,10 @@ public class ScheduleManageController {
      * 前端如果有批量导入需求也可以使用
      */
     @PostMapping("/ai/batch-create")
-    public Result<List<DoctorSchedule>> batchCreate(@RequestBody List<ScheduleSaveDto> dtoList) {
+    public Result<List<DoctorSchedule>> batchCreate(
+            @RequestHeader(value = "token", required = false) String token,
+            @RequestBody List<ScheduleSaveDto> dtoList) {
+        adminAuthHelper.requireAdmin(token);
         return Result.success(scheduleService.batchCreateSchedules(dtoList));
     }
 
@@ -118,7 +144,10 @@ public class ScheduleManageController {
      * 检查排班冲突（供AI调用）
      */
     @PostMapping("/ai/check-conflict")
-    public Result<Boolean> checkConflict(@RequestBody DoctorSchedule schedule) {
+    public Result<Boolean> checkConflict(
+            @RequestHeader(value = "token", required = false) String token,
+            @RequestBody DoctorSchedule schedule) {
+        adminAuthHelper.requireAdmin(token);
         return Result.success(scheduleService.checkScheduleConflict(schedule));
     }
 
@@ -126,7 +155,10 @@ public class ScheduleManageController {
      * 启用排班（将停用的排班重新启用）
      */
     @PutMapping("/enable/{scheduleId}")
-    public Result<Boolean> enable(@PathVariable String scheduleId) {
+    public Result<Boolean> enable(
+            @RequestHeader(value = "token", required = false) String token,
+            @PathVariable String scheduleId) {
+        adminAuthHelper.requireAdmin(token);
         return Result.success(scheduleService.enableSchedule(scheduleId));
     }
 }

@@ -38,6 +38,8 @@ logging:
     com.yourcompany: DEBUG
 
 cloudbrainmed:
+  ai-service:
+    url: ${AI_SERVICE_URL:http://localhost:8001}
   doctor:
     medical-order:
       dev-auto-queue-after-confirm: true

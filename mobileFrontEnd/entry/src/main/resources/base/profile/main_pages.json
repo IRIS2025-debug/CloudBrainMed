@@ -15,8 +15,6 @@
     "pages/history/MedicalOrderDetail",
     "pages/history/RegisterHistory",
     "pages/history/RegisterDetail",
-    "pages/medicineAi/MedicineAiChatPage",
-    "pages/profile/PersonalCenter",
-    "pages/profile/ProfileDetail"
+    "pages/medicineAi/MedicineAiChatPage"
   ]
 }

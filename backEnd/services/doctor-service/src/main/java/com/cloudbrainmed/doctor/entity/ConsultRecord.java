@@ -34,8 +34,13 @@ public class ConsultRecord {
 
     // 计算字段
     private Integer patientAge;
+    private Integer medicalOrderCount;
     private Integer reportCount;
     private LocalDateTime latestReportTime;
+    private Boolean entryAllowed;
+    private String entryActionText;
+    private String entryBlockedReason;
+    private Boolean readOnly;
 
     public String getRegisterId() { return registerId; }
     public void setRegisterId(String registerId) { this.registerId = registerId; }
@@ -78,12 +83,28 @@ public class ConsultRecord {
     public void setVisitAge(Integer visitAge) { this.visitAge = visitAge; }
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
+
     public Integer getPatientAge() { return patientAge; }
     public void setPatientAge(Integer patientAge) { this.patientAge = patientAge; }
+    public Integer getMedicalOrderCount() { return medicalOrderCount; }
+    public void setMedicalOrderCount(Integer medicalOrderCount) { this.medicalOrderCount = medicalOrderCount; }
     public Integer getReportCount() { return reportCount; }
     public void setReportCount(Integer reportCount) { this.reportCount = reportCount; }
     public LocalDateTime getLatestReportTime() { return latestReportTime; }
     public void setLatestReportTime(LocalDateTime latestReportTime) { this.latestReportTime = latestReportTime; }
+    public Boolean getEntryAllowed() { return entryAllowed; }
+    public void setEntryAllowed(Boolean entryAllowed) { this.entryAllowed = entryAllowed; }
+    public String getEntryActionText() { return entryActionText; }
+    public void setEntryActionText(String entryActionText) { this.entryActionText = entryActionText; }
+    public String getEntryBlockedReason() { return entryBlockedReason; }
+    public void setEntryBlockedReason(String entryBlockedReason) { this.entryBlockedReason = entryBlockedReason; }
+    public Boolean getReadOnly() { return readOnly; }
+    public void setReadOnly(Boolean readOnly) { this.readOnly = readOnly; }
+
+    public Boolean getHasMedicalOrder() {
+        return medicalOrderCount != null && medicalOrderCount > 0;
+    }
+
     public Boolean getHasReturnedReport() {
         return reportCount != null && reportCount > 0;
     }
