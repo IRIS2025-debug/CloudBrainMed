@@ -13,6 +13,7 @@
     "pages/history/PrescriptionDetail",
     "pages/history/MedicalOrderPage",
     "pages/history/MedicalOrderDetail",
+    "pages/history/ReportDetailPage",
     "pages/history/RegisterHistory",
     "pages/history/RegisterDetail",
     "pages/medicineAi/MedicineAiChatPage"

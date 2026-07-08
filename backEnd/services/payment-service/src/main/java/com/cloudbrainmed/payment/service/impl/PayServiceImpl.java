@@ -35,8 +35,20 @@ public class PayServiceImpl implements PayService {
     public PayResultVo createPayOrder(UnifiedPayDto dto) {
         // 检查是否已存在未支付的订单
         Pay existingPay = payMapper.selectByBusinessId(dto.getBusinessId(), dto.getOrderType());
-        if (existingPay != null && "WAITING".equals(existingPay.getPayStatus())) {
-            throw new BusinessException("该业务已存在待支付订单");
+
+        if (existingPay != null) {
+            // 如果存在待支付订单，直接返回该订单
+            if ("WAITING".equals(existingPay.getPayStatus())) {
+                throw new BusinessException("该业务已存在待支付订单，请勿重复创建");
+            }
+            // 如果已经支付成功，不允许再次创建
+            if ("PAID".equals(existingPay.getPayStatus())) {
+                throw new BusinessException("该业务已完成支付，请勿重复支付");
+            }
+            // 如果是已取消或已退款，允许创建新订单
+            if ("CANCELLED".equals(existingPay.getPayStatus()) || "REFUNDED".equals(existingPay.getPayStatus())) {
+                throw new BusinessException("该业务支付已取消/退款，请重新发起预约");
+            }
         }
 
         // 生成支付ID
@@ -63,6 +75,9 @@ public class PayServiceImpl implements PayService {
         Pay pay = payMapper.selectByPayId(payId);
         if (pay == null) {
             throw new BusinessException("支付订单不存在");
+        }
+        if ("PAID".equals(pay.getPayStatus())) {
+            return true;
         }
         if (!"WAITING".equals(pay.getPayStatus())) {
             throw new BusinessException("支付订单状态异常");

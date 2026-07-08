@@ -1,3 +1,4 @@
+// pages/aiConsult/MedicineAiChatPage.ets
 import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
 import { PatientManager } from '../common/PatientManager';
@@ -15,7 +16,7 @@ struct MedicineAiChatPage {
   @State messages: ChatMessage[] = [
     {
       role: 'bot',
-      content: '您好！我是AI用药助手，可以为您解答药品用法、用量、注意事项和副作用等问题。如有严重不适，请及时就医。'
+      content: '您好！我是AI用药助手 💊\n可以为您解答药品用法、用量、注意事项和副作用等问题。\n如有严重不适，请及时就医。'
     }
   ];
   @State isLoading: boolean = false;
@@ -28,6 +29,10 @@ struct MedicineAiChatPage {
     this.patientId = params?.['patientId'] || PatientManager.getPatientId();
     this.sessionId = 'patient_' + this.patientId + '_' + Date.now();
     console.info('MedicineAiChatPage patientId=' + this.patientId);
+  }
+
+  private goBack(): void {
+    router.back();
   }
 
   private scrollToBottom(): void {
@@ -102,56 +107,167 @@ struct MedicineAiChatPage {
     });
   }
 
+  private parseContentToLines(content: string): string[] {
+    if (!content) {
+      return [];
+    }
+    return content.split('\n');
+  }
+
+  private isTitleLine(line: string): boolean {
+    const trimmed = line.trim();
+    return trimmed.startsWith('💊') ||
+    trimmed.startsWith('📋') ||
+    trimmed.startsWith('⚠️') ||
+    trimmed.startsWith('💡');
+  }
+
+  private formatLine(line: string): string {
+    // 提取表情符号和内容
+    const trimmed = line.trim();
+    return trimmed;
+  }
+
   @Builder
   BotMessage(content: string) {
     Row() {
       Column() {
-        Text('🤖')
-          .fontSize(22)
-          .width(36)
-          .height(36)
-          .textAlign(TextAlign.Center)
+        // 头像 + 名称
+        Row() {
+          Column() {
+            Text('💊')
+              .fontSize(18)
+          }
+          .width(32)
+          .height(32)
+          .borderRadius(16)
           .backgroundColor('#E8F0FE')
-          .borderRadius(18)
-          .margin({ right: 10 })
+          .justifyContent(FlexAlign.Center)
+          .alignItems(HorizontalAlign.Center)
 
-        Column() {
           Text('AI用药助手')
-            .fontSize(11)
-            .fontColor('#999999')
-            .margin({ bottom: 4 })
-          Text(content.length > 0 ? content : '...')
-            .fontSize(14)
-            .fontColor('#333333')
-            .backgroundColor('#F0F4FA')
-            .borderRadius(12)
-            .padding(12)
-            .maxLines(100)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .fontSize(12)
+            .fontColor('#8E8E93')
+            .margin({ left: 8 })
+            .fontWeight(FontWeight.Medium)
         }
+        .width('100%')
+        .margin({ bottom: 6 })
+
+        // 消息内容
+        Column() {
+          ForEach(this.parseContentToLines(content), (line: string, index: number) => {
+            if (line.trim() === '') {
+              Blank()
+                .height(4)
+            } else if (this.isTitleLine(line)) {
+              Text(this.formatLine(line))
+                .fontSize(14)
+                .fontWeight(FontWeight.Bold)
+                .fontColor('#1A1A2E')
+                .margin({ top: index > 0 ? 6 : 0 })
+                .width('100%')
+                .lineHeight(22)
+            } else {
+              Text(this.formatLine(line))
+                .fontSize(14)
+                .fontColor('#334155')
+                .margin({ top: 2 })
+                .width('100%')
+                .lineHeight(22)
+            }
+          }, (line: string, index: number) => index.toString())
+        }
+        .width('100%')
+        .padding(14)
+        .backgroundColor('#FFFFFF')
+        .borderRadius(12)
+        .shadow({
+          radius: 4,
+          color: 'rgba(0,0,0,0.04)',
+          offsetY: 1
+        })
         .alignItems(HorizontalAlign.Start)
-        .layoutWeight(1)
       }
       .alignItems(HorizontalAlign.Start)
-      .width('85%')
+      .margin({ right: 40 })
     }
     .width('100%')
-    .justifyContent(FlexAlign.Start)
     .margin({ bottom: 16 })
   }
 
   @Builder
   UserMessage(content: string) {
     Row() {
-      Blank()
-      Text(content)
-        .fontSize(14)
-        .fontColor('#FFFFFF')
-        .backgroundColor('#2563EB')
+      Column() {
+        Text(content)
+          .fontSize(14)
+          .fontColor('#FFFFFF')
+          .backgroundColor('#4A90D9')
+          .borderRadius(12)
+          .padding(14)
+          .lineHeight(22)
+          .shadow({
+            radius: 4,
+            color: 'rgba(74,144,217,0.20)',
+            offsetY: 1
+          })
+      }
+      .alignItems(HorizontalAlign.End)
+      .margin({ left: 40 })
+    }
+    .width('100%')
+    .justifyContent(FlexAlign.End)
+    .margin({ bottom: 16 })
+  }
+
+  @Builder
+  LoadingMessage() {
+    Row() {
+      Column() {
+        Row() {
+          Column() {
+            Text('💊')
+              .fontSize(18)
+          }
+          .width(32)
+          .height(32)
+          .borderRadius(16)
+          .backgroundColor('#E8F0FE')
+          .justifyContent(FlexAlign.Center)
+          .alignItems(HorizontalAlign.Center)
+
+          Text('AI用药助手')
+            .fontSize(12)
+            .fontColor('#8E8E93')
+            .margin({ left: 8 })
+            .fontWeight(FontWeight.Medium)
+        }
+        .width('100%')
+        .margin({ bottom: 6 })
+
+        Row() {
+          LoadingProgress()
+            .width(20)
+            .height(20)
+            .margin({ right: 10 })
+            .color('#4A90D9')
+          Text('正在思考...')
+            .fontSize(14)
+            .fontColor('#8E8E93')
+        }
+        .width('100%')
+        .padding(14)
+        .backgroundColor('#FFFFFF')
         .borderRadius(12)
-        .padding(12)
-        .maxLines(100)
-        .constraintSize({ maxWidth: '75%' })
+        .shadow({
+          radius: 4,
+          color: 'rgba(0,0,0,0.04)',
+          offsetY: 1
+        })
+      }
+      .alignItems(HorizontalAlign.Start)
+      .margin({ right: 40 })
     }
     .width('100%')
     .margin({ bottom: 16 })
@@ -159,49 +275,63 @@ struct MedicineAiChatPage {
 
   build() {
     Column() {
+      // 顶部导航栏 - 与其他页面统一
       Row() {
-        Text('‹')
-          .fontSize(28)
-          .fontColor('#FFFFFF')
-          .width(40)
-          .height(40)
-          .textAlign(TextAlign.Center)
-          .onClick(() => {
-            router.back();
-          })
+        Stack() {
+          Row()
+            .width(36)
+            .height(36)
+            .borderRadius(18)
+            .backgroundColor('rgba(255,255,255,0.15)')
+          Text('‹')
+            .fontSize(22)
+            .fontColor('#FFFFFF')
+            .fontWeight(FontWeight.Medium)
+        }
+        .width(40)
+        .height(40)
+        .onClick(() => {
+          this.goBack();
+        })
 
         Text('AI用药助手')
           .fontSize(18)
-          .fontWeight(FontWeight.Bold)
+          .fontWeight(FontWeight.Medium)
           .fontColor('#FFFFFF')
           .layoutWeight(1)
           .textAlign(TextAlign.Center)
 
-        Blank()
-          .width(40)
+        Row().width(40).height(40)
       }
       .width('100%')
       .height(52)
-      .padding({ left: 8, right: 8 })
-      .backgroundColor('#2563EB')
+      .padding({ left: 12, right: 12 })
+      .backgroundColor('#4A90D9')
 
+      // 消息列表
       Scroll(this.scroller) {
         Column() {
-          ForEach(this.messages, (msg: ChatMessage) => {
+          ForEach(this.messages, (msg: ChatMessage, index: number) => {
             if (msg.role === 'bot') {
-              this.BotMessage(msg.content)
+              if (index === this.messages.length - 1 && this.isLoading && msg.content === '') {
+                this.LoadingMessage()
+              } else {
+                this.BotMessage(msg.content)
+              }
             } else {
               this.UserMessage(msg.content)
             }
           }, (msg: ChatMessage, index: number) => index + '_' + msg.role + '_' + msg.content.length)
         }
         .width('100%')
-        .padding({ left: 16, right: 16, top: 16, bottom: 16 })
+        .padding({ left: 16, right: 16, top: 12, bottom: 12 })
       }
       .layoutWeight(1)
-      .scrollBar(BarState.Auto)
+      .backgroundColor('#F8F9FA')
+      .scrollBar(BarState.Off)
       .edgeEffect(EdgeEffect.Spring)
 
+      // 输入栏
       MedicineChatInputBar({
         isLoading: this.isLoading,
         onSend: (text: string): void => {
@@ -211,7 +341,7 @@ struct MedicineAiChatPage {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#F8F9FA')
+    .backgroundColor('#FFFFFF')
   }
 }
 
@@ -234,12 +364,15 @@ struct MedicineChatInputBar {
     Row() {
       TextInput({ text: $$this.inputText, placeholder: '请输入用药相关问题...' })
         .layoutWeight(1)
-        .height(42)
-        .backgroundColor('#F5F5F5')
-        .borderRadius(21)
-        .padding({ left: 16, right: 16 })
+        .height(44)
+        .backgroundColor('#F1F5F9')
+        .borderRadius(22)
+        .padding({ left: 18, right: 18 })
+        .fontSize(14)
+        .fontColor('#1A1A2E')
+        .placeholderColor('#8E8E93')
         .type(InputType.Normal)
-        .enterKeyType(EnterKeyType.Done)
+        .enterKeyType(EnterKeyType.Send)
         .enableKeyboardOnFocus(true)
         .enabled(!this.isLoading)
         .onSubmit((): void => {
@@ -247,19 +380,26 @@ struct MedicineChatInputBar {
         })
 
       Button(this.isLoading ? '回复中' : '发送')
-        .height(42)
+        .height(44)
         .margin({ left: 10 })
-        .backgroundColor(this.isLoading ? '#93B4F5' : '#2563EB')
-        .borderRadius(21)
-        .padding({ left: 18, right: 18 })
+        .backgroundColor(this.isLoading ? '#CBD5E1' : '#4A90D9')
+        .borderRadius(22)
+        .padding({ left: 20, right: 20 })
+        .fontSize(14)
+        .fontWeight(FontWeight.Medium)
+        .fontColor('#FFFFFF')
         .enabled(!this.isLoading)
         .onClick((): void => {
           this.handleSend();
         })
     }
     .width('100%')
-    .padding({ left: 12, right: 12, top: 10, bottom: 12 })
+    .padding({ left: 16, right: 16, top: 10, bottom: 16 })
     .backgroundColor('#FFFFFF')
-    .border({ width: { top: 0.5 }, color: '#E5E5E5' })
+    .shadow({
+      radius: 8,
+      color: 'rgba(0,0,0,0.04)',
+      offsetY: -2
+    })
   }
 }

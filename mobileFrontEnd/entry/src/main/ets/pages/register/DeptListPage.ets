@@ -61,44 +61,101 @@ export struct DeptListPage {
     }
   }
 
-  private getDeptIcon(deptName: string): string {
-    const iconMap: Record<string, string> = {
-      '内科': '🏥',
-      '外科': '🔪',
-      '放射科': '📷',
-      '脑科': '🧠',
-      '儿科': '👶',
-      '妇产科': '👩',
-      '眼科': '👁️',
-      '口腔科': '🦷',
-      '皮肤科': '🧴',
-      '中医科': '🌿',
-      '急诊科': '🚑'
-    };
-    return iconMap[deptName] || '🏥';
+  build() {
+    Column() {
+      // 顶部导航栏
+      Row() {
+        Stack() {
+          Row()
+            .width(36)
+            .height(36)
+            .borderRadius(18)
+            .backgroundColor('rgba(0,0,0,0.04)')
+          Text('‹')
+            .fontSize(22)
+            .fontColor('#1A1A2E')
+            .fontWeight(FontWeight.Medium)
+        }
+        .width(40)
+        .height(40)
+        .onClick(() => {
+          router.back();
+        })
+
+        Text('选择科室')
+          .fontSize(18)
+          .fontWeight(FontWeight.Medium)
+          .fontColor('#1A1A2E')
+          .layoutWeight(1)
+          .textAlign(TextAlign.Center)
+
+        Row().width(40).height(40)
+      }
+      .width('100%')
+      .height(52)
+      .padding({ left: 12, right: 12 })
+      .backgroundColor('#FFFFFF')
+
+      // 内容区域
+      if (this.isLoading) {
+        Column() {
+          LoadingProgress()
+            .width(40)
+            .height(40)
+            .color('#4A90D9')
+          Text('加载中...')
+            .fontSize(14)
+            .fontColor('#8E8E93')
+            .margin({ top: 12 })
+        }
+        .width('100%')
+        .height('100%')
+        .justifyContent(FlexAlign.Center)
+        .backgroundColor('#F8F9FA')
+      } else {
+        List({ space: 12 }) {
+          ForEach(this.depts, (dept: Dept) => {
+            ListItem() {
+              this.DeptItem(dept)
+            }
+          }, (dept: Dept) => dept.deptId)
+        }
+        .width('100%')
+        .padding({ left: 16, right: 16, top: 16, bottom: 16 })
+        .layoutWeight(1)
+        .backgroundColor('#F8F9FA')
+      }
+    }
+    .width('100%')
+    .height('100%')
+    .backgroundColor('#FFFFFF')
   }
 
   @Builder
   DeptItem(dept: Dept) {
     Row() {
-      Text(this.getDeptIcon(dept.deptName))
-        .fontSize(36)
-        .margin({ right: 18 })
-
+      // 科室名称
       Text(dept.deptName)
-        .fontSize(19)
-        .fontWeight(FontWeight.Normal)
-        .fontColor('#222222')
+        .fontSize(16)
+        .fontWeight(FontWeight.Medium)
+        .fontColor('#1A1A2E')
         .layoutWeight(1)
 
+      // 右侧箭头
       Text('›')
-        .fontSize(28)
-        .fontColor('#CCCCCC')
+        .fontSize(20)
+        .fontColor('#C7C7CC')
+        .fontWeight(FontWeight.Normal)
     }
     .width('100%')
-    .padding({ left: 20, right: 20, top: 22, bottom: 22 })
+    .padding({ left: 18, right: 18, top: 18, bottom: 18 })
     .backgroundColor('#FFFFFF')
     .borderRadius(14)
+    .shadow({
+      radius: 6,
+      color: 'rgba(0,0,0,0.04)',
+      offsetY: 2
+    })
     .onClick(() => {
       router.pushUrl({
         url: 'pages/register/DoctorListPage',
@@ -109,68 +166,5 @@ export struct DeptListPage {
         }
       });
     })
-  }
-
-  build() {
-    Column() {
-      // 顶部导航栏
-      Row() {
-        Text('←')
-          .fontSize(26)
-          .fontColor('#000000')
-          .onClick(() => {
-            router.back();
-          })
-          .width(40)
-
-        Text('选择科室')
-          .fontSize(22)
-          .fontWeight(FontWeight.Medium)
-          .fontColor('#000000')
-          .layoutWeight(1)
-          .textAlign(TextAlign.Center)
-
-        Blank().width(40)
-      }
-      .width('100%')
-      .padding({ left: 12, right: 12, top: 10, bottom: 10 })
-      .backgroundColor('#FFFFFF')
-
-      // 内容区域
-      if (this.isLoading) {
-        Column() {
-          LoadingProgress()
-            .width(60)
-            .height(60)
-            .color('#007AFF')
-          Text('加载中...')
-            .fontSize(14)
-            .fontColor('#999')
-            .margin({ top: 16 })
-        }
-        .width('100%')
-        .layoutWeight(1)
-        .justifyContent(FlexAlign.Center)
-      } else {
-        List({ space: 14 }) {
-          ForEach(this.depts, (dept: Dept) => {
-            ListItem() {
-              this.DeptItem(dept)
-            }
-          }, (dept: Dept) => dept.deptId)
-        }
-        .width('100%')
-        .padding({ left: 16, right: 16, top: 20, bottom: 20 })
-        .layoutWeight(1)
-        .backgroundColor('#F8F8F8')
-        .divider({
-          strokeWidth: 0,
-          color: '#F0F0F0'
-        })
-      }
-    }
-    .width('100%')
-    .height('100%')
-    .backgroundColor('#F8F8F8')
   }
 }

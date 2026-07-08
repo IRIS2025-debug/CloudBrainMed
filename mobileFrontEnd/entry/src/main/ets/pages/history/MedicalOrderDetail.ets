@@ -1,4 +1,4 @@
-// pages/medical/MedicalOrderDetail.ets
+// pages/history/MedicalOrderDetail.ets
 import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
 import { HttpUtil } from '../common/HttpUtil';
@@ -82,14 +82,6 @@ const CATEGORY_TEXT: Record<string, string> = {
   'LAB': '检验'
 };
 
-const ABNORMAL_COLOR: Record<string, string> = {
-  '正常': '#52C41A',
-  '偏高': '#FAAD14',
-  '偏低': '#FAAD14',
-  '异常': '#FF4D4F',
-  '危急': '#FF0000'
-};
-
 const STATUS_COLOR_MAP: Record<string, string> = {
   '已完成': '#52C41A',
   '检查中': '#1890FF',
@@ -116,10 +108,7 @@ export struct MedicalOrderDetail {
   @State totalAmount: number = 0;
   @State status: string = '';
   @State items: MedicalOrderItem[] = [];
-
-  @State reportDetails: Map<string, ReportDetail> = new Map();
-  @State loadingItems: Set<string> = new Set();
-  @State expandedItemId: string = '';
+  @State isLoading: boolean = false;
 
   private baseUrl: string = APIConfig.PATIENT_SERVICE_URL;
 
@@ -140,57 +129,28 @@ export struct MedicalOrderDetail {
     router.back();
   }
 
-  private async loadReportDetail(orderItemId: string): Promise<void> {
-    if (this.reportDetails.has(orderItemId)) {
-      this.expandedItemId = this.expandedItemId === orderItemId ? '' : orderItemId;
-      return;
-    }
-
-    if (this.loadingItems.has(orderItemId)) {
-      return;
-    }
-
-    this.loadingItems.add(orderItemId);
-
-    try {
-      const context = getContext(this);
-      const url = `${this.baseUrl}/medical-order/report/${orderItemId}`;
-      const result = await HttpUtil.get<ApiResponse<ReportDetail>>(url, context);
-
-      if (result.code === 200 && result.data) {
-        this.reportDetails.set(orderItemId, result.data);
-        this.expandedItemId = orderItemId;
-      } else {
-        promptAction.showToast({
-          message: result.msg || '加载报告失败',
-          duration: 1500
-        });
+  private goToReportDetail(item: MedicalOrderItem): void {
+    // 跳转到报告详情页面
+    router.pushUrl({
+      url: 'pages/history/ReportDetailPage',
+      params: {
+        orderItemId: item.orderItemId,
+        itemName: item.itemName,
+        itemCategory: item.itemCategory,
+        price: item.price,
+        status: item.status,
+        abnormalFlag: item.abnormalFlag
       }
-    } catch (error) {
-      console.error('加载报告详情异常:', JSON.stringify(error));
+    }).catch(() => {
       promptAction.showToast({
-        message: '网络请求失败',
+        message: '页面跳转失败',
         duration: 1500
       });
-    } finally {
-      this.loadingItems.delete(orderItemId);
-    }
-  }
-
-  private toggleExpand(itemId: string): void {
-    if (this.expandedItemId === itemId) {
-      this.expandedItemId = '';
-    } else {
-      this.loadReportDetail(itemId);
-    }
+    });
   }
 
   private getCategoryText(category: string): string {
     return CATEGORY_TEXT[category] || category;
-  }
-
-  private getAbnormalColor(flag: string): string {
-    return ABNORMAL_COLOR[flag] || '#666666';
   }
 
   private formatAmount(amount: number): string {
@@ -198,319 +158,25 @@ export struct MedicalOrderDetail {
   }
 
   private getStatusColor(status: string): string {
-    return STATUS_COLOR_MAP[status] || '#FAAD14';
+    return STATUS_COLOR_MAP[status] || '#999999';
   }
 
   private getStatusBgColor(status: string): string {
-    return STATUS_BG_MAP[status] || '#FFF7E6';
-  }
-
-  private shouldShowAbnormal(flag: string | undefined): boolean {
-    return flag !== undefined && flag !== null && flag !== '正常' && flag !== 'NORMAL' && flag !== '';
+    return STATUS_BG_MAP[status] || '#F5F5F5';
   }
 
   private getStatusText(): string {
     return this.status || '未知';
   }
 
-  private getReferenceText(ind: Indicator): string {
-    if (ind.referenceText) {
-      return `参考范围: ${ind.referenceText}`;
-    }
-    if (ind.referenceMin !== undefined || ind.referenceMax !== undefined) {
-      let refText: string = '参考范围: ';
-      if (ind.referenceMin !== undefined) {
-        refText += ind.referenceMin;
-      }
-      if (ind.referenceMax !== undefined) {
-        if (ind.referenceMin !== undefined) {
-          refText += ` - ${ind.referenceMax}`;
-        } else {
-          refText += ind.referenceMax;
-        }
-      }
-      return refText;
-    }
-    return '';
-  }
-
-  private hasReportDetail(itemId: string): boolean {
-    return this.reportDetails.has(itemId);
-  }
-
-  private isLoading(itemId: string): boolean {
-    return this.loadingItems.has(itemId);
-  }
-
-  private isExpanded(itemId: string): boolean {
-    return this.expandedItemId === itemId;
+  private formatDate(dateStr: string): string {
+    if (!dateStr) return '';
+    const parts = dateStr.split('T');
+    return parts[0] || dateStr;
   }
 
   private getItemStatusColor(status: string): string {
     return status === '已完成' ? '#52C41A' : '#8C8C8C';
-  }
-
-  // 获取异常标记（处理 undefined）
-  private getAbnormalFlag(flag: string | undefined): string {
-    return flag || '';
-  }
-
-  // 获取展开按钮文本
-  private getExpandText(itemId: string): string {
-    return this.isExpanded(itemId) ? '收起详情 ▲' : '查看报告 ▼';
-  }
-
-  // 判断是否有报告内容可显示
-  private hasReportContent(itemId: string): boolean {
-    return this.hasReportDetail(itemId) && this.getReportDetail(itemId) !== undefined;
-  }
-
-  // 获取报告详情（供 @Builder 调用）
-  private getReportDetail(itemId: string): ReportDetail | undefined {
-    return this.reportDetails.get(itemId);
-  }
-
-  @Builder
-  private AbnormalTag(flag: string) {
-    if (this.shouldShowAbnormal(flag)) {
-      Row() {
-        Text(flag)
-          .fontSize(12)
-          .fontColor(this.getAbnormalColor(flag))
-          .fontWeight(FontWeight.Medium)
-      }
-      .padding({ left: 10, right: 10, top: 3, bottom: 3 })
-      .backgroundColor(`${this.getAbnormalColor(flag)}15`)
-      .borderRadius(10)
-    }
-  }
-
-  @Builder
-  private IndicatorItem(ind: Indicator) {
-    Column() {
-      Row() {
-        Text(ind.indicatorName)
-          .fontSize(13)
-          .fontColor('#333333')
-          .layoutWeight(1)
-
-        if (this.shouldShowAbnormal(ind.abnormalFlag)) {
-          this.AbnormalTag(ind.abnormalFlag)
-        }
-      }
-      .width('100%')
-
-      Row() {
-        Text(ind.resultValue || '-')
-          .fontSize(14)
-          .fontWeight(FontWeight.Medium)
-          .fontColor('#333333')
-
-        if (ind.unit) {
-          Text(ind.unit)
-            .fontSize(12)
-            .fontColor('#8C8C8C')
-            .margin({ left: 4 })
-        }
-
-        Blank()
-
-        if (this.getReferenceText(ind) !== '') {
-          Text(this.getReferenceText(ind))
-            .fontSize(11)
-            .fontColor('#8C8C8C')
-        }
-      }
-      .width('100%')
-      .margin({ top: 2 })
-    }
-    .width('100%')
-    .padding(10)
-    .backgroundColor('#FFFFFF')
-    .borderRadius(6)
-    .margin({ bottom: 6 })
-  }
-
-  @Builder
-  private ReportContent(detail: ReportDetail) {
-    Column() {
-      // 结果摘要
-      if (detail.resultSummary) {
-        Column() {
-          Text('📝 结果摘要')
-            .fontSize(13)
-            .fontWeight(FontWeight.Medium)
-            .fontColor('#333333')
-            .width('100%')
-            .margin({ bottom: 4 })
-          Text(detail.resultSummary)
-            .fontSize(13)
-            .fontColor('#555555')
-            .width('100%')
-            .padding(10)
-            .backgroundColor('#F5F5F5')
-            .borderRadius(6)
-        }
-        .width('100%')
-        .margin({ bottom: 10 })
-      }
-
-      // 报告结论
-      if (detail.conclusion) {
-        Column() {
-          Text('📋 报告结论')
-            .fontSize(13)
-            .fontWeight(FontWeight.Medium)
-            .fontColor('#333333')
-            .width('100%')
-            .margin({ bottom: 4 })
-          Text(detail.conclusion)
-            .fontSize(13)
-            .fontColor('#555555')
-            .width('100%')
-            .padding(10)
-            .backgroundColor('#F5F5F5')
-            .borderRadius(6)
-        }
-        .width('100%')
-        .margin({ bottom: 10 })
-      }
-
-      // 检验指标
-      if (detail.itemCategory === 'LAB' && detail.indicators && detail.indicators.length > 0) {
-        Column() {
-          Text('🔬 检验指标')
-            .fontSize(13)
-            .fontWeight(FontWeight.Medium)
-            .fontColor('#333333')
-            .width('100%')
-            .margin({ bottom: 6 })
-
-          ForEach(detail.indicators, (ind: Indicator) => {
-            this.IndicatorItem(ind)
-          }, (ind: Indicator) => ind.indicatorId)
-        }
-        .width('100%')
-        .margin({ bottom: 10 })
-      }
-
-      // 报告时间
-      if (detail.reportTime) {
-        Text(`报告时间: ${detail.reportTime}`)
-          .fontSize(12)
-          .fontColor('#999999')
-          .width('100%')
-          .margin({ top: 6 })
-      }
-    }
-    .width('100%')
-  }
-
-  @Builder
-  private ItemCard(item: MedicalOrderItem) {
-    Column() {
-      // 项目头部
-      Row() {
-        Column() {
-          Row() {
-            Text(item.itemName)
-              .fontSize(15)
-              .fontWeight(FontWeight.Medium)
-              .fontColor('#333333')
-
-            if (item.urgencyLevel && item.urgencyLevel !== '常规') {
-              Text(item.urgencyLevel)
-                .fontSize(10)
-                .fontColor('#FF4D4F')
-                .backgroundColor('#FFF1F0')
-                .padding({ left: 6, right: 6, top: 1, bottom: 1 })
-                .borderRadius(8)
-                .margin({ left: 6 })
-            }
-          }
-
-          Row() {
-            Text(this.getCategoryText(item.itemCategory))
-              .fontSize(12)
-              .fontColor('#8C8C8C')
-
-            // 修复：传递处理后的字符串，确保不是 undefined
-            if (this.shouldShowAbnormal(item.abnormalFlag)) {
-              this.AbnormalTag(this.getAbnormalFlag(item.abnormalFlag))
-            }
-          }
-          .margin({ top: 2 })
-        }
-        .alignItems(HorizontalAlign.Start)
-
-        Blank()
-
-        Column() {
-          Text(item.status || '未知')
-            .fontSize(13)
-            .fontColor(this.getItemStatusColor(item.status))
-            .fontWeight(FontWeight.Medium)
-
-          Text(`¥${this.formatAmount(item.price)}`)
-            .fontSize(13)
-            .fontColor('#EF4444')
-            .margin({ top: 2 })
-        }
-        .alignItems(HorizontalAlign.End)
-      }
-      .width('100%')
-
-      // 展开按钮
-      Row() {
-        Text(this.getExpandText(item.orderItemId))
-          .fontSize(12)
-          .fontColor('#007AFF')
-      }
-      .width('100%')
-      .margin({ top: 8 })
-      .onClick(() => {
-        this.toggleExpand(item.orderItemId)
-      })
-
-      // 展开内容
-      if (this.isExpanded(item.orderItemId)) {
-        Divider()
-          .color('#F0F0F0')
-          .margin({ top: 10, bottom: 10 })
-
-        if (this.isLoading(item.orderItemId)) {
-          Row() {
-            LoadingProgress()
-              .width(20)
-              .height(20)
-              .color('#007AFF')
-            Text('加载报告中...')
-              .fontSize(13)
-              .fontColor('#999999')
-              .margin({ left: 10 })
-          }
-          .width('100%')
-          .height(60)
-          .justifyContent(FlexAlign.Center)
-        } else if (this.hasReportContent(item.orderItemId)) {
-          // 修复：在 @Builder 中不能使用 const，直接调用方法获取值
-          // 使用状态变量或方法调用
-          this.ReportContent(this.getReportDetail(item.orderItemId)!)
-        } else {
-          Text('暂无报告内容')
-            .fontSize(13)
-            .fontColor('#999999')
-            .width('100%')
-            .textAlign(TextAlign.Center)
-            .padding(20)
-        }
-      }
-    }
-    .width('100%')
-    .padding(14)
-    .backgroundColor('#F8FAFF')
-    .borderRadius(10)
-    .margin({ bottom: 10 })
   }
 
   @Builder
@@ -522,128 +188,247 @@ export struct MedicalOrderDetail {
         .fill(this.getStatusColor(this.status))
         .margin({ right: 4 })
       Text(this.getStatusText())
-        .fontSize(13)
+        .fontSize(12)
         .fontColor(this.getStatusColor(this.status))
         .fontWeight(FontWeight.Medium)
     }
-    .padding({ left: 12, right: 12, top: 4, bottom: 4 })
+    .padding({ left: 10, right: 10, top: 4, bottom: 4 })
     .backgroundColor(this.getStatusBgColor(this.status))
     .borderRadius(12)
   }
 
+  @Builder
+  private ItemCard(item: MedicalOrderItem) {
+    Row() {
+      Column() {
+        Row() {
+          Text(item.itemName)
+            .fontSize(15)
+            .fontWeight(FontWeight.Medium)
+            .fontColor('#1A1A1A')
+
+          Text(this.getCategoryText(item.itemCategory))
+            .fontSize(11)
+            .fontColor('#8C8C8C')
+            .padding({ left: 8, right: 8, top: 2, bottom: 2 })
+            .backgroundColor('#F5F5F5')
+            .borderRadius(10)
+            .margin({ left: 6 })
+        }
+
+        Text(item.status || '未知')
+          .fontSize(12)
+          .fontColor(this.getItemStatusColor(item.status))
+          .margin({ top: 2 })
+      }
+      .alignItems(HorizontalAlign.Start)
+
+      Blank()
+
+      Column() {
+        Text(`¥${this.formatAmount(item.price)}`)
+          .fontSize(16)
+          .fontColor('#EF4444')
+          .fontWeight(FontWeight.Bold)
+
+        Row() {
+          Text('查看详情')
+            .fontSize(12)
+            .fontColor('#007AFF')
+          Text('›')
+            .fontSize(14)
+            .fontColor('#007AFF')
+            .margin({ left: 2 })
+        }
+        .margin({ top: 4 })
+        .padding({ left: 10, right: 4, top: 4, bottom: 4 })
+        .backgroundColor('#E6F7FF')
+        .borderRadius(12)
+      }
+      .alignItems(HorizontalAlign.End)
+    }
+    .width('100%')
+    .padding(14)
+    .backgroundColor('#FFFFFF')
+    .borderRadius(10)
+    .onClick(() => {
+      this.goToReportDetail(item);
+    })
+  }
+
+  @Builder
+  private LoadingState() {
+    Column() {
+      LoadingProgress()
+        .width(40)
+        .height(40)
+        .color('#007AFF')
+      Text('加载中...')
+        .fontSize(14)
+        .fontColor('#999999')
+        .margin({ top: 12 })
+    }
+    .width('100%')
+    .height(200)
+    .justifyContent(FlexAlign.Center)
+  }
+
   build() {
     Column() {
-      // 顶部导航
+      // 顶部导航栏 - 统一风格
       Row() {
-        Text('‹')
-          .fontSize(28)
-          .fontColor('#333333')
-          .onClick(() => {
-            this.goBack();
-          })
+        Stack() {
+          Row()
+            .width(36)
+            .height(36)
+            .borderRadius(18)
+            .backgroundColor('rgba(0,0,0,0.04)')
+          Text('‹')
+            .fontSize(22)
+            .fontColor('#1A1A2E')
+            .fontWeight(FontWeight.Medium)
+        }
+        .width(40)
+        .height(40)
+        .onClick(() => {
+          this.goBack();
+        })
 
         Text('检查报告详情')
-          .fontSize(20)
-          .fontWeight(FontWeight.Bold)
-          .fontColor('#333333')
+          .fontSize(18)
+          .fontWeight(FontWeight.Medium)
+          .fontColor('#1A1A2E')
           .layoutWeight(1)
           .textAlign(TextAlign.Center)
 
-        Row()
-          .width(28)
-          .height(28)
+        Row().width(40).height(40)
       }
       .width('100%')
-      .height(56)
-      .padding({ left: 16, right: 16 })
+      .height(52)
+      .padding({ left: 12, right: 12 })
       .backgroundColor('#FFFFFF')
-      .borderRadius({ bottomLeft: 12, bottomRight: 12 })
-      .shadow({
-        radius: 4,
-        color: 'rgba(0,0,0,0.04)',
-        offsetY: 2
-      })
 
       // 内容
-      List() {
-        // 基本信息
-        ListItem() {
-          Column() {
-            Row() {
-              Column() {
-                Text(`就诊日期: ${this.visitDate || '未知'}`)
-                  .fontSize(14)
-                  .fontColor('#1A1A1A')
+      if (this.isLoading) {
+        this.LoadingState()
+      } else {
+        List({ space: 12 }) {
+          // 基本信息卡片
+          ListItem() {
+            Column() {
+              Row() {
+                Column() {
+                  Text('📋 报告概览')
+                    .fontSize(15)
+                    .fontWeight(FontWeight.Medium)
+                    .fontColor('#1A1A2E')
+                    .margin({ bottom: 8 })
+
+                  Row() {
+                    Text('📅 就诊日期：')
+                      .fontSize(13)
+                      .fontColor('#8C8C8C')
+                    Text(this.visitDate ? this.formatDate(this.visitDate) : '未知日期')
+                      .fontSize(13)
+                      .fontColor('#1A1A1A')
+                  }
+                  .width('100%')
+
+                  Row() {
+                    Text('👨‍⚕️ 医生：')
+                      .fontSize(13)
+                      .fontColor('#8C8C8C')
+                    Text(this.doctorName || '未知医生')
+                      .fontSize(13)
+                      .fontColor('#1A1A1A')
+                  }
+                  .width('100%')
+                  .margin({ top: 2 })
+
+                  Row() {
+                    Text('👤 患者：')
+                      .fontSize(13)
+                      .fontColor('#8C8C8C')
+                    Text(this.patientName || '未知患者')
+                      .fontSize(13)
+                      .fontColor('#1A1A1A')
+                  }
+                  .width('100%')
+                  .margin({ top: 2 })
+                }
+                .alignItems(HorizontalAlign.Start)
+
+                Blank()
+
+                Column() {
+                  this.StatusTag()
+
+                  Text(`合计 ¥${this.formatAmount(this.totalAmount)}`)
+                    .fontSize(16)
+                    .fontColor('#EF4444')
+                    .fontWeight(FontWeight.Bold)
+                    .margin({ top: 6 })
+                }
+                .alignItems(HorizontalAlign.End)
+              }
+              .width('100%')
+            }
+            .width('100%')
+            .padding(16)
+            .backgroundColor('#FFFFFF')
+            .borderRadius(12)
+            .shadow({
+              radius: 8,
+              color: 'rgba(0, 0, 0, 0.06)',
+              offsetX: 0,
+              offsetY: 2
+            })
+          }
+
+          // 检查项目列表
+          ListItem() {
+            Column() {
+              Row() {
+                Text('🔬 检查项目')
+                  .fontSize(15)
                   .fontWeight(FontWeight.Medium)
-                Text(`医生: ${this.doctorName || '未知医生'}`)
-                  .fontSize(13)
-                  .fontColor('#8C8C8C')
-                  .margin({ top: 2 })
-                Text(`患者: ${this.patientName || '未知'}`)
-                  .fontSize(13)
-                  .fontColor('#8C8C8C')
-                  .margin({ top: 2 })
-              }
-              .alignItems(HorizontalAlign.Start)
+                  .fontColor('#1A1A2E')
 
-              Blank()
+                Blank()
 
-              Column() {
-                this.StatusTag()
-                Text(`总计 ¥${this.formatAmount(this.totalAmount)}`)
-                  .fontSize(14)
-                  .fontColor('#EF4444')
-                  .fontWeight(FontWeight.Bold)
-                  .margin({ top: 4 })
+                Text(`共 ${this.items.length} 项`)
+                  .fontSize(12)
+                  .fontColor('#8C8C8C')
               }
-              .alignItems(HorizontalAlign.End)
+              .width('100%')
+              .margin({ bottom: 12 })
+
+              ForEach(this.items, (item: MedicalOrderItem) => {
+                this.ItemCard(item)
+              }, (item: MedicalOrderItem) => item.orderItemId)
             }
             .width('100%')
+            .padding(16)
+            .backgroundColor('#FFFFFF')
+            .borderRadius(12)
+            .shadow({
+              radius: 8,
+              color: 'rgba(0, 0, 0, 0.06)',
+              offsetX: 0,
+              offsetY: 2
+            })
           }
-          .width('100%')
-          .padding(16)
-          .backgroundColor('#FFFFFF')
-          .borderRadius(12)
-          .margin({ top: 12, bottom: 12 })
+          .margin({ bottom: 8 })
         }
-
-        // 检查项目列表
-        ListItem() {
-          Column() {
-            Row() {
-              Text('📋 检查项目')
-                .fontSize(16)
-                .fontWeight(FontWeight.Bold)
-                .fontColor('#333333')
-
-              Blank()
-
-              Text(`共 ${this.items.length} 项`)
-                .fontSize(13)
-                .fontColor('#999999')
-            }
-            .width('100%')
-            .margin({ bottom: 12 })
-
-            ForEach(this.items, (item: MedicalOrderItem) => {
-              this.ItemCard(item)
-            }, (item: MedicalOrderItem) => item.orderItemId)
-          }
-          .width('100%')
-          .padding(16)
-          .backgroundColor('#FFFFFF')
-          .borderRadius(12)
-          .margin({ bottom: 20 })
-        }
+        .width('100%')
+        .padding({ left: 16, right: 16, top: 12 })
+        .backgroundColor('#F5F5F5')
+        .layoutWeight(1)
+        .scrollBar(BarState.Off)
       }
-      .width('100%')
-      .padding({ left: 16, right: 16 })
-      .backgroundColor('#F5F5F5')
-      .layoutWeight(1)
-      .scrollBar(BarState.Off)
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#F5F5F5')
+    .backgroundColor('#FFFFFF')
   }
 }

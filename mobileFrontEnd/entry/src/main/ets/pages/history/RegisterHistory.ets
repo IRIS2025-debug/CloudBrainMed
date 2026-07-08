@@ -104,19 +104,19 @@ interface ApiResponse<T> {
 // ===== 常量 =====
 
 const STATUS_COLOR: Record<string, string> = {
-  'WAITING': '#FAAD14',
-  'PENDING': '#FAAD14',
-  'CONFIRMED': '#1890FF',
-  'COMPLETED': '#52C41A',
-  'CANCELLED': '#FF4D4F'
+  'WAITING': '#FF9F43',
+  'PENDING': '#FF9F43',
+  'CONFIRMED': '#4A90D9',
+  'COMPLETED': '#2ECC71',
+  'CANCELLED': '#95A5A6'
 };
 
 const STATUS_BG_COLOR: Record<string, string> = {
-  'WAITING': '#FFF7E6',
-  'PENDING': '#FFF7E6',
-  'CONFIRMED': '#E6F7FF',
-  'COMPLETED': '#F6FFED',
-  'CANCELLED': '#FFF1F0'
+  'WAITING': '#FFF3E0',
+  'PENDING': '#FFF3E0',
+  'CONFIRMED': '#E8F0FE',
+  'COMPLETED': '#E8F8F0',
+  'CANCELLED': '#F0F0F0'
 };
 
 const STATUS_TEXT: Record<string, string> = {
@@ -129,30 +129,20 @@ const STATUS_TEXT: Record<string, string> = {
 
 const PAY_STATUS_TEXT: Record<string, string> = {
   'WAITING': '待支付',
-  'PAID': '已支付',
+  'PAID': '已支付 ✓',
   'REFUNDED': '已退款'
 };
 
-const ORDER_STATUS_COLOR: Record<string, string> = {
-  'WAITING_ASSIGN': '#FAAD14',
-  'ASSIGNED': '#1890FF',
-  'IN_PROGRESS': '#722ED1',
-  'COMPLETED': '#52C41A',
-  'CANCELLED': '#FF4D4F'
+const PAY_STATUS_COLOR: Record<string, string> = {
+  'WAITING': '#4A90D9',
+  'PAID': '#2ECC71',
+  'REFUNDED': '#95A5A6'
 };
 
-const ORDER_STATUS_TEXT: Record<string, string> = {
-  'WAITING_ASSIGN': '待分配',
-  'ASSIGNED': '已分配',
-  'IN_PROGRESS': '检查中',
-  'COMPLETED': '已完成',
-  'CANCELLED': '已取消'
-};
-
-const URGENCY_TEXT: Record<string, string> = {
-  'NORMAL': '常规',
-  'URGENT': '加急',
-  'EMERGENCY': '紧急'
+const PAY_STATUS_BG: Record<string, string> = {
+  'WAITING': '#E8F0FE',
+  'PAID': '#E8F8F0',
+  'REFUNDED': '#F0F0F0'
 };
 
 // Tab类型
@@ -179,9 +169,6 @@ export struct RegisterHistory {
   @State registerList: RegisterRecord[] = [];
   @State filteredList: RegisterRecord[] = [];
   @State isLoading: boolean = true;
-  // @State expandedRegisterId: string = '';
-  // @State visitDetails: Record<string, VisitDetail> = {};
-  // @State loadingDetailId: string = '';
   @State errorMessage: string = '';
   @State currentTab: TabType = 'all';
 
@@ -272,13 +259,10 @@ export struct RegisterHistory {
 
       switch (this.currentTab) {
         case 'pending_pay':
-          // 待支付：就诊日期 >= 今天 且 支付状态为 WAITING
           return visitDate >= today && item.payStatus === 'WAITING';
         case 'pending_visit':
-          // 待接诊：就诊日期 >= 今天 且 支付状态为 PAID
           return visitDate >= today && item.payStatus === 'PAID';
         case 'expired':
-          // 已过期：就诊日期 < 今天
           return visitDate < today;
         default:
           return true;
@@ -315,8 +299,15 @@ export struct RegisterHistory {
     }).length;
   }
 
+  /**
+   * 返回 - 由于是从底部导航进入，直接返回首页
+   */
   private goBack(): void {
-    router.back();
+    router.pushUrl({
+      url: 'pages/Index'
+    }).catch(() => {
+      router.back();
+    });
   }
 
   private formatDate(dateStr: string): string {
@@ -332,11 +323,11 @@ export struct RegisterHistory {
   }
 
   private getStatusColor(status: string): string {
-    return STATUS_COLOR[status] || '#999999';
+    return STATUS_COLOR[status] || '#95A5A6';
   }
 
   private getStatusBgColor(status: string): string {
-    return STATUS_BG_COLOR[status] || '#F5F5F5';
+    return STATUS_BG_COLOR[status] || '#F0F0F0';
   }
 
   private getStatusText(status: string): string {
@@ -347,16 +338,12 @@ export struct RegisterHistory {
     return PAY_STATUS_TEXT[status] || status || '未知';
   }
 
-  private getOrderStatusColor(status: string): string {
-    return ORDER_STATUS_COLOR[status] || '#999999';
+  private getPayStatusColor(status: string): string {
+    return PAY_STATUS_COLOR[status] || '#95A5A6';
   }
 
-  private getOrderStatusText(status: string): string {
-    return ORDER_STATUS_TEXT[status] || status || '未知';
-  }
-
-  private getUrgencyLabel(level: string): string {
-    return URGENCY_TEXT[level] || level || '常规';
+  private getPayStatusBg(status: string): string {
+    return PAY_STATUS_BG[status] || '#F0F0F0';
   }
 
   // ===== 构建方法 =====
@@ -365,16 +352,16 @@ export struct RegisterHistory {
   private StatusTag(status: string) {
     Row() {
       Circle()
-        .width(6)
-        .height(6)
+        .width(5)
+        .height(5)
         .fill(this.getStatusColor(status))
         .margin({ right: 4 })
       Text(this.getStatusText(status))
-        .fontSize(12)
+        .fontSize(11)
         .fontColor(this.getStatusColor(status))
         .fontWeight(FontWeight.Medium)
     }
-    .padding({ left: 10, right: 10, top: 4, bottom: 4 })
+    .padding({ left: 10, right: 10, top: 3, bottom: 3 })
     .backgroundColor(this.getStatusBgColor(status))
     .borderRadius(12)
   }
@@ -383,114 +370,121 @@ export struct RegisterHistory {
   private PayStatusTag(payStatus: string) {
     Row() {
       Circle()
-        .width(6)
-        .height(6)
-        .fill(payStatus === 'PAID' ? '#52C41A' : '#FAAD14')
+        .width(5)
+        .height(5)
+        .fill(this.getPayStatusColor(payStatus))
         .margin({ right: 4 })
       Text(this.getPayStatusText(payStatus))
-        .fontSize(12)
-        .fontColor(payStatus === 'PAID' ? '#52C41A' : '#FAAD14')
+        .fontSize(11)
+        .fontColor(this.getPayStatusColor(payStatus))
         .fontWeight(FontWeight.Medium)
     }
-    .padding({ left: 10, right: 10, top: 4, bottom: 4 })
-    .backgroundColor(payStatus === 'PAID' ? '#F6FFED' : '#FFF7E6')
+    .padding({ left: 10, right: 10, top: 3, bottom: 3 })
+    .backgroundColor(this.getPayStatusBg(payStatus))
     .borderRadius(12)
   }
 
   @Builder
   buildRegisterCard(register: RegisterRecord) {
     Column() {
-      Column() {
+      // 科室和状态
+      Row() {
+        Text(register.department || '未知科室')
+          .fontSize(16)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#1A1A2E')
+
+        Blank()
+
+        this.StatusTag(register.consultStatus)
+      }
+      .width('100%')
+
+      // 患者信息
+      Row() {
+        Text('👤 ' + (register.name || '未知'))
+          .fontSize(13)
+          .fontColor('#1A1A2E')
+        Text('·')
+          .fontSize(12)
+          .fontColor('#C7C7CC')
+          .margin({ left: 6, right: 6 })
+        Text(this.getGenderText(register.gender))
+          .fontSize(13)
+          .fontColor('#1A1A2E')
+        Text('·')
+          .fontSize(12)
+          .fontColor('#C7C7CC')
+          .margin({ left: 6, right: 6 })
+        Text(register.birthday ? this.formatDate(register.birthday) : '')
+          .fontSize(12)
+          .fontColor('#8E8E93')
+      }
+      .width('100%')
+      .margin({ top: 6 })
+
+      // 就诊时间
+      Row() {
+        Text('🕐 ' + (register.visitDate ? this.formatDate(register.visitDate) : '') + ' ' + (register.consultTime || ''))
+          .fontSize(12)
+          .fontColor('#8E8E93')
+      }
+      .width('100%')
+      .margin({ top: 4 })
+
+      // 诊室
+      if (register.consultRoom) {
         Row() {
-          Column() {
-            Text(register.department || '未知科室')
-              .fontSize(16)
-              .fontWeight(FontWeight.Bold)
-              .fontColor('#1A1A1A')
-            Text(register.consultRoom || '未知诊室')
-              .fontSize(13)
-              .fontColor('#666666')
-          }
-          .alignItems(HorizontalAlign.Start)
-
-          Blank()
-
-          this.StatusTag(register.consultStatus)
-        }
-        .width('100%')
-
-        Row() {
-          Text('患者：' + (register.name || '未知'))
-            .fontSize(14)
-            .fontColor('#333333')
-          Text('|')
-            .fontSize(13)
-            .fontColor('#E0E0E0')
-            .margin({ left: 6, right: 6 })
-          Text(this.getGenderText(register.gender))
-            .fontSize(14)
-            .fontColor('#333333')
-          Text('|')
-            .fontSize(13)
-            .fontColor('#E0E0E0')
-            .margin({ left: 6, right: 6 })
-          Text(register.birthday ? this.formatDate(register.birthday) : '')
-            .fontSize(13)
-            .fontColor('#666666')
-        }
-        .width('100%')
-        .margin({ top: 4 })
-
-        Row() {
-          Text('就诊时间：' + (register.visitDate ? this.formatDate(register.visitDate) : '') + ' ' + (register.consultTime || ''))
-            .fontSize(13)
-            .fontColor('#666666')
+          Text('📍 ' + register.consultRoom)
+            .fontSize(12)
+            .fontColor('#8E8E93')
         }
         .width('100%')
         .margin({ top: 2 })
+      }
 
-        if (register.chiefComplaint) {
-          Row() {
-            Text('主诉：' + register.chiefComplaint)
-              .fontSize(13)
-              .fontColor('#666666')
-              .maxLines(1)
-              .textOverflow({ overflow: TextOverflow.Ellipsis })
-          }
-          .width('100%')
-          .margin({ top: 2 })
-        }
-
+      // 主诉
+      if (register.chiefComplaint) {
         Row() {
-          this.PayStatusTag(register.payStatus)
-          Blank()
-          Text(register.createTime ? '挂号时间：' + this.formatDate(register.createTime) : '')
-            .fontSize(11)
-            .fontColor('#999999')
+          Text('📝 ' + register.chiefComplaint)
+            .fontSize(12)
+            .fontColor('#8E8E93')
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
         }
         .width('100%')
-        .margin({ top: 4 })
+        .margin({ top: 2 })
+      }
 
-        Divider()
-          .color('#F0F0F0')
-          .margin({ top: 10, bottom: 10 })
+      Divider()
+        .color('#F0F0F0')
+        .margin({ top: 10, bottom: 10 })
+
+      // 底部：支付状态 + 金额 + 操作
+      Row() {
+        this.PayStatusTag(register.payStatus)
+
+        Blank()
+
+        Text('¥' + (register.price || 0).toFixed(2))
+          .fontSize(17)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#4A90D9')
+          .margin({ right: 12 })
 
         Row() {
-          Text('¥' + (register.price || 0).toFixed(2))
-            .fontSize(18)
-            .fontColor('#EF4444')
-            .fontWeight(FontWeight.Bold)
-
-          Blank()
-
-          Text('查看详情 ›')
-            .fontSize(14)
-            .fontColor('#2563EB')
-            .fontWeight(FontWeight.Medium)
+          Text('查看详情')
+            .fontSize(13)
+            .fontColor('#4A90D9')
+          Text('›')
+            .fontSize(16)
+            .fontColor('#4A90D9')
+            .margin({ left: 2 })
         }
-        .width('100%')
+        .padding({ left: 12, right: 4, top: 6, bottom: 6 })
+        .borderRadius(16)
+        .backgroundColor('#E8F0FE')
         .onClick(() => {
-          // 跳转到详情页面
           router.pushUrl({
             url: 'pages/history/RegisterDetail',
             params: {
@@ -506,20 +500,16 @@ export struct RegisterHistory {
         })
       }
       .width('100%')
-      .padding(16)
-      .backgroundColor('#FFFFFF')
-      .borderRadius(12)
     }
     .width('100%')
+    .padding(16)
     .backgroundColor('#FFFFFF')
-    .borderRadius(12)
+    .borderRadius(14)
     .shadow({
-      radius: 8,
-      color: 'rgba(0, 0, 0, 0.06)',
-      offsetX: 0,
+      radius: 6,
+      color: 'rgba(0,0,0,0.04)',
       offsetY: 2
     })
-    .margin({ bottom: 12 })
   }
 
   @Builder
@@ -528,10 +518,10 @@ export struct RegisterHistory {
       LoadingProgress()
         .width(40)
         .height(40)
-        .color('#2563EB')
+        .color('#4A90D9')
       Text('加载中...')
         .fontSize(14)
-        .fontColor('#999999')
+        .fontColor('#8E8E93')
         .margin({ top: 12 })
     }
     .width('100%')
@@ -547,13 +537,13 @@ export struct RegisterHistory {
         .margin({ bottom: 16 })
       Text(this.errorMessage)
         .fontSize(14)
-        .fontColor('#8C8C8C')
+        .fontColor('#8E8E93')
         .textAlign(TextAlign.Center)
         .margin({ bottom: 20 })
       Button('重新加载')
         .fontSize(14)
         .fontColor('#FFFFFF')
-        .backgroundColor('#2563EB')
+        .backgroundColor('#4A90D9')
         .borderRadius(20)
         .height(36)
         .padding({ left: 24, right: 24 })
@@ -571,29 +561,32 @@ export struct RegisterHistory {
   private EmptyState() {
     Column() {
       Text('📋')
-        .fontSize(56)
+        .fontSize(52)
         .margin({ bottom: 16 })
-      Text('暂无就诊记录')
+      Text(this.getEmptyText())
         .fontSize(18)
-        .fontColor('#1A1A1A')
         .fontWeight(FontWeight.Medium)
-      Text('您还没有挂号记录，请先预约挂号')
-        .fontSize(14)
-        .fontColor('#8C8C8C')
+        .fontColor('#1A1A2E')
+      Text(this.getEmptySubText())
+        .fontSize(13)
+        .fontColor('#8E8E93')
         .margin({ top: 4 })
-      Button('去挂号')
-        .width(160)
-        .height(44)
-        .fontSize(15)
-        .backgroundColor('#2563EB')
-        .borderRadius(22)
-        .margin({ top: 24 })
-        .onClick(() => {
-          router.pushUrl({ url: 'pages/register/DeptListPage' })
-            .catch(() => {
-              promptAction.showToast({ message: '跳转失败', duration: 1500 });
-            });
-        })
+      if (this.currentTab === 'all' || this.currentTab === 'pending_pay') {
+        Button('去挂号')
+          .width(160)
+          .height(44)
+          .fontSize(15)
+          .fontColor('#FFFFFF')
+          .backgroundColor('#4A90D9')
+          .borderRadius(22)
+          .margin({ top: 24 })
+          .onClick(() => {
+            router.pushUrl({ url: 'pages/register/DeptListPage' })
+              .catch(() => {
+                promptAction.showToast({ message: '跳转失败', duration: 1500 });
+              });
+          })
+      }
     }
     .width('100%')
     .padding(60)
@@ -606,25 +599,15 @@ export struct RegisterHistory {
     Row() {
       ForEach(this.tabs, (tab: TabItem) => {
         Column() {
-          Row() {
-            Text(tab.title)
-              .fontSize(14)
-              .fontColor(this.currentTab === tab.key ? '#2563EB' : '#666666')
-              .fontWeight(this.currentTab === tab.key ? FontWeight.Medium : FontWeight.Normal)
-            if (this.getTabCount(tab.key) > 0) {
-              Text(' (' + this.getTabCount(tab.key) + ')')
-                .fontSize(12)
-                .fontColor(this.currentTab === tab.key ? '#2563EB' : '#999999')
-            }
-          }
-          .padding({ left: 12, right: 12, top: 8, bottom: 8 })
-
-          Divider()
-            .width(this.currentTab === tab.key ? 24 : 0)
-            .height(3)
-            .color('#2563EB')
-            .borderRadius(2)
-            .margin({ top: 2 })
+          Text(tab.title + (this.getTabCount(tab.key) > 0 ? ' (' + this.getTabCount(tab.key) + ')' : ''))
+            .fontSize(13)
+            .fontColor(this.currentTab === tab.key ? '#4A90D9' : '#8E8E93')
+            .fontWeight(this.currentTab === tab.key ? FontWeight.Medium : FontWeight.Normal)
+            .padding({ bottom: 8 })
+            .border({
+              width: { bottom: this.currentTab === tab.key ? 3 : 0 },
+              color: '#4A90D9'
+            })
         }
         .width(`${100 / this.tabs.length}%`)
         .alignItems(HorizontalAlign.Center)
@@ -634,60 +617,64 @@ export struct RegisterHistory {
       })
     }
     .width('100%')
-    .height(48)
+    .height(44)
+    .padding({ top: 4 })
     .backgroundColor('#FFFFFF')
   }
 
   build() {
     Column() {
-      // 顶部导航栏
+      // 顶部导航栏 - 与其他页面统一
       Row() {
-        Text('‹')
-          .fontSize(28)
-          .fontColor('#333333')
-          .onClick(() => {
-            this.goBack();
-          })
+        Stack() {
+          Row()
+            .width(36)
+            .height(36)
+            .borderRadius(18)
+            .backgroundColor('rgba(0,0,0,0.04)')
+          Text('‹')
+            .fontSize(22)
+            .fontColor('#1A1A2E')
+            .fontWeight(FontWeight.Medium)
+        }
+        .width(40)
+        .height(40)
+        .onClick(() => {
+          this.goBack();
+        })
 
         Text('就诊记录')
-          .fontSize(20)
-          .fontWeight(FontWeight.Bold)
-          .fontColor('#333333')
+          .fontSize(18)
+          .fontWeight(FontWeight.Medium)
+          .fontColor('#1A1A2E')
           .layoutWeight(1)
           .textAlign(TextAlign.Center)
 
-        Row()
-          .width(28)
-          .height(28)
+        Row().width(40).height(40)
       }
       .width('100%')
-      .height(56)
-      .padding({ left: 16, right: 16 })
+      .height(52)
+      .padding({ left: 12, right: 12 })
       .backgroundColor('#FFFFFF')
-      .borderRadius({ bottomLeft: 12, bottomRight: 12 })
-      .shadow({
-        radius: 4,
-        color: 'rgba(0,0,0,0.04)',
-        offsetY: 2
-      })
 
-      // 患者信息
+      // 患者信息条
       if (this.userName) {
         Row() {
           Text('👤 ' + this.userName)
-            .fontSize(14)
-            .fontColor('#666666')
+            .fontSize(13)
+            .fontColor('#1A1A2E')
+            .fontWeight(FontWeight.Medium)
           Text('|')
-            .fontSize(13)
-            .fontColor('#E0E0E0')
+            .fontSize(12)
+            .fontColor('#C7C7CC')
             .margin({ left: 10, right: 10 })
-          Text('门诊号：' + this.patientId)
-            .fontSize(13)
-            .fontColor('#666666')
+          Text('ID: ' + this.patientId)
+            .fontSize(12)
+            .fontColor('#8E8E93')
         }
         .width('100%')
         .padding({ left: 16, right: 16, top: 10, bottom: 10 })
-        .backgroundColor('#F8FAFF')
+        .backgroundColor('#F8F9FA')
       }
 
       // Tab栏
@@ -702,16 +689,6 @@ export struct RegisterHistory {
         this.EmptyState()
       } else {
         List() {
-          ListItem() {
-            Row() {
-              Text(`共 ${this.filteredList.length} 条就诊记录`)
-                .fontSize(13)
-                .fontColor('#999999')
-            }
-            .width('100%')
-            .padding({ left: 4, top: 4, bottom: 8 })
-          }
-
           ForEach(this.filteredList, (register: RegisterRecord) => {
             ListItem() {
               this.buildRegisterCard(register)
@@ -719,14 +696,14 @@ export struct RegisterHistory {
           }, (register: RegisterRecord) => register.registerId)
         }
         .width('100%')
-        .padding({ left: 16, right: 16, top: 12 })
-        .backgroundColor('#F5F5F5')
+        .padding({ left: 16, right: 16, top: 12, bottom: 16 })
+        .backgroundColor('#F8F9FA')
         .layoutWeight(1)
       }
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#F5F5F5')
+    .backgroundColor('#FFFFFF')
   }
 
   private getEmptyText(): string {

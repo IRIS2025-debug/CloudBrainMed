@@ -95,6 +95,7 @@ export struct MedicalOrderPage {
 
       if (result.code === 200 && result.data) {
         this.groups = result.data;
+        console.info('检查数据:', JSON.stringify(this.groups));
       } else {
         this.errorMessage = result.msg || '加载失败';
         this.groups = [];
@@ -114,7 +115,7 @@ export struct MedicalOrderPage {
 
   private goToDetail(group: MedicalOrderGroup): void {
     router.pushUrl({
-      url: 'pages/medical/MedicalOrderDetail',
+      url: 'pages/history/MedicalOrderDetail',
       params: {
         registerId: group.registerId,
         patientName: group.patientName,
@@ -142,6 +143,12 @@ export struct MedicalOrderPage {
 
   private formatAmount(amount: number): string {
     return (amount || 0).toFixed(2);
+  }
+
+  private formatDate(dateStr: string): string {
+    if (!dateStr) return '';
+    const parts = dateStr.split('T');
+    return parts[0] || dateStr;
   }
 
   private getItemNames(items: MedicalOrderItem[]): string {
@@ -174,7 +181,7 @@ export struct MedicalOrderPage {
     Column() {
       Row() {
         Column() {
-          Text(group.visitDate || '未知日期')
+          Text(this.formatDate(group.visitDate) || '未知日期')
             .fontSize(15)
             .fontColor('#1A1A1A')
             .fontWeight(FontWeight.Medium)
@@ -312,36 +319,38 @@ export struct MedicalOrderPage {
 
   build() {
     Column() {
-      // 顶部导航栏
+      // 顶部导航栏 - 统一风格
       Row() {
-        Text('‹')
-          .fontSize(28)
-          .fontColor('#333333')
-          .onClick(() => {
-            this.goBack();
-          })
+        Stack() {
+          Row()
+            .width(36)
+            .height(36)
+            .borderRadius(18)
+            .backgroundColor('rgba(0,0,0,0.04)')
+          Text('‹')
+            .fontSize(22)
+            .fontColor('#1A1A2E')
+            .fontWeight(FontWeight.Medium)
+        }
+        .width(40)
+        .height(40)
+        .onClick(() => {
+          this.goBack();
+        })
 
         Text('检查报告')
-          .fontSize(20)
-          .fontWeight(FontWeight.Bold)
-          .fontColor('#333333')
+          .fontSize(18)
+          .fontWeight(FontWeight.Medium)
+          .fontColor('#1A1A2E')
           .layoutWeight(1)
           .textAlign(TextAlign.Center)
 
-        Row()
-          .width(28)
-          .height(28)
+        Row().width(40).height(40)
       }
       .width('100%')
-      .height(56)
-      .padding({ left: 16, right: 16 })
+      .height(52)
+      .padding({ left: 12, right: 12 })
       .backgroundColor('#FFFFFF')
-      .borderRadius({ bottomLeft: 12, bottomRight: 12 })
-      .shadow({
-        radius: 4,
-        color: 'rgba(0,0,0,0.04)',
-        offsetY: 2
-      })
 
       // 内容区域
       if (this.isLoading) {
@@ -376,6 +385,6 @@ export struct MedicalOrderPage {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#F5F5F5')
+    .backgroundColor('#FFFFFF')
   }
 }

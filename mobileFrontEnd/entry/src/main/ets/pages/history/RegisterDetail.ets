@@ -104,19 +104,19 @@ interface ApiResponse<T> {
 // ===== 常量 =====
 
 const STATUS_COLOR: Record<string, string> = {
-  'WAITING': '#FAAD14',
-  'PENDING': '#FAAD14',
-  'CONFIRMED': '#1890FF',
-  'COMPLETED': '#52C41A',
-  'CANCELLED': '#FF4D4F'
+  'WAITING': '#FF9F43',
+  'PENDING': '#FF9F43',
+  'CONFIRMED': '#4A90D9',
+  'COMPLETED': '#2ECC71',
+  'CANCELLED': '#95A5A6'
 };
 
 const STATUS_BG_COLOR: Record<string, string> = {
-  'WAITING': '#FFF7E6',
-  'PENDING': '#FFF7E6',
-  'CONFIRMED': '#E6F7FF',
-  'COMPLETED': '#F6FFED',
-  'CANCELLED': '#FFF1F0'
+  'WAITING': '#FFF3E0',
+  'PENDING': '#FFF3E0',
+  'CONFIRMED': '#E8F0FE',
+  'COMPLETED': '#E8F8F0',
+  'CANCELLED': '#F0F0F0'
 };
 
 const STATUS_TEXT: Record<string, string> = {
@@ -129,16 +129,28 @@ const STATUS_TEXT: Record<string, string> = {
 
 const PAY_STATUS_TEXT: Record<string, string> = {
   'WAITING': '待支付',
-  'PAID': '已支付',
+  'PAID': '已支付 ✓',
   'REFUNDED': '已退款'
 };
 
+const PAY_STATUS_COLOR: Record<string, string> = {
+  'WAITING': '#4A90D9',
+  'PAID': '#2ECC71',
+  'REFUNDED': '#95A5A6'
+};
+
+const PAY_STATUS_BG: Record<string, string> = {
+  'WAITING': '#E8F0FE',
+  'PAID': '#E8F8F0',
+  'REFUNDED': '#F0F0F0'
+};
+
 const ORDER_STATUS_COLOR: Record<string, string> = {
-  'WAITING_ASSIGN': '#FAAD14',
-  'ASSIGNED': '#1890FF',
+  'WAITING_ASSIGN': '#FF9F43',
+  'ASSIGNED': '#4A90D9',
   'IN_PROGRESS': '#722ED1',
-  'COMPLETED': '#52C41A',
-  'CANCELLED': '#FF4D4F'
+  'COMPLETED': '#2ECC71',
+  'CANCELLED': '#95A5A6'
 };
 
 const ORDER_STATUS_TEXT: Record<string, string> = {
@@ -222,11 +234,11 @@ export struct RegisterDetail {
   }
 
   private getStatusColor(status: string): string {
-    return STATUS_COLOR[status] || '#999999';
+    return STATUS_COLOR[status] || '#95A5A6';
   }
 
   private getStatusBgColor(status: string): string {
-    return STATUS_BG_COLOR[status] || '#F5F5F5';
+    return STATUS_BG_COLOR[status] || '#F0F0F0';
   }
 
   private getStatusText(status: string): string {
@@ -237,8 +249,16 @@ export struct RegisterDetail {
     return PAY_STATUS_TEXT[status] || status || '未知';
   }
 
+  private getPayStatusColor(status: string): string {
+    return PAY_STATUS_COLOR[status] || '#95A5A6';
+  }
+
+  private getPayStatusBg(status: string): string {
+    return PAY_STATUS_BG[status] || '#F0F0F0';
+  }
+
   private getOrderStatusColor(status: string): string {
-    return ORDER_STATUS_COLOR[status] || '#999999';
+    return ORDER_STATUS_COLOR[status] || '#95A5A6';
   }
 
   private getOrderStatusText(status: string): string {
@@ -255,16 +275,16 @@ export struct RegisterDetail {
   private StatusTag(status: string) {
     Row() {
       Circle()
-        .width(6)
-        .height(6)
+        .width(5)
+        .height(5)
         .fill(this.getStatusColor(status))
         .margin({ right: 4 })
       Text(this.getStatusText(status))
-        .fontSize(12)
+        .fontSize(11)
         .fontColor(this.getStatusColor(status))
         .fontWeight(FontWeight.Medium)
     }
-    .padding({ left: 10, right: 10, top: 4, bottom: 4 })
+    .padding({ left: 10, right: 10, top: 3, bottom: 3 })
     .backgroundColor(this.getStatusBgColor(status))
     .borderRadius(12)
   }
@@ -273,76 +293,95 @@ export struct RegisterDetail {
   private PayStatusTag(payStatus: string) {
     Row() {
       Circle()
-        .width(6)
-        .height(6)
-        .fill(payStatus === 'PAID' ? '#52C41A' : '#FAAD14')
+        .width(5)
+        .height(5)
+        .fill(this.getPayStatusColor(payStatus))
         .margin({ right: 4 })
       Text(this.getPayStatusText(payStatus))
-        .fontSize(12)
-        .fontColor(payStatus === 'PAID' ? '#52C41A' : '#FAAD14')
+        .fontSize(11)
+        .fontColor(this.getPayStatusColor(payStatus))
         .fontWeight(FontWeight.Medium)
     }
-    .padding({ left: 10, right: 10, top: 4, bottom: 4 })
-    .backgroundColor(payStatus === 'PAID' ? '#F6FFED' : '#FFF7E6')
+    .padding({ left: 10, right: 10, top: 3, bottom: 3 })
+    .backgroundColor(this.getPayStatusBg(payStatus))
     .borderRadius(12)
+  }
+
+  @Builder
+  private SectionTitle(title: string, count?: number, icon: string = '📋') {
+    Row() {
+      Text(icon + ' ' + title)
+        .fontSize(16)
+        .fontWeight(FontWeight.Medium)
+        .fontColor('#1A1A2E')
+      if (count !== undefined && count > 0) {
+        Text(' (' + count + ')')
+          .fontSize(13)
+          .fontColor('#8E8E93')
+      }
+    }
+    .width('100%')
+    .margin({ bottom: 12 })
+  }
+
+  @Builder
+  private InfoRow(label: string, value: string, color: string = '#1A1A2E') {
+    Row() {
+      Text(label)
+        .fontSize(13)
+        .fontColor('#8E8E93')
+        .width(72)
+      Text(value)
+        .fontSize(14)
+        .fontColor(color)
+        .layoutWeight(1)
+        .textAlign(TextAlign.End)
+    }
+    .width('100%')
+    .padding({ top: 6, bottom: 6 })
+    .border({
+      width: { bottom: 0.5 },
+      color: { bottom: '#F0F0F0' }
+    })
   }
 
   @Builder
   buildReport(report: RegisterReport | null) {
     Column() {
+      this.SectionTitle('病历信息', undefined, '📋')
+
       if (report) {
         Row() {
-          Text('📋 病历信息')
-            .fontSize(16)
-            .fontWeight(FontWeight.Bold)
-            .fontColor('#1A1A1A')
+          Text('👨‍⚕️ ' + (report.doctorName || '未知医生'))
+            .fontSize(13)
+            .fontColor('#8E8E93')
           Blank()
-          Text('医生：' + (report.doctorName || '未知'))
-            .fontSize(14)
-            .fontColor('#666666')
+          Text('就诊年龄：' + (report.visitAge || 0) + '岁')
+            .fontSize(13)
+            .fontColor('#8E8E93')
         }
         .width('100%')
-        .margin({ bottom: 10 })
+        .margin({ bottom: 8 })
 
         Text('主诉')
-          .fontSize(13)
-          .fontColor('#666666')
+          .fontSize(12)
+          .fontColor('#8E8E93')
           .margin({ bottom: 4 })
           .alignSelf(ItemAlign.Start)
 
         Text(report.description || '无病历描述')
           .fontSize(14)
-          .fontColor('#1A1A1A')
+          .fontColor('#1A1A2E')
           .lineHeight(24)
           .padding(12)
-          .backgroundColor('#F8FAFF')
+          .backgroundColor('#F8F9FA')
           .borderRadius(8)
           .width('100%')
-          .margin({ bottom: 8 })
-
-        Row() {
-          Text('就诊年龄：' + (report.visitAge || 0) + '岁')
-            .fontSize(13)
-            .fontColor('#999999')
-          Blank()
-          Text('就诊日期：' + this.formatDate(report.visitDate))
-            .fontSize(13)
-            .fontColor('#999999')
-        }
-        .width('100%')
-        .margin({ top: 4 })
       } else {
-        Text('📋 病历信息')
-          .fontSize(16)
-          .fontWeight(FontWeight.Bold)
-          .fontColor('#1A1A1A')
-          .margin({ bottom: 10 })
-          .alignSelf(ItemAlign.Start)
-
         Text('暂无病历记录')
           .fontSize(14)
-          .fontColor('#999999')
-          .padding({ top: 20, bottom: 20 })
+          .fontColor('#C7C7CC')
+          .padding({ top: 16, bottom: 16 })
           .width('100%')
           .textAlign(TextAlign.Center)
       }
@@ -350,44 +389,41 @@ export struct RegisterDetail {
     .width('100%')
     .padding(16)
     .backgroundColor('#FFFFFF')
-    .borderRadius(12)
-    .border({ width: 1, color: '#F0F0F0' })
+    .borderRadius(14)
+    .shadow({
+      radius: 6,
+      color: 'rgba(0,0,0,0.04)',
+      offsetY: 2
+    })
   }
 
   @Builder
   buildOrderList(orders: MedicalOrder[], orderItems: MedicalOrderItem[]) {
     Column() {
-      Row() {
-        Text('🔬 检查检验 (' + (orders?.length || 0) + '项)')
-          .fontSize(16)
-          .fontWeight(FontWeight.Bold)
-          .fontColor('#1A1A1A')
-      }
-      .width('100%')
-      .margin({ bottom: 10 })
+      this.SectionTitle('检查检验', orders?.length, '🔬')
 
       if (orders && orders.length > 0) {
         ForEach(orders, (order: MedicalOrder, orderIndex: number) => {
           Column() {
             Row() {
               Text('申请单 #' + (orderIndex + 1))
-                .fontSize(15)
+                .fontSize(14)
                 .fontWeight(FontWeight.Medium)
-                .fontColor('#1A1A1A')
+                .fontColor('#1A1A2E')
               Blank()
               Text(this.getOrderStatusText(order.status))
-                .fontSize(12)
+                .fontSize(10)
                 .fontColor('#FFFFFF')
                 .backgroundColor(this.getOrderStatusColor(order.status))
-                .padding({ left: 10, right: 10, top: 4, bottom: 4 })
-                .borderRadius(12)
+                .padding({ left: 10, right: 10, top: 2, bottom: 2 })
+                .borderRadius(10)
             }
             .width('100%')
             .margin({ bottom: 6 })
 
             if (order.clinicalSummary) {
-              Text('临床摘要：' + order.clinicalSummary)
-                .fontSize(14)
+              Text('📝 ' + order.clinicalSummary)
+                .fontSize(13)
                 .fontColor('#666666')
                 .width('100%')
                 .margin({ bottom: 4 })
@@ -396,11 +432,11 @@ export struct RegisterDetail {
             if (order.urgencyLevel) {
               Row() {
                 Text('紧急程度：')
-                  .fontSize(13)
-                  .fontColor('#999999')
+                  .fontSize(12)
+                  .fontColor('#8E8E93')
                 Text(this.getUrgencyLabel(order.urgencyLevel))
-                  .fontSize(13)
-                  .fontColor(order.urgencyLevel === 'URGENT' ? '#EF4444' : '#666666')
+                  .fontSize(12)
+                  .fontColor(order.urgencyLevel === 'URGENT' ? '#FF6B6B' : '#666666')
                   .fontWeight(order.urgencyLevel === 'URGENT' ? FontWeight.Bold : FontWeight.Normal)
               }
               .width('100%')
@@ -409,9 +445,9 @@ export struct RegisterDetail {
 
             // 明细列表
             Column() {
-              Text('检查项目明细：')
-                .fontSize(13)
-                .fontColor('#999999')
+              Text('检查项目明细')
+                .fontSize(12)
+                .fontColor('#8E8E93')
                 .alignSelf(ItemAlign.Start)
                 .margin({ bottom: 6 })
 
@@ -419,47 +455,31 @@ export struct RegisterDetail {
                 ForEach(orderItems, (item: MedicalOrderItem) => {
                   if (item.orderId === order.orderId) {
                     Row() {
-                      Column() {
-                        Text('•')
-                          .fontSize(16)
-                          .fontColor('#2563EB')
-                      }
-                      .width(24)
-                      .alignItems(HorizontalAlign.Center)
+                      Text('•')
+                        .fontSize(14)
+                        .fontColor('#4A90D9')
+                        .margin({ right: 8 })
 
                       Column() {
                         Text(item.itemName || '未知项目')
-                          .fontSize(14)
-                          .fontColor('#1A1A1A')
-                          .fontWeight(FontWeight.Medium)
-                        Row() {
-                          Text('编码：' + (item.itemCode || '-'))
-                            .fontSize(12)
-                            .fontColor('#999999')
-                          Text('|')
-                            .fontSize(12)
-                            .fontColor('#E0E0E0')
-                            .margin({ left: 6, right: 6 })
-                          Text('分类：' + (item.itemCategory || '-'))
-                            .fontSize(12)
-                            .fontColor('#999999')
-                        }
+                          .fontSize(13)
+                          .fontColor('#1A1A2E')
+                        Text(item.itemCategory || '-')
+                          .fontSize(11)
+                          .fontColor('#8E8E93')
                       }
                       .alignItems(HorizontalAlign.Start)
                       .layoutWeight(1)
-                      .margin({ left: 4 })
-
-                      Blank()
 
                       Text('¥' + (item.price || 0).toFixed(2))
-                        .fontSize(14)
-                        .fontColor('#2563EB')
+                        .fontSize(13)
+                        .fontColor('#4A90D9')
                         .fontWeight(FontWeight.Medium)
                     }
                     .width('100%')
-                    .padding({ top: 6, bottom: 6 })
+                    .padding({ top: 5, bottom: 5 })
                     .border({
-                      width: { bottom: 1 },
+                      width: { bottom: 0.5 },
                       color: { bottom: '#F0F0F0' }
                     })
                   }
@@ -467,7 +487,7 @@ export struct RegisterDetail {
               } else {
                 Text('暂无检查项目明细')
                   .fontSize(13)
-                  .fontColor('#999999')
+                  .fontColor('#C7C7CC')
                   .padding(10)
                   .width('100%')
                   .textAlign(TextAlign.Center)
@@ -475,20 +495,20 @@ export struct RegisterDetail {
             }
             .width('100%')
             .padding(12)
-            .backgroundColor('#F8FAFF')
+            .backgroundColor('#F8F9FA')
             .borderRadius(8)
           }
           .width('100%')
           .padding(14)
           .backgroundColor('#FFFFFF')
-          .borderRadius(8)
+          .borderRadius(10)
           .margin({ bottom: 10 })
-          .border({ width: 1, color: '#E8F0FE' })
+          .border({ width: 0.5, color: '#E8F0FE' })
         }, (order: MedicalOrder) => order.orderId)
       } else {
         Text('暂无检查检验项')
           .fontSize(14)
-          .fontColor('#999999')
+          .fontColor('#C7C7CC')
           .padding({ top: 16, bottom: 16 })
           .width('100%')
           .textAlign(TextAlign.Center)
@@ -497,21 +517,18 @@ export struct RegisterDetail {
     .width('100%')
     .padding(16)
     .backgroundColor('#FFFFFF')
-    .borderRadius(12)
-    .border({ width: 1, color: '#F0F0F0' })
+    .borderRadius(14)
+    .shadow({
+      radius: 6,
+      color: 'rgba(0,0,0,0.04)',
+      offsetY: 2
+    })
   }
 
   @Builder
   buildPrescriptionList(prescriptions: Prescription[]) {
     Column() {
-      Row() {
-        Text('💊 处方项 (' + (prescriptions?.length || 0) + ')')
-          .fontSize(16)
-          .fontWeight(FontWeight.Bold)
-          .fontColor('#1A1A1A')
-      }
-      .width('100%')
-      .margin({ bottom: 10 })
+      this.SectionTitle('处方项', prescriptions?.length, '💊')
 
       if (prescriptions && prescriptions.length > 0) {
         ForEach(prescriptions, (prescription: Prescription, index: number) => {
@@ -519,87 +536,83 @@ export struct RegisterDetail {
             Row() {
               Column() {
                 Text('#' + (index + 1))
-                  .fontSize(13)
-                  .fontColor('#10B981')
+                  .fontSize(12)
+                  .fontColor('#2ECC71')
                   .fontWeight(FontWeight.Bold)
                 Text(this.getPayStatusText(prescription.payStatus))
-                  .fontSize(11)
+                  .fontSize(10)
                   .fontColor('#FFFFFF')
-                  .backgroundColor(prescription.payStatus === 'PAID' ? '#10B981' : '#FAAD14')
+                  .backgroundColor(this.getPayStatusColor(prescription.payStatus))
                   .padding({ left: 8, right: 8, top: 2, bottom: 2 })
                   .borderRadius(10)
-                  .margin({ top: 4 })
+                  .margin({ top: 2 })
               }
               .alignItems(HorizontalAlign.Center)
               .margin({ right: 12 })
 
               Column() {
-                Text('药品名称')
-                  .fontSize(12)
-                  .fontColor('#999999')
                 Text(prescription.medicineName || '未知药品')
-                  .fontSize(15)
-                  .fontColor('#1A1A1A')
+                  .fontSize(14)
                   .fontWeight(FontWeight.Medium)
+                  .fontColor('#1A1A2E')
+                Text('规格：' + (prescription.spec || '无'))
+                  .fontSize(12)
+                  .fontColor('#8E8E93')
               }
               .alignItems(HorizontalAlign.Start)
               .layoutWeight(1)
 
-              Blank()
-
               Column() {
                 Text('数量')
-                  .fontSize(12)
-                  .fontColor('#999999')
+                  .fontSize(11)
+                  .fontColor('#8E8E93')
                 Text(prescription.num + ' 单位')
-                  .fontSize(14)
-                  .fontColor('#1A1A1A')
+                  .fontSize(13)
+                  .fontColor('#1A1A2E')
               }
               .alignItems(HorizontalAlign.End)
+              .margin({ left: 8 })
             }
             .width('100%')
 
+            Divider()
+              .color('#F0F0F0')
+              .margin({ top: 6, bottom: 6 })
+
             Row() {
-              Text('规格：' + (prescription.spec || '无'))
-                .fontSize(13)
+              Text('用法：' + (prescription.usage || '无'))
+                .fontSize(12)
                 .fontColor('#666666')
-              Blank()
+                .layoutWeight(1)
               Text('单价：¥' + (prescription.price || 0).toFixed(2))
                 .fontSize(13)
-                .fontColor('#2563EB')
+                .fontColor('#4A90D9')
+                .fontWeight(FontWeight.Medium)
             }
             .width('100%')
-            .margin({ top: 6 })
-
-            Text('用法：' + (prescription.usage || '无'))
-              .fontSize(13)
-              .fontColor('#666666')
-              .width('100%')
-              .margin({ top: 4 })
 
             Row() {
-              Text('开方医生：' + (prescription.doctorName || '未知'))
-                .fontSize(12)
-                .fontColor('#999999')
+              Text('👨‍⚕️ ' + (prescription.doctorName || '未知'))
+                .fontSize(11)
+                .fontColor('#8E8E93')
               Blank()
-              Text('开方日期：' + this.formatDate(prescription.createDate))
-                .fontSize(12)
-                .fontColor('#999999')
+              Text(this.formatDate(prescription.createDate))
+                .fontSize(11)
+                .fontColor('#8E8E93')
             }
             .width('100%')
-            .margin({ top: 6 })
+            .margin({ top: 4 })
           }
           .width('100%')
           .padding(14)
-          .backgroundColor('#F0FDF4')
-          .borderRadius(8)
+          .backgroundColor('#F8F9FA')
+          .borderRadius(10)
           .margin({ bottom: 10 })
-          .border({ width: 1, color: '#DCFCE7' })
         }, (prescription: Prescription) => prescription.prescriptionId)
       } else {
         Text('暂无处方项')
           .fontSize(14)
-          .fontColor('#999999')
+          .fontColor('#C7C7CC')
           .padding({ top: 16, bottom: 16 })
           .width('100%')
           .textAlign(TextAlign.Center)
@@ -608,21 +621,25 @@ export struct RegisterDetail {
     .width('100%')
     .padding(16)
     .backgroundColor('#FFFFFF')
-    .borderRadius(12)
-    .border({ width: 1, color: '#F0F0F0' })
+    .borderRadius(14)
+    .shadow({
+      radius: 6,
+      color: 'rgba(0,0,0,0.04)',
+      offsetY: 2
+    })
   }
 
   @Builder
   private LoadingState() {
     Column() {
       LoadingProgress()
-        .width(48)
-        .height(48)
-        .color('#2563EB')
+        .width(40)
+        .height(40)
+        .color('#4A90D9')
       Text('加载就诊详情...')
         .fontSize(14)
-        .fontColor('#999999')
-        .margin({ top: 16 })
+        .fontColor('#8E8E93')
+        .margin({ top: 12 })
     }
     .width('100%')
     .height(300)
@@ -637,13 +654,13 @@ export struct RegisterDetail {
         .margin({ bottom: 16 })
       Text(this.errorMessage)
         .fontSize(14)
-        .fontColor('#8C8C8C')
+        .fontColor('#8E8E93')
         .textAlign(TextAlign.Center)
         .margin({ bottom: 20 })
       Button('重新加载')
         .fontSize(14)
         .fontColor('#FFFFFF')
-        .backgroundColor('#2563EB')
+        .backgroundColor('#4A90D9')
         .borderRadius(20)
         .height(36)
         .padding({ left: 24, right: 24 })
@@ -659,36 +676,38 @@ export struct RegisterDetail {
 
   build() {
     Column() {
-      // 顶部导航栏
+      // 顶部导航栏 - 与其他页面统一
       Row() {
-        Text('‹')
-          .fontSize(28)
-          .fontColor('#333333')
-          .onClick(() => {
-            this.goBack();
-          })
+        Stack() {
+          Row()
+            .width(36)
+            .height(36)
+            .borderRadius(18)
+            .backgroundColor('rgba(0,0,0,0.04)')
+          Text('‹')
+            .fontSize(22)
+            .fontColor('#1A1A2E')
+            .fontWeight(FontWeight.Medium)
+        }
+        .width(40)
+        .height(40)
+        .onClick(() => {
+          this.goBack();
+        })
 
         Text('就诊详情')
-          .fontSize(20)
-          .fontWeight(FontWeight.Bold)
-          .fontColor('#333333')
+          .fontSize(18)
+          .fontWeight(FontWeight.Medium)
+          .fontColor('#1A1A2E')
           .layoutWeight(1)
           .textAlign(TextAlign.Center)
 
-        Row()
-          .width(28)
-          .height(28)
+        Row().width(40).height(40)
       }
       .width('100%')
-      .height(56)
-      .padding({ left: 16, right: 16 })
+      .height(52)
+      .padding({ left: 12, right: 12 })
       .backgroundColor('#FFFFFF')
-      .borderRadius({ bottomLeft: 12, bottomRight: 12 })
-      .shadow({
-        radius: 4,
-        color: 'rgba(0,0,0,0.04)',
-        offsetY: 2
-      })
 
       // 内容区域
       if (this.isLoading) {
@@ -697,18 +716,18 @@ export struct RegisterDetail {
         this.ErrorState()
       } else if (this.detail) {
         Scroll() {
-          Column() {
+          Column({ space: 12 }) {
             // 挂号信息卡片
             Column() {
               Row() {
                 Column() {
                   Text(this.detail.register?.department || '未知科室')
-                    .fontSize(18)
+                    .fontSize(17)
                     .fontWeight(FontWeight.Bold)
-                    .fontColor('#1A1A1A')
+                    .fontColor('#1A1A2E')
                   Text(this.detail.register?.consultRoom || '未知诊室')
-                    .fontSize(14)
-                    .fontColor('#666666')
+                    .fontSize(13)
+                    .fontColor('#8E8E93')
                     .margin({ top: 2 })
                 }
                 .alignItems(HorizontalAlign.Start)
@@ -723,102 +742,72 @@ export struct RegisterDetail {
                 .color('#F0F0F0')
                 .margin({ top: 12, bottom: 12 })
 
-              Row() {
-                Text('患者：' + (this.detail.register?.name || '未知'))
-                  .fontSize(15)
-                  .fontColor('#333333')
-                Text('|')
-                  .fontSize(13)
-                  .fontColor('#E0E0E0')
-                  .margin({ left: 8, right: 8 })
-                Text(this.getGenderText(this.detail.register?.gender || 0))
-                  .fontSize(15)
-                  .fontColor('#333333')
-                Text('|')
-                  .fontSize(13)
-                  .fontColor('#E0E0E0')
-                  .margin({ left: 8, right: 8 })
-                Text(this.detail.register?.birthday ? this.formatDate(this.detail.register.birthday) : '')
-                  .fontSize(14)
-                  .fontColor('#666666')
-              }
-              .width('100%')
-
-              Row() {
-                Text('就诊时间：' + (this.detail.register?.visitDate ? this.formatDate(this.detail.register.visitDate) : '') + ' ' + (this.detail.register?.consultTime || ''))
-                  .fontSize(14)
-                  .fontColor('#666666')
-              }
-              .width('100%')
-              .margin({ top: 4 })
+              this.InfoRow('患者', this.detail.register?.name || '未知')
+              this.InfoRow('性别', this.getGenderText(this.detail.register?.gender || 0))
+              this.InfoRow('出生日期', this.detail.register?.birthday ? this.formatDate(this.detail.register.birthday) : '')
+              this.InfoRow('就诊时间', (this.detail.register?.visitDate ? this.formatDate(this.detail.register.visitDate) : '') + ' ' + (this.detail.register?.consultTime || ''))
 
               if (this.detail.register?.chiefComplaint) {
                 Row() {
-                  Text('主诉：' + this.detail.register.chiefComplaint)
+                  Text('主诉')
+                    .fontSize(13)
+                    .fontColor('#8E8E93')
+                    .width(72)
+                  Text(this.detail.register.chiefComplaint)
                     .fontSize(14)
-                    .fontColor('#666666')
-                    .maxLines(2)
-                    .textOverflow({ overflow: TextOverflow.Ellipsis })
+                    .fontColor('#1A1A2E')
+                    .layoutWeight(1)
+                    .textAlign(TextAlign.End)
                 }
                 .width('100%')
-                .margin({ top: 4 })
+                .padding({ top: 6, bottom: 6 })
+                .border({
+                  width: { bottom: 0.5 },
+                  color: { bottom: '#F0F0F0' }
+                })
               }
 
               Row() {
                 this.PayStatusTag(this.detail.register?.payStatus || '')
                 Blank()
                 Text('¥' + (this.detail.register?.price || 0).toFixed(2))
-                  .fontSize(20)
-                  .fontColor('#EF4444')
+                  .fontSize(18)
                   .fontWeight(FontWeight.Bold)
+                  .fontColor('#4A90D9')
               }
               .width('100%')
-              .margin({ top: 8 })
+              .margin({ top: 4 })
             }
             .width('100%')
             .padding(16)
             .backgroundColor('#FFFFFF')
-            .borderRadius(12)
+            .borderRadius(14)
             .shadow({
-              radius: 8,
-              color: 'rgba(0, 0, 0, 0.06)',
-              offsetX: 0,
+              radius: 6,
+              color: 'rgba(0,0,0,0.04)',
               offsetY: 2
             })
-            .margin({ bottom: 12 })
 
-            // 病历信息 - 用 Column 包裹后设置 margin
-            Column() {
-              this.buildReport(this.detail.report)
-            }
-            .width('100%')
-            .margin({ bottom: 12 })
+            // 病历信息
+            this.buildReport(this.detail.report)
 
-            // 检查检验 - 用 Column 包裹后设置 margin
-            Column() {
-              this.buildOrderList(this.detail.orders, this.detail.orderItems)
-            }
-            .width('100%')
-            .margin({ bottom: 12 })
+            // 检查检验
+            this.buildOrderList(this.detail.orders, this.detail.orderItems)
 
-            // 处方项 - 用 Column 包裹后设置 margin
-            Column() {
-              this.buildPrescriptionList(this.detail.prescriptions)
-            }
-            .width('100%')
-            .margin({ bottom: 12 })
+            // 处方项
+            this.buildPrescriptionList(this.detail.prescriptions)
           }
           .width('100%')
           .padding(16)
         }
         .width('100%')
         .layoutWeight(1)
-        .backgroundColor('#F5F5F5')
-        .scrollBar(BarState.Auto)
+        .backgroundColor('#F8F9FA')
+        .scrollBar(BarState.Off)
       }
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#F5F5F5')
+    .backgroundColor('#FFFFFF')
   }
 }

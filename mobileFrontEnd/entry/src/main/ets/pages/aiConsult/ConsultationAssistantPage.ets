@@ -4,11 +4,12 @@ import { http } from '@kit.NetworkKit';
 import { promptAction } from '@kit.ArkUI';
 import { util } from '@kit.ArkTS';
 import { APIConfig } from '../common/APIConfig';
+import router from '@ohos.router';
 
 // ============ 类型定义 ============
 
 interface MessageItem {
-  msgId: string; // 新增唯一消息ID，解决列表渲染复用bug
+  msgId: string;
   type: 'user' | 'bot';
   content: string;
   time: string;
@@ -36,7 +37,6 @@ interface AiRecommendData {
   aiAnalysisTime: string;
 }
 
-// 后端实际返回的响应格式
 interface RawApiResponse {
   code: number;
   msg?: string;
@@ -72,24 +72,25 @@ export struct ConsultationAssistantPage {
     }
   ];
   private scroller: Scroller = new Scroller();
-
-  // 新增：页面内全局唯一会话ID，整段对话共用，实现后端多轮记忆
   private sessionId: string = Date.now().toString() + Math.random().toString(36).slice(2);
+
   aboutToAppear() {
     console.info('问诊助手 - 患者ID: ' + this.patientId);
     console.info('问诊助手 - 用户名: ' + this.userName);
   }
 
-  /**
-   * 生成唯一消息ID
-   */
   private genMsgId(): string {
     return Date.now().toString() + Math.random().toString(36).slice(2);
   }
 
-  /**
-   * 发送消息并调用AI接口
-   */
+  private goBack(): void {
+    router.pushUrl({
+      url: 'pages/Index'
+    }).catch(() => {
+      router.back();
+    });
+  }
+
   private async sendMessage() {
     if (!this.inputMessage.trim() || this.isSending) {
       return;
@@ -97,19 +98,16 @@ export struct ConsultationAssistantPage {
 
     const userContent: string = this.inputMessage.trim();
 
-    // 构建用户消息
     const userMessage: MessageItem = {
       msgId: this.genMsgId(),
       type: 'user',
       content: userContent,
       time: this.getCurrentTime()
     };
-    // 解构新建数组赋值，强制刷新
     this.messages = [...this.messages, userMessage];
     this.inputMessage = '';
     this.isSending = true;
 
-    // 构建加载消息
     const loadingMessage: MessageItem = {
       msgId: this.genMsgId(),
       type: 'bot',
@@ -125,16 +123,11 @@ export struct ConsultationAssistantPage {
     try {
       const response: ApiResponse = await this.callAiConsultApi(userContent);
 
-      // 1. 删除加载消息
       let newMsgList = [...this.messages];
       newMsgList.splice(loadingIndex, 1);
-      console.info('删除加载项后消息数量：', newMsgList.length);
 
-      // 2. 拼接AI回复文本
       const botContent: string = this.buildBotResponse(response);
-      console.info('生成的bot内容长度:', botContent.length, botContent);
 
-      // 3. 构建机器人消息并追加
       const botMessage: MessageItem = {
         msgId: this.genMsgId(),
         type: 'bot',
@@ -142,14 +135,11 @@ export struct ConsultationAssistantPage {
         time: this.getCurrentTime()
       };
       newMsgList.push(botMessage);
-      // 整体赋值触发响应式更新
       this.messages = newMsgList;
-      console.info('最终消息列表：', JSON.stringify(this.messages));
 
       this.scrollToBottom();
 
     } catch (error) {
-      // 异常分支移除加载项
       let newMsgList = [...this.messages];
       newMsgList.splice(loadingIndex, 1);
 
@@ -177,11 +167,7 @@ export struct ConsultationAssistantPage {
     }
   }
 
-  /**
-   * 调用后端AI问诊接口（修复：携带sessionId参数）
-   */
   private async callAiConsultApi(chiefComplaint: string): Promise<ApiResponse> {
-    // 拼接URL，追加sessionId请求参数
     const url: string = APIConfig.AI_SERVICE_URL + '/ai/consult/recommend?sessionId=' + this.sessionId;
 
     const requestData: ConsultRequest = {
@@ -191,7 +177,6 @@ export struct ConsultationAssistantPage {
 
     console.info('完整请求URL:', url);
     console.info('当前会话sessionId:', this.sessionId);
-    console.info('请求参数body:', JSON.stringify(requestData));
 
     try {
       const httpRequest = http.createHttp();
@@ -206,18 +191,12 @@ export struct ConsultationAssistantPage {
         readTimeout: 30000
       });
 
-      console.info('=== 接口返回完整信息 ===');
-      console.info('响应状态码 responseCode:', response.responseCode);
-      console.info('原始响应result:', response.result);
-
-      // 处理响应结果 - response.result 可能是 string 或 ArrayBuffer
       let resultStr: string = '';
       const result = response.result;
 
       if (typeof result === 'string') {
         resultStr = result;
       } else if (result instanceof ArrayBuffer) {
-        // 使用 util.TextDecoder 将 ArrayBuffer 转换为字符串
         const decoder: util.TextDecoder = new util.TextDecoder('utf-8');
         const uint8Array: Uint8Array = new Uint8Array(result);
         resultStr = decoder.decode(uint8Array);
@@ -225,50 +204,34 @@ export struct ConsultationAssistantPage {
         throw new Error('响应格式异常，后端返回非文本数据');
       }
 
-      console.info('解析后的响应字符串 resultStr:', resultStr);
-
-      // 状态码非200直接抛错
       if (response.responseCode !== 200) {
         throw new Error(`接口HTTP异常，状态码:${response.responseCode},返回内容:${resultStr}`);
       }
 
       const rawResult: RawApiResponse = JSON.parse(resultStr) as RawApiResponse;
-      console.info('JSON解析后的完整返回体:', JSON.stringify(rawResult));
 
-      // 检查是否有 code 字段，如果没有或者 code 为 undefined，当作成功处理
       if (rawResult.code === undefined || rawResult.code === null || rawResult.code === 200) {
-        // 如果 data 字段不存在，说明整个响应就是数据本身
         const data = rawResult.data || rawResult;
 
         const apiResponse: ApiResponse = {
-          code: 200, // 默认成功
+          code: 200,
           message: rawResult.msg || rawResult.message || '成功',
           data: data as AiRecommendData
         };
-        console.info('转换后的业务响应:', JSON.stringify(apiResponse));
         return apiResponse;
       } else {
-        // 后端业务码非200，抛出后端返回的错误信息
         throw new Error(`业务异常 code=${rawResult.code}，提示：${rawResult.msg || rawResult.message || '未知业务错误'}`);
       }
     } catch (error) {
-      // 打印完整错误堆栈，方便定位真实原因
-      console.error('===== API调用完整异常捕获 =====');
       if (error instanceof Error) {
         console.error('错误message:', error.message);
-        console.error('完整错误对象:', error);
         throw error;
       } else {
-        const errorMsg: string = '未知网络/服务异常';
-        console.error(errorMsg, error);
-        throw new Error(errorMsg);
+        throw new Error('未知网络/服务异常');
       }
     }
   }
 
-  /**
-   * 构建机器人回复内容
-   */
   private buildBotResponse(response: ApiResponse): string {
     if (!response || !response.data) {
       return '😅 抱歉，AI服务返回的数据格式异常，请稍后重试。';
@@ -314,9 +277,6 @@ export struct ConsultationAssistantPage {
     return content;
   }
 
-  /**
-   * 滚动到底部（双层延时兜底）
-   */
   private scrollToBottom(): void {
     setTimeout(() => {
       this.scroller.scrollEdge(Edge.Bottom);
@@ -326,9 +286,6 @@ export struct ConsultationAssistantPage {
     }, 600);
   }
 
-  /**
-   * 获取当前时间
-   */
   private getCurrentTime(): string {
     const now: Date = new Date();
     const hours: string = now.getHours().toString().padStart(2, '0');
@@ -336,11 +293,7 @@ export struct ConsultationAssistantPage {
     return hours + ':' + minutes;
   }
 
-  /**
-   * 清空对话
-   */
   private clearChat(): void {
-    // 重置会话ID，新对话重新开启独立记忆
     this.sessionId = Date.now().toString() + Math.random().toString(36).slice(2);
     this.messages = [
       {
@@ -356,40 +309,25 @@ export struct ConsultationAssistantPage {
     });
   }
 
-  /**
-   * 将内容按行分割，并过滤纯空行，减少无效渲染节点
-   */
   private parseContentToLines(content: string): string[] {
     if (!content) {
       return [];
     }
-    return content.split('\n').filter(item => item.trim() !== '');
+    return content.split('\n');
   }
 
-  /**
-   * 判断是否为标题行
-   */
   private isTitleLine(line: string): boolean {
     return line.includes('📋') || line.includes('🏥') || line.includes('👨‍⚕️');
   }
 
-  /**
-   * 判断是否为分割线
-   */
   private isDividerLine(line: string): boolean {
     return line.trim() === '---';
   }
 
-  /**
-   * 判断是否为医生排名行
-   */
   private isDoctorRankLine(line: string): boolean {
     return line.includes('🥇') || line.includes('🥈') || line.includes('🥉') || /^\d+\./.test(line.trim());
   }
 
-  /**
-   * 判断是否为医生详情行
-   */
   private isDoctorDetailLine(line: string): boolean {
     const trimmed: string = line.trim();
     return trimmed.startsWith('科室：') ||
@@ -402,9 +340,6 @@ export struct ConsultationAssistantPage {
     trimmed.startsWith('  理由：');
   }
 
-  /**
-   * 获取干净的行内容
-   */
   private getCleanLine(line: string): string {
     return line.replace(/\*\*/g, '').trimEnd();
   }
@@ -417,7 +352,6 @@ export struct ConsultationAssistantPage {
 
       Scroll(this.scroller) {
         Column() {
-          // 使用 msgId 作为唯一key，不再使用index
           ForEach(this.messages, (message: MessageItem) => {
             if (message.type === 'bot') {
               this.buildBotMessage(message);
@@ -427,78 +361,82 @@ export struct ConsultationAssistantPage {
           }, (message: MessageItem) => message.msgId)
         }
         .width('100%')
-        .padding({ left: 12, right: 12, top: 10, bottom: 10 })
+        .padding({ left: 16, right: 16, top: 12, bottom: 12 })
         .alignItems(HorizontalAlign.Start)
       }
       .layoutWeight(1)
-      .backgroundColor('#F8FAFC')
-      .scrollBar(BarState.Auto)
+      .backgroundColor('#F8F9FA')
+      .scrollBar(BarState.Off)
 
       this.buildInputBar();
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#F8FAFC')
+    .backgroundColor('#F8F9FA')
   }
 
   @Builder
   buildHeader() {
     Row() {
-      Row() {
-        Text('←')
-          .fontSize(24)
-          .fontColor('#2D3748')
+      // 返回按钮 - 与其他页面统一
+      Stack() {
+        Row()
+          .width(36)
+          .height(36)
+          .borderRadius(18)
+          .backgroundColor('rgba(0,0,0,0.04)')
+        Text('‹')
+          .fontSize(22)
+          .fontColor('#1A1A2E')
+          .fontWeight(FontWeight.Medium)
       }
-      .width(44)
-      .height(44)
-      .justifyContent(FlexAlign.Center)
-      .borderRadius(22)
-      .backgroundColor('#F1F5F9')
+      .width(40)
+      .height(40)
       .onClick(() => {
-        console.info('返回上一页');
+        this.goBack();
       })
 
-      Text('💬 AI智能问诊')
-        .fontSize(19)
-        .fontWeight(FontWeight.Bold)
-        .fontColor('#1E293B')
+      Text('AI智能问诊')
+        .fontSize(18)
+        .fontWeight(FontWeight.Medium)
+        .fontColor('#1A1A2E')
         .layoutWeight(1)
         .textAlign(TextAlign.Center)
 
-      Text('清空对话')
-        .fontSize(14)
-        .fontColor('#0284C7')
-        .width(60)
-        .height(44)
+      Text('清空')
+        .fontSize(13)
+        .fontColor('#4A90D9')
+        .fontWeight(FontWeight.Medium)
+        .width(44)
+        .height(36)
         .textAlign(TextAlign.Center)
-        .borderRadius(22)
-        .backgroundColor('#EFF6FF')
+        .borderRadius(18)
+        .backgroundColor('#E8F0FE')
         .onClick(() => {
           this.clearChat();
         })
     }
     .width('100%')
-    .height(60)
-    .padding({ left: 10, right: 10 })
+    .height(52)
+    .padding({ left: 12, right: 12 })
     .backgroundColor('#FFFFFF')
-    .shadow({ radius: 6, color: '#00000010', offsetY: 2 })
   }
 
   @Builder
   buildInputBar() {
     Row() {
       TextInput({
-        placeholder: '请描述您的身体症状，我将为您分析推荐科室...',
+        placeholder: '描述您的症状，如：头痛、发热...',
         text: this.inputMessage
       })
         .layoutWeight(1)
-        .height(46)
+        .height(44)
         .backgroundColor('#F1F5F9')
-        .borderRadius(24)
+        .borderRadius(22)
         .padding({ left: 18, right: 18 })
         .fontSize(14)
-        .fontColor('#334155')
-        .placeholderColor('#94A3B8')
+        .fontColor('#1A1A2E')
+        .placeholderColor('#8E8E93')
         .onChange((value: string) => {
           this.inputMessage = value;
         })
@@ -507,37 +445,50 @@ export struct ConsultationAssistantPage {
         })
 
       Button(this.isSending ? '发送中' : '发送')
-        .height(46)
+        .height(44)
         .margin({ left: 10 })
-        .backgroundColor(this.isSending || !this.inputMessage.trim() ? '#CBD5E1' : '#0284C7')
-        .borderRadius(24)
-        .padding({ left: 22, right: 22 })
+        .backgroundColor(this.isSending || !this.inputMessage.trim() ? '#CBD5E1' : '#4A90D9')
+        .borderRadius(22)
+        .padding({ left: 20, right: 20 })
         .fontColor('#FFFFFF')
         .fontSize(14)
         .fontWeight(FontWeight.Medium)
         .enabled(!this.isSending && !!this.inputMessage.trim())
-        .shadow({ radius: 4, color: '#0284C730', offsetY: 2 })
         .onClick(() => {
           this.sendMessage();
         })
     }
     .width('100%')
-    .padding({ left: 14, right: 14, top: 10, bottom: 10 })
+    .padding({ left: 16, right: 16, top: 10, bottom: 16 })
     .backgroundColor('#FFFFFF')
-    .shadow({ radius: 6, color: '#00000010', offsetY: -2 })
+    .shadow({
+      radius: 8,
+      color: 'rgba(0,0,0,0.04)',
+      offsetY: -2
+    })
   }
 
   @Builder
   buildBotMessage(message: MessageItem) {
     Row() {
       Column() {
+        // 头像和名称
         Row() {
-          Text('🤖')
-            .fontSize(18)
+          Column() {
+            Text('🤖')
+              .fontSize(18)
+          }
+          .width(32)
+          .height(32)
+          .borderRadius(16)
+          .backgroundColor('#E8F0FE')
+          .justifyContent(FlexAlign.Center)
+          .alignItems(HorizontalAlign.Center)
+
           Text('AI问诊助手')
             .fontSize(12)
-            .fontColor('#64748B')
-            .margin({ left: 6 })
+            .fontColor('#8E8E93')
+            .margin({ left: 8 })
             .fontWeight(FontWeight.Medium)
         }
         .width('100%')
@@ -546,19 +497,23 @@ export struct ConsultationAssistantPage {
         if (message.loading) {
           Row() {
             LoadingProgress()
-              .width(22)
-              .height(22)
+              .width(20)
+              .height(20)
               .margin({ right: 10 })
-              .color('#0284C7')
+              .color('#4A90D9')
             Text(message.content)
               .fontSize(14)
-              .fontColor('#475569')
+              .fontColor('#8E8E93')
           }
           .width('100%')
           .padding(14)
           .backgroundColor('#FFFFFF')
-          .borderRadius(16)
-          .shadow({ radius: 4, color: '#0000000D', offsetY: 1 })
+          .borderRadius(12)
+          .shadow({
+            radius: 4,
+            color: 'rgba(0,0,0,0.04)',
+            offsetY: 1
+          })
         } else {
           Column() {
             ForEach(this.parseContentToLines(message.content), (line: string, index: number) => {
@@ -568,61 +523,72 @@ export struct ConsultationAssistantPage {
           .width('100%')
           .padding(14)
           .backgroundColor('#FFFFFF')
-          .borderRadius(16)
-          .shadow({ radius: 4, color: '#0000000D', offsetY: 1 })
+          .borderRadius(12)
+          .shadow({
+            radius: 4,
+            color: 'rgba(0,0,0,0.04)',
+            offsetY: 1
+          })
           .alignItems(HorizontalAlign.Start)
         }
 
         Text(message.time)
           .fontSize(10)
-          .fontColor('#94A3B8')
+          .fontColor('#C7C7CC')
           .width('100%')
-          .margin({ top: 6 })
+          .margin({ top: 4 })
       }
       .alignItems(HorizontalAlign.Start)
-      .margin({ right: 50 })
+      .margin({ right: 40 })
     }
     .width('100%')
-    .margin({ bottom: 20 })
+    .margin({ bottom: 16 })
   }
 
   @Builder
   buildMessageLine(line: string, index: number) {
     if (this.isDividerLine(line)) {
       Divider()
-        .color('#E2E8F0')
-        .margin({ top: 10, bottom: 10 })
-        .strokeWidth(1)
+        .color('#F0F0F0')
+        .margin({ top: 8, bottom: 8 })
+        .strokeWidth(0.5)
     } else if (this.isTitleLine(line)) {
       Text(this.getCleanLine(line))
         .fontSize(15)
         .fontWeight(FontWeight.Bold)
-        .fontColor('#1E293B')
-        .margin({ top: index > 0 ? 10 : 0 })
+        .fontColor('#1A1A2E')
+        .margin({ top: index > 0 ? 8 : 0 })
         .width('100%')
-        .lineHeight(26)
+        .lineHeight(24)
     } else if (this.isDoctorRankLine(line)) {
       Text(this.getCleanLine(line))
         .fontSize(14)
         .fontWeight(FontWeight.Medium)
-        .fontColor('#0369A1')
-        .margin({ top: 6 })
+        .fontColor('#4A90D9')
+        .margin({ top: 4 })
         .width('100%')
-        .lineHeight(24)
+        .lineHeight(22)
     } else if (this.isDoctorDetailLine(line)) {
       Text(this.getCleanLine(line))
         .fontSize(13)
-        .fontColor('#475569')
-        .margin({ left: 6, top: 2 })
+        .fontColor('#666666')
+        .margin({ left: 8, top: 2 })
+        .width('100%')
+        .lineHeight(20)
+    } else if (line.trim().startsWith('💡')) {
+      Text(this.getCleanLine(line))
+        .fontSize(13)
+        .fontColor('#4A90D9')
+        .margin({ top: 2 })
         .width('100%')
         .lineHeight(22)
     } else {
       Text(this.getCleanLine(line))
         .fontSize(14)
-        .fontColor('#334155')
-        .margin({ top: 3 })
+        .fontColor('#1A1A2E')
+        .margin({ top: 2 })
         .width('100%')
-        .lineHeight(24)
+        .lineHeight(22)
     }
   }
 
@@ -633,25 +599,29 @@ export struct ConsultationAssistantPage {
         Text(message.content)
           .fontSize(14)
           .fontColor('#FFFFFF')
-          .backgroundColor('#0284C7')
-          .borderRadius(16)
+          .backgroundColor('#4A90D9')
+          .borderRadius(12)
           .padding(14)
           .textOverflow({ overflow: TextOverflow.None })
-          .lineHeight(24)
-          .shadow({ radius: 4, color: '#0284C730', offsetY: 1 })
+          .lineHeight(22)
+          .shadow({
+            radius: 4,
+            color: 'rgba(74,144,217,0.20)',
+            offsetY: 1
+          })
 
         Text(message.time)
           .fontSize(10)
-          .fontColor('#94A3B8')
+          .fontColor('#C7C7CC')
           .width('100%')
           .textAlign(TextAlign.End)
-          .margin({ top: 6 })
+          .margin({ top: 4 })
       }
       .alignItems(HorizontalAlign.End)
-      .margin({ left: 50 })
+      .margin({ left: 40 })
     }
     .width('100%')
     .justifyContent(FlexAlign.End)
-    .margin({ bottom: 20 })
+    .margin({ bottom: 16 })
   }
 }
