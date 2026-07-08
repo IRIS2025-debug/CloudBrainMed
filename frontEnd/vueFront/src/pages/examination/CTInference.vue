@@ -1,500 +1,42 @@
-<template>
-  <div class="ct-workbench">
-    <div class="page-top">
-      <div>
-        <p class="eyebrow">检查医生 · CV 模型</p>
-        <h1>CT 双模型推理工作台</h1>
-        <p class="page-desc">同一份 CT 文件可按业务需要执行金属伪影识别或病灶识别分割，结果可复制文本用于AI报告分析。</p>
-      </div>
-      <div class="page-top-right">
-        <el-button @click="goBackPrev" class="back-btn">返回</el-button>
-        <div class="service-badge">
-          <span></span>
-          推理服务
-        </div>
-      </div>
-    </div>
-
-    <!-- 顶部操作栏：两个模型的切换 + 保存按钮 -->
-    <div class="model-switch">
-      <div v-for="(meta, type) in taskMeta" :key="type" class="model-item-wrap">
-        <div class="model-btn-row">
-          <button
-            class="model-option"
-            :class="{ active: taskType === type }"
-            :disabled="uploading"
-            type="button"
-            @click="taskType = type as CtTaskType"
-          >
-            <strong>{{ meta.title }}</strong>
-            <span>{{ meta.subtitle }}</span>
-          </button>
-          <div class="model-btn-group">
-            <el-button 
-              class="copy-btn"
-              size="small" 
-              text
-              color="#409EFF"
-              @click="handleCopyClick(type)"
-              :disabled="uploading || analyzing || !hasModelData(type)"
-            >
-              复制结果
-            </el-button>
-            <el-button 
-              class="clear-btn"
-              size="small" 
-              text
-              color="#f56c6c"
-              @click="handleClearClick(type)"
-              :disabled="uploading || analyzing"
-            >
-              清空数据
-            </el-button>
-          </div>
-        </div>
-      </div>
-      <!-- 保存按钮 - 放在模型切换行右侧 -->
-      <div class="save-report-wrap">
-        <el-button
-          type="success"
-          size="large"
-          :loading="saving"
-          :disabled="!canSaveToReport"
-          @click="handleSaveToReport"
-          class="save-report-btn"
-        >
-          <el-icon><Document /></el-icon>
-          {{ saving ? '保存中...' : '保存CT检查结果至报告中' }}
-        </el-button>
-        <el-tag v-if="canSaveToReport" size="small" type="success" class="save-hint">两模型均已就绪</el-tag>
-        <el-tag v-else size="small" type="warning" class="save-hint">需完成双模型推理+AI分析</el-tag>
-      </div>
-    </div>
-
-    <div class="workspace-grid">
-      <section class="panel input-panel">
-        <div class="panel-head">
-          <div>
-            <h2>{{ currentMeta.title }}</h2>
-            <p>{{ currentMeta.description }}</p>
-          </div>
-          <el-tag size="small" type="info">.nii / .nii.gz</el-tag>
-        </div>
-        挂号ID:
-        <el-input
-          v-model="registerId"
-          placeholder="挂号ID，用于把模型结果送入 AI 检查报告分析"
-          :disabled="uploading || analyzing"
-          clearable
-          class="register-input"
-          @change="persistRegisterId"
-        />
-
-        <el-upload
-          class="ct-upload"
-          drag
-          :auto-upload="false"
-          :on-change="handleFileChange"
-          :on-remove="handleFileRemove"
-          accept=".nii,.nii.gz"
-          :limit="1"
-        >
-          <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
-          <div class="el-upload__text">
-            将 CT 文件拖到此处，或 <em>点击选择</em>
-          </div>
-          <template #tip>
-            <div class="el-upload__tip">仅接入真实 CT 模型接口，不再走旧 JPG/PNG 原型上传接口。</div>
-          </template>
-        </el-upload>
-
-        <el-button
-          type="primary"
-          size="large"
-          :loading="uploading"
-          :disabled="!selectedFile"
-          class="run-button"
-          @click="runInference"
-        >
-          {{ uploading ? '模型推理中...' : currentMeta.buttonText }}
-        </el-button>
-      </section>
-
-      <section class="panel result-panel">
-        <div class="panel-head">
-          <div>
-            <h2>模型输出</h2>
-            <p>预览图、mask 文件、像素统计和结构化报告输入集中展示。</p>
-          </div>
-        </div>
-
-        <div v-if="!result" class="empty-state">
-          <div class="empty-icon">
-            <UploadFilled />
-          </div>
-          <h3>等待推理结果</h3>
-          <p>选择左侧模型并上传 CT 文件后，这里会显示分割预览、候选区域统计，可点击上方复制按钮提取报告文本。</p>
-        </div>
-
-        <template v-else>
-          <div v-if="result.previewImageUrl" class="preview-panel">
-            <img :src="result.previewImageUrl" :alt="`${result.meta.title}预览图`" />
-            <div class="preview-caption">
-              <span>{{ result.meta.overlayText }}</span>
-              <strong v-if="result.previewSliceIndex !== undefined">Z={{ result.previewSliceIndex }}</strong>
-            </div>
-          </div>
-
-          <div class="result-cards">
-            <div class="metric-card">
-              <span>{{ result.meta.positiveLabel }}</span>
-              <strong>{{ formatNumber(result.positivePixels) }}</strong>
-            </div>
-            <div class="metric-card">
-              <span>总像素</span>
-              <strong>{{ formatNumber(result.totalPixels) }}</strong>
-            </div>
-            <div class="metric-card">
-              <span>{{ result.meta.ratioLabel }}</span>
-              <strong class="ratio-value">{{ formatRatio(result.ratio) }}</strong>
-            </div>
-          </div>
-
-          <el-alert
-            :title="resultStatusTitle"
-            :type="resultStatusType"
-            :description="resultStatusDescription"
-            show-icon
-            class="status-alert"
-          />
-
-          <div class="result-meta">
-            <div v-if="result.maskFile"><span>Mask 文件</span>{{ result.maskFile }}</div>
-            <div v-if="result.previewImageFile"><span>预览图</span>{{ result.previewImageFile }}</div>
-            <div v-if="result.sliceText"><span>{{ result.meta.sliceLabel }}</span>{{ result.sliceText }}</div>
-            <div v-if="result.lesionCount !== undefined"><span>候选区数量</span>{{ result.lesionCount }}</div>
-            <div v-if="result.largestLesionPixels !== undefined"><span>最大候选区</span>{{ formatNumber(result.largestLesionPixels) }} 像素</div>
-            <div v-if="result.fallback"><span>模型状态</span>未加载病灶训练权重，当前为启发式候选结果</div>
-            <div v-if="result.shapeText"><span>影像维度</span>{{ result.shapeText }}</div>
-            <div v-if="result.spacingText"><span>像素间距</span>{{ result.spacingText }}</div>
-            <div v-if="result.modelText"><span>模型版本</span>{{ result.modelText }}</div>
-            <div v-if="result.latencyMs"><span>推理耗时</span>{{ result.latencyMs }} ms</div>
-            <div v-if="result.summaryText"><span>报告输入</span>{{ result.summaryText }}</div>
-            <a v-if="result.downloadUrl" :href="result.downloadUrl" target="_blank" rel="noopener">下载 mask 结果</a>
-          </div>
-
-          <div class="analysis-actions">
-            <el-button
-              type="success"
-              :loading="analyzing"
-              :disabled="!result.reportInput || !registerId.trim()"
-              @click="runAiAnalysis"
-            >
-              {{ analyzing ? 'AI 分析中...' : 'AI 分析结构化结果' }}
-            </el-button>
-          </div>
-
-          <!-- AI分析面板 -->
-          <div v-if="analysisResult" class="analysis-panel">
-            <div class="analysis-title">
-              <strong>AI 分析结论</strong>
-              <el-tag v-if="analysisResult.riskLevel" size="small" type="warning">{{ analysisResult.riskLevel }}</el-tag>
-            </div>
-            <p v-if="analysisResult.summary">{{ analysisResult.summary }}</p>
-            <div v-if="analysisResult.suggestions?.length" class="analysis-list">
-              <span>处理建议</span>
-              <ul>
-                <li v-for="item in analysisResult.suggestions" :key="item">{{ item }}</li>
-              </ul>
-            </div>
-            <div v-if="analysisResult.followUpAdvice" class="analysis-follow">
-              <span>随访建议</span>{{ analysisResult.followUpAdvice }}
-            </div>
-          </div>
-        </template>
-      </section>
-    </div>
-  </div>
-</template>
-
 <script setup lang="ts">
-defineOptions({
-  name: 'CtWorkbench'
-})
-import { computed, ref, onMounted, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { UploadFilled, Document } from '@element-plus/icons-vue'
+import { UploadFilled, ArrowLeft } from '@element-plus/icons-vue'
 import { analyzeCtReportInput, predictCtArtifact, predictCtLesion } from '@/api/examination/ct'
+import { getStoredAuthHeaders } from '@/api/request'
+import { buildDoctorCtAssetUrl, resolveBinaryFilename } from '@/pages/examination/ctAsset'
+import { buildCtDatasetSummary, isCtDatasetFileName } from '@/pages/examination/ctDataset'
+import { useExamReportStore } from '@/stores/examReport'
 
 type CtTaskType = 'artifact' | 'lesion'
 
-// ========= sessionStorage 键名 =========
-const STORAGE_KEY = 'ct_workbench_cache'
-const REGISTER_ID_KEY = 'ct_workbench_register_id'
-
-const router = useRouter()
 const route = useRoute()
+const router = useRouter()
+const examReportStore = useExamReportStore()
 const uploading = ref(false)
 const analyzing = ref(false)
-const saving = ref(false)
+const analysisResult = ref<any>(null)
 const selectedFile = ref<File | null>(null)
 const taskType = ref<CtTaskType>('artifact')
-const registerId = ref('')
+const results = reactive<Record<CtTaskType, any | null>>({
+  artifact: null,
+  lesion: null,
+})
+const result = computed<any | null>({
+  get: () => results[taskType.value],
+  set: (value) => {
+    results[taskType.value] = value
+  },
+})
+const registerId = ref(String(route.query.registerId || ''))
+const fileInputRef = ref<HTMLInputElement | null>(null)
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
-
-// ========= 分模型缓存，切换模型保留各自数据 =========
-interface ModelCacheItem {
-  result: any
-  analysisResult: any
-}
-const modelCache = ref<Record<CtTaskType, ModelCacheItem>>({
-  artifact: { result: null, analysisResult: null },
-  lesion: { result: null, analysisResult: null }
-})
-
-// 当前页面展示数据（绑定模板）
-const result = computed({
-  get() {
-    return modelCache.value[taskType.value].result
-  },
-  set(val) {
-    modelCache.value[taskType.value].result = val
-    saveToStorage()
-  }
-})
-const analysisResult = computed({
-  get() {
-    return modelCache.value[taskType.value].analysisResult
-  },
-  set(val) {
-    modelCache.value[taskType.value].analysisResult = val
-    saveToStorage()
-  }
-})
-
-// ========= 数据持久化函数 =========
-function saveToStorage() {
-  try {
-    const data = {
-      modelCache: modelCache.value,
-      registerId: registerId.value
-    }
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data))
-  } catch (e) {
-    console.warn('保存缓存失败:', e)
-  }
-}
-
-function loadFromStorage() {
-  try {
-    const stored = sessionStorage.getItem(STORAGE_KEY)
-    if (stored) {
-      const data = JSON.parse(stored)
-      if (data.modelCache) {
-        modelCache.value = data.modelCache
-      }
-      if (data.registerId) {
-        registerId.value = data.registerId
-      }
-    }
-  } catch (e) {
-    console.warn('读取缓存失败:', e)
-  }
-}
-
-function persistRegisterId() {
-  try {
-    sessionStorage.setItem(REGISTER_ID_KEY, registerId.value)
-    saveToStorage()
-  } catch (e) {
-    console.warn('保存挂号ID失败:', e)
-  }
-}
-
-// ========= 判断模型是否存在推理或AI分析数据 =========
-const hasModelData = (type: CtTaskType) => {
-  const cache = modelCache.value[type]
-  return !!cache.result || !!cache.analysisResult
-}
-
-// 判断是否两个模型都有完整的推理和AI分析结果
-const canSaveToReport = computed(() => {
-  const artifact = modelCache.value.artifact
-  const lesion = modelCache.value.lesion
-  return !!(artifact.result && artifact.analysisResult && lesion.result && lesion.analysisResult)
-})
-
-// 切换模型时不需要额外操作，因为数据已缓存
-
-// 封装清空点击处理，增加多层判断提示
-const handleClearClick = (type: CtTaskType) => {
-  if (uploading.value || analyzing.value) {
-    ElMessage.warning("任务执行中，暂无法清空数据，请等待完成后操作")
-    return
-  }
-  const cache = modelCache.value[type]
-  if (!cache.result && !cache.analysisResult) {
-    ElMessage.info("该模型暂无推理与AI分析数据，无需清空")
-    return
-  }
-  modelCache.value[type].result = null
-  modelCache.value[type].analysisResult = null
-  saveToStorage()
-  ElMessage.success(`${taskMeta[type].title} 推理及AI分析数据已清空`)
-}
-
-// 复制当前模型整套报告文本
-const handleCopyClick = async (type: CtTaskType) => {
-  const cache = modelCache.value[type]
-  const meta = taskMeta[type]
-  const inference = cache.result
-  const aiRes = cache.analysisResult
-
-  if (!inference && !aiRes) {
-    ElMessage.warning("暂无模型结果可复制，请先执行推理与AI分析")
-    return
-  }
-
-  // 组装完整报告文本
-  const blockTitle = `【${meta.title}分析结果】`
-  let textContent = blockTitle + "\n"
-
-  // 推理影像描述
-  if (inference) {
-    const ratio = inference.ratio ?? 0
-    const sliceCount = inference.sliceIndices?.length ?? 0
-    const summary = inference.summaryText || "无影像总结信息"
-    textContent += `本次${meta.title}CT扫描：${summary}\n阳性像素占比${ratio}%，共涉及${sliceCount}个影像切片。\n\n`
-  }
-
-  // AI诊断与建议
-  if (aiRes) {
-    textContent += `风险等级：${aiRes.riskLevel || "未评估"}\n`
-    if (aiRes.suggestions?.length) {
-      aiRes.suggestions.forEach((item: string, idx: number) => {
-        textContent += `${idx + 1}.${item}\n`
-      })
-    }
-    if (aiRes.followUpAdvice) {
-      textContent += `\n随访建议：${aiRes.followUpAdvice}`
-    }
-  }
-
-  try {
-    await navigator.clipboard.writeText(textContent)
-    ElMessage.success(`${meta.title}报告文本已复制到剪贴板，可粘贴至报告页面`)
-  } catch (err) {
-    console.error("复制失败", err)
-    ElMessage.error("复制失败，请手动选中文字复制")
-  }
-}
-
-// ========= 保存到报告 =========
-const handleSaveToReport = async () => {
-  if (!canSaveToReport.value) {
-    ElMessage.warning('请先完成两个模型的推理和AI分析')
-    return
-  }
-
-  saving.value = true
-  try {
-    // 构造保存数据
-    const artifactData = modelCache.value.artifact
-    const lesionData = modelCache.value.lesion
-
-    const reportData = {
-      registerId: registerId.value,
-      artifact: {
-        result: artifactData.result,
-        analysis: artifactData.analysisResult
-      },
-      lesion: {
-        result: lesionData.result,
-        analysis: lesionData.analysisResult
-      },
-      // 提取关键文本字段用于报告填充
-      findings: {
-        artifactSummary: artifactData.analysisResult?.summary || artifactData.result?.summaryText || '',
-        lesionSummary: lesionData.analysisResult?.summary || lesionData.result?.summaryText || '',
-        artifactSuggestions: artifactData.analysisResult?.suggestions || [],
-        lesionSuggestions: lesionData.analysisResult?.suggestions || [],
-        artifactFollowUp: artifactData.analysisResult?.followUpAdvice || '',
-        lesionFollowUp: lesionData.analysisResult?.followUpAdvice || '',
-      },
-      // 影像预览图URL
-      previewImages: [
-        artifactData.result?.previewImageUrl,
-        lesionData.result?.previewImageUrl
-      ].filter(Boolean),
-      // 模型输出文件
-      maskFiles: [
-        artifactData.result?.maskFile,
-        lesionData.result?.maskFile
-      ].filter(Boolean),
-      timestamp: new Date().toISOString()
-    }
-
-    // 保存到 sessionStorage 供报告页面读取
-    sessionStorage.setItem('ct_report_data', JSON.stringify(reportData))
-    
-    ElMessage.success('CT检查结果已保存，即将跳转到报告生成页面')
-    // 跳转到报告生成页面
-    router.push({
-      path: '/examination-doctor/report',
-      query: { 
-        registerId: registerId.value,
-        fromCtWorkbench: 'true'
-      }
-    })
-  } catch (error: any) {
-    console.error('保存报告数据失败:', error)
-    ElMessage.error(error?.message || '保存失败，请重试')
-  } finally {
-    saving.value = false
-  }
-}
-
-// 返回上一页
-const goBackPrev = () => {
-  router.back()
-}
-
-const fillRegisterId = () => {
-  const query = route.query
-  if (query.registerId) {
-    registerId.value = query.registerId as string
-    persistRegisterId()
-  } else {
-    // 尝试从缓存读取
-    try {
-      const cached = sessionStorage.getItem(REGISTER_ID_KEY)
-      if (cached) {
-        registerId.value = cached
-      }
-    } catch (e) {
-      console.warn('读取挂号ID缓存失败:', e)
-    }
-  }
-}
-
-onMounted(() => {
-  // 先加载缓存数据
-  loadFromStorage()
-  // 再从URL参数获取挂号ID（优先）
-  fillRegisterId()
-})
-
-watch(
-  () => route.fullPath,
-  () => fillRegisterId(),
-  { immediate: true }
-)
-
-// 监听registerId变化，自动保存
-watch(registerId, () => {
-  persistRegisterId()
-})
+const taskContext = computed(() => ({
+  orderItemId: String(route.query.orderItemId || ''),
+  registerId: String(route.query.registerId || ''),
+  itemName: String(route.query.itemName || ''),
+}))
 
 const taskMeta = {
   artifact: {
@@ -507,7 +49,7 @@ const taskMeta = {
     ratioLabel: '伪影占比',
     detectedTitle: '检测到金属伪影候选区',
     cleanTitle: '未检测到明显金属伪影',
-    overlayText: '红色区域为模型标出的金属伪影候选区',
+    overlayText: '红色区域为模型标记的金属伪影候选区',
     sliceLabel: '伪影切片',
     buttonText: '开始金属伪影识别',
   },
@@ -521,13 +63,20 @@ const taskMeta = {
     ratioLabel: '病灶占比',
     detectedTitle: '检测到病灶候选区',
     cleanTitle: '未检测到明显病灶候选区',
-    overlayText: '红色区域为模型标出的病灶候选区',
+    overlayText: '红色区域为模型标记的病灶候选区',
     sliceLabel: '病灶切片',
     buttonText: '开始病灶识别分割',
   },
-}
+} as const
 
 const currentMeta = computed(() => taskMeta[taskType.value])
+const hasAnyModelResult = computed(() => Boolean(results.artifact || results.lesion))
+const selectedDatasetSummary = computed(() => {
+  return buildCtDatasetSummary(
+    selectedFile.value ? { name: selectedFile.value.name, size: selectedFile.value.size } : null,
+    result.value?.shapeText || '',
+  )
+})
 const resultStatusType = computed(() => (result.value?.ratio || 0) > 0 ? 'warning' : 'success')
 const resultStatusTitle = computed(() => {
   if (!result.value || result.value.ratio === undefined) return '推理已完成'
@@ -543,96 +92,207 @@ const resultStatusDescription = computed(() => {
   return '当前 CT 影像中未发现明显候选区域。'
 })
 
-function handleFileChange(uploadFile: any) {
-  selectedFile.value = uploadFile.raw || uploadFile
+function handleTaskChange() {
+  analysisResult.value = null
 }
 
 function handleFileRemove() {
+  clearAllResults()
   selectedFile.value = null
+  analysisResult.value = null
+}
+
+function applySelectedFile(file: File | null) {
+  if (!file) return
+  if (!isCtDatasetFileName(file.name)) {
+    ElMessage.warning('仅支持 .nii 或 .nii.gz CT 数据集')
+    return
+  }
+
+  selectedFile.value = file
+  clearAllResults()
+  analysisResult.value = null
+}
+
+function openFilePicker() {
+  fileInputRef.value?.click()
+}
+
+function handleNativeFileChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0] || null
+  applySelectedFile(file)
+  input.value = ''
+}
+
+function handleModelCardClick(type: CtTaskType) {
+  if (uploading.value) return
+
+  if (taskType.value !== type) {
+    taskType.value = type
+    handleTaskChange()
+    return
+  }
+
+  openFilePicker()
+}
+
+function handleDatasetDragOver(event: DragEvent) {
+  event.preventDefault()
+}
+
+function handleDatasetDrop(type: CtTaskType, event: DragEvent) {
+  event.preventDefault()
+  if (uploading.value) return
+
+  if (taskType.value !== type) {
+    taskType.value = type
+    handleTaskChange()
+  }
+
+  applySelectedFile(event.dataTransfer?.files?.[0] || null)
+}
+
+function clearSelectedFile() {
+  handleFileRemove()
+  if (fileInputRef.value) {
+    fileInputRef.value.value = ''
+  }
 }
 
 async function runInference() {
   if (!selectedFile.value) {
-    ElMessage.warning('请先选择 CT 文件')
+    ElMessage.warning('请先选择 CT 数据集')
     return
   }
 
   uploading.value = true
-  // 推理前清空当前模型旧结果
+  revokeResultObjectUrl(taskType.value)
   result.value = null
   analysisResult.value = null
 
   try {
-    const res = taskType.value === 'lesion'
+    const response = taskType.value === 'lesion'
       ? await predictCtLesion(selectedFile.value)
       : await predictCtArtifact(selectedFile.value)
-    const response = res as any
-    const data = response?.data?.status ? response.data : response
+    const payload = (response as any)?.data?.status ? (response as any).data : response
 
-    if (data.success || data.status === 'success') {
-      result.value = normalizeResult(data, taskType.value)
+    if (payload.success || payload.status === 'success') {
+      result.value = normalizeResult(payload, taskType.value)
+      await loadPreviewObjectUrl()
       ElMessage.success('推理完成')
-    } else {
-      ElMessage.error(data.error || data.message || '推理失败')
+      return
     }
-  } catch (e: any) {
-    ElMessage.error(e?.message || '推理服务暂不可用，请检查后端服务和 Python 推理服务')
+
+    ElMessage.error(payload.error || payload.message || '推理失败')
+  } catch (error: any) {
+    ElMessage.error(error?.message || '推理服务暂不可用，请检查后端和 Python 推理服务')
   } finally {
     uploading.value = false
   }
 }
 
+function goBackToTask() {
+  const orderItemId = taskContext.value.orderItemId
+  if (orderItemId) {
+    router.push(`/doctor/task/${orderItemId}`)
+    return
+  }
+  router.push('/examination-doctor/application')
+}
+
+function syncResultToStore() {
+  const orderItemId = taskContext.value.orderItemId
+  if (!orderItemId || !hasAnyModelResult.value) return
+  const images = (Object.entries(results) as Array<[CtTaskType, any]>)
+    .filter(([, item]) => item?.previewImageUrl)
+    .map(([type, item]) => ({
+      name: item.previewImageFile || `${taskMeta[type].title}预览`,
+      url: item.previewImageUrl,
+    }))
+  const structured: { artifact?: any; lesion?: any } = {}
+  for (const [type, item] of Object.entries(results) as Array<[CtTaskType, any]>) {
+    if (!item) continue
+    structured[type] = {
+      reportType: item.reportInput?.task || taskMeta[type].reportType,
+      reportInput: item.reportInput,
+      previewImageUrl: item.previewImageUrl || '',
+      previewImageFile: item.previewImageFile || '',
+      maskFile: item.maskFile || '',
+      downloadUrl: item.downloadUrl || '',
+      positivePixels: item.positivePixels,
+      totalPixels: item.totalPixels,
+      ratio: item.ratio,
+      modelText: item.modelText,
+      summaryText: item.summaryText,
+      sliceText: item.sliceText,
+    }
+  }
+  const firstPreview = results.artifact?.previewImageUrl || results.lesion?.previewImageUrl || ''
+  examReportStore.mergeCtResult({
+    orderItemId,
+    registerId: registerId.value.trim() || taskContext.value.registerId,
+    previewImageUrl: firstPreview,
+    images,
+    structured,
+  })
+}
+
+function saveResultsToReport() {
+  const orderItemId = taskContext.value.orderItemId
+  if (!orderItemId) {
+    ElMessage.warning('缺少任务明细ID，无法保存到报告单')
+    return
+  }
+  if (!hasAnyModelResult.value) {
+    ElMessage.warning('请先至少完成一项 CT 模型推理')
+    return
+  }
+  syncResultToStore()
+  ElMessage.success('CT 模型结果已保存到报告单')
+}
+
+function enterReportWorkspace() {
+  const orderItemId = taskContext.value.orderItemId
+  if (!orderItemId) {
+    ElMessage.warning('缺少任务明细ID，无法进入报告页面')
+    return
+  }
+  if (hasAnyModelResult.value) {
+    syncResultToStore()
+  }
+  router.push({
+    path: '/examination-doctor/report',
+    query: {
+      orderItemId,
+      registerId: registerId.value.trim() || taskContext.value.registerId,
+      itemName: taskContext.value.itemName,
+    },
+  })
+}
+
 async function runAiAnalysis() {
-  console.log("进入runAiAnalysis")
   if (!result.value?.reportInput) {
     ElMessage.warning('当前推理结果缺少标准化 JSON')
     return
   }
   if (!registerId.value.trim()) {
-    ElMessage.warning('请输入挂号ID')
+    ElMessage.warning('请输入挂号 ID')
     return
   }
 
   analyzing.value = true
   analysisResult.value = null
-  
   try {
-    const res = await analyzeCtReportInput({
+    const response = await analyzeCtReportInput({
       registerId: registerId.value.trim(),
       reportType: result.value.reportInput.task || currentMeta.value.reportType,
       reportInput: result.value.reportInput,
     })
-    
-    console.log('📥 AI分析原始响应:', res)
-    
-    let data = res
-    if (res && typeof res === 'object' && 'code' in res) {
-      const response = res as { code: number; message?: string; msg?: string; data?: any }
-      if (response.code === 200 || response.code === 0) {
-        data = response.data !== undefined ? response.data : res
-      } else {
-        ElMessage.error(response.message || response.msg || '请求失败')
-        return
-      }
-    }
-    
-    if (data && typeof data === 'object' && 'summary' in data) {
-      analysisResult.value = data
-      ElMessage.success('AI 分析完成')
-    } else {
-      console.error('AI分析响应格式异常:', data)
-      ElMessage.error('AI 分析返回数据格式异常')
-    }
-    
-  } catch (e: any) {
-    console.error('❌ AI分析错误:', e)
-    let errorMsg = 'AI 分析暂不可用，请确认登录状态和挂号ID'
-    if (e?.response?.data?.detail) {
-      errorMsg = e.response.data.detail
-    } else if (e?.message) {
-      errorMsg = e.message
-    }
-    ElMessage.error(errorMsg)
+    analysisResult.value = (response as any)?.data || response
+    ElMessage.success('AI 分析完成')
+  } catch (error: any) {
+    ElMessage.error(error?.message || 'AI 分析暂不可用，请确认登录状态和挂号 ID')
   } finally {
     analyzing.value = false
   }
@@ -665,15 +325,23 @@ function normalizeResult(data: Record<string, any>, task: CtTaskType) {
     ratio: ratio ?? computeRatio(positivePixels, totalPixels),
     maskFile,
     previewImageFile,
-    previewImageUrl: resolvePreviewUrl(previewImageUrl, meta.endpoint),
+    previewImageUrl: buildDoctorCtAssetUrl(apiBaseUrl, meta.endpoint, 'preview', previewImageUrl),
+    previewImageObjectUrl: '',
     previewSliceIndex,
     sliceIndices,
     sliceText: formatSliceIndices(sliceIndices),
     reportInput,
-    downloadUrl: resolveDownloadUrl(data.download_url || data.downloadUrl || maskFile, meta.endpoint),
+    downloadUrl: buildDoctorCtAssetUrl(
+      apiBaseUrl,
+      meta.endpoint,
+      'result',
+      data.download_url || data.downloadUrl || maskFile,
+    ),
     shapeText: formatArray(data.shape),
     spacingText: formatArray(data.spacing),
-    modelText: [data.model_type || data.modelType, data.model_version || data.modelVersion].filter(Boolean).join(' / '),
+    modelText: [data.model_type || data.modelType, data.model_version || data.modelVersion]
+      .filter(Boolean)
+      .join(' / '),
     summaryText: data.summary || reportInput?.summary || '',
   }
 }
@@ -705,120 +373,304 @@ function formatRatio(value?: number) {
   return value === undefined ? '--' : `${value}%`
 }
 
-function resolveDownloadUrl(url: string, endpoint: string) {
-  if (!url) return ''
-  const path = /^https?:\/\//i.test(url) ? new URL(url).pathname : url
-  const filename = path.split('/').filter(Boolean).pop()
-  return filename ? `${apiBaseUrl}/doctor-service/exam/${endpoint}/result/${encodeURIComponent(filename)}` : ''
-}
-
-function resolvePreviewUrl(url: string, endpoint: string) {
-  if (!url) return ''
-  const path = /^https?:\/\//i.test(url) ? new URL(url).pathname : url
-  const filename = path.split('/').filter(Boolean).pop()
-  return filename ? `${apiBaseUrl}/doctor-service/exam/${endpoint}/preview/${encodeURIComponent(filename)}` : ''
-}
-
 function formatSliceIndices(value: any) {
   return Array.isArray(value) && value.length ? value.join(', ') : ''
 }
+
+function revokeResultObjectUrl(type: CtTaskType) {
+  const item = results[type]
+  if (item?.previewImageObjectUrl) {
+    URL.revokeObjectURL(item.previewImageObjectUrl)
+    item.previewImageObjectUrl = ''
+  }
+}
+
+function clearAllResults() {
+  revokeResultObjectUrl('artifact')
+  revokeResultObjectUrl('lesion')
+  results.artifact = null
+  results.lesion = null
+}
+
+async function fetchProtectedBlobUrl(url: string) {
+  const response = await fetch(url, {
+    headers: getStoredAuthHeaders(),
+  })
+  if (!response.ok) {
+    throw new Error(`资源加载失败：${response.status}`)
+  }
+  return URL.createObjectURL(await response.blob())
+}
+
+async function loadPreviewObjectUrl() {
+  revokeResultObjectUrl(taskType.value)
+  if (!result.value?.previewImageUrl) return
+
+  try {
+    result.value.previewImageObjectUrl = await fetchProtectedBlobUrl(result.value.previewImageUrl)
+  } catch (error: any) {
+    result.value.previewImageObjectUrl = ''
+    ElMessage.warning(error?.message || '预览图加载失败')
+  }
+}
+
+async function downloadProtectedResult() {
+  if (!result.value?.downloadUrl) return
+  let objectUrl = ''
+  try {
+    objectUrl = await fetchProtectedBlobUrl(result.value.downloadUrl)
+    const link = document.createElement('a')
+    link.href = objectUrl
+    link.download = resolveBinaryFilename(result.value.maskFile || result.value.downloadUrl, 'ct-result.bin')
+    link.rel = 'noopener'
+    link.click()
+  } catch (error: any) {
+    ElMessage.error(error?.message || '下载结果失败')
+  } finally {
+    if (objectUrl) {
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 0)
+    }
+  }
+}
+
+onBeforeUnmount(() => {
+  clearAllResults()
+})
 </script>
 
+<template>
+  <div class="ct-workbench">
+    <div class="page-top">
+      <div class="page-top-left">
+        <el-button class="back-btn" text :icon="ArrowLeft" @click="goBackToTask">返回任务</el-button>
+        <p class="eyebrow">检查医生 · CV 模型</p>
+        <h1>CT 双模型推理工作台</h1>
+        <p class="page-desc">
+          同一份 CT 数据集可按业务需要执行金属伪影识别或病灶识别分割，结果可继续进入 AI 报告分析。
+        </p>
+      </div>
+      <div class="page-actions">
+        <div v-if="taskContext.orderItemId" class="workflow-actions">
+          <el-button
+            type="primary"
+            plain
+            :disabled="!hasAnyModelResult"
+            @click="saveResultsToReport"
+          >
+            保存结果到报告
+          </el-button>
+          <el-button type="primary" @click="enterReportWorkspace">
+            进入报告单
+          </el-button>
+        </div>
+        <div class="service-badge">
+          <span></span>
+          推理服务
+        </div>
+      </div>
+    </div>
+
+    <div v-if="taskContext.orderItemId" class="task-context">
+      <span>当前任务</span>
+      <strong>{{ taskContext.itemName || '检查项目' }}</strong>
+      <em>明细 {{ taskContext.orderItemId }}</em>
+      <em v-if="taskContext.registerId">挂号 {{ taskContext.registerId }}</em>
+    </div>
+
+    <div class="model-switch">
+      <button
+        v-for="(meta, type) in taskMeta"
+        :key="type"
+        class="model-option"
+        :class="{ active: taskType === type, 'upload-ready': taskType === type && !!selectedDatasetSummary }"
+        :disabled="uploading"
+        type="button"
+        @click="handleModelCardClick(type as CtTaskType)"
+        @dragover="handleDatasetDragOver"
+        @drop="handleDatasetDrop(type as CtTaskType, $event)"
+      >
+        <strong>{{ meta.title }}</strong>
+        <span>{{ meta.subtitle }}</span>
+        <div v-if="taskType === type" class="model-dataset">
+          <template v-if="selectedDatasetSummary">
+            <div class="dataset-head">
+              <span class="dataset-badge">当前数据集</span>
+              <button
+                class="dataset-clear"
+                type="button"
+                :disabled="uploading"
+                @click.stop="clearSelectedFile"
+              >
+                ×
+              </button>
+            </div>
+            <div class="dataset-name">{{ selectedDatasetSummary.fileName }}</div>
+            <div class="dataset-meta">
+              <span>{{ selectedDatasetSummary.fileSize }}</span>
+              <span v-if="selectedDatasetSummary.shapeText">{{ selectedDatasetSummary.shapeText }}</span>
+            </div>
+            <div class="dataset-hint">拖入新数据集可直接替换，或点击卡片重新选择</div>
+          </template>
+          <template v-else>
+            <div class="model-dataset-placeholder">
+              <el-icon><UploadFilled /></el-icon>
+              <p>把 CT 数据集拖到这里，或点击选择</p>
+              <small>支持 .nii / .nii.gz</small>
+            </div>
+          </template>
+        </div>
+      </button>
+    </div>
+
+    <div class="workspace-grid">
+      <section class="panel input-panel">
+        <div class="panel-head">
+          <div>
+            <h2>{{ currentMeta.title }}</h2>
+            <p>{{ currentMeta.description }}</p>
+          </div>
+          <el-tag size="small" type="info">.nii / .nii.gz</el-tag>
+        </div>
+
+        <el-input
+          v-model="registerId"
+          placeholder="挂号 ID，用于把模型结果送入 AI 检查报告分析"
+          :disabled="uploading || analyzing"
+          clearable
+          class="register-input"
+        />
+
+        <div class="upload-note">
+          当前模型直接使用上方大卡片接收数据集，支持拖拽替换和清空后重新选择。
+        </div>
+
+        <el-button
+          type="primary"
+          size="large"
+          :loading="uploading"
+          :disabled="!selectedFile"
+          class="run-button"
+          @click="runInference"
+        >
+          {{ uploading ? '模型推理中...' : currentMeta.buttonText }}
+        </el-button>
+
+        <input
+          ref="fileInputRef"
+          class="hidden-file-input"
+          type="file"
+          accept=".nii,.nii.gz"
+          @change="handleNativeFileChange"
+        />
+      </section>
+
+      <section class="panel result-panel">
+        <div class="panel-head">
+          <div>
+            <h2>模型输出</h2>
+            <p>预览图、mask 文件、像素统计和结构化报告输入集中展示。</p>
+          </div>
+        </div>
+
+        <div v-if="!result" class="empty-state">
+          <div class="empty-icon">
+            <UploadFilled />
+          </div>
+          <h3>等待推理结果</h3>
+          <p>选择上方模型并放入 CT 数据集后，这里会显示分割预览、候选区域统计和后续报告分析入口。</p>
+        </div>
+
+        <template v-else>
+          <div v-if="result.previewImageObjectUrl" class="preview-panel">
+            <div class="preview-panel-head">
+              <span>推理预览</span>
+              <strong v-if="result.previewSliceIndex !== undefined">Z={{ result.previewSliceIndex }}</strong>
+            </div>
+            <div class="preview-stage">
+              <img :src="result.previewImageObjectUrl" :alt="`${result.meta.title}预览图`" />
+            </div>
+            <div class="preview-caption">
+              <span>{{ result.meta.overlayText }}</span>
+            </div>
+          </div>
+          <div v-else class="preview-fallback">
+            当前结果未返回可用预览图，请结合下方结构化结果继续判断。
+          </div>
+
+          <div class="result-cards">
+            <div class="metric-card">
+              <span>{{ result.meta.positiveLabel }}</span>
+              <strong>{{ formatNumber(result.positivePixels) }}</strong>
+            </div>
+            <div class="metric-card">
+              <span>总像素</span>
+              <strong>{{ formatNumber(result.totalPixels) }}</strong>
+            </div>
+            <div class="metric-card">
+              <span>{{ result.meta.ratioLabel }}</span>
+              <strong class="ratio-value">{{ formatRatio(result.ratio) }}</strong>
+            </div>
+          </div>
+
+          <el-alert
+            :title="resultStatusTitle"
+            :type="resultStatusType"
+            :description="resultStatusDescription"
+            show-icon
+            class="status-alert"
+          />
+
+          <div class="result-meta">
+            <div v-if="result.maskFile"><span>Mask 文件</span>{{ result.maskFile }}</div>
+            <div v-if="result.previewImageFile"><span>预览图</span>{{ result.previewImageFile }}</div>
+            <div v-if="result.sliceText"><span>{{ result.meta.sliceLabel }}</span>{{ result.sliceText }}</div>
+            <div v-if="result.lesionCount !== undefined"><span>候选区数量</span>{{ result.lesionCount }}</div>
+            <div v-if="result.largestLesionPixels !== undefined"><span>最大候选区</span>{{ formatNumber(result.largestLesionPixels) }} 像素</div>
+            <div v-if="result.fallback"><span>模型状态</span>未加载训练权重，当前为启发式候选结果</div>
+            <div v-if="result.shapeText"><span>影像维度</span>{{ result.shapeText }}</div>
+            <div v-if="result.spacingText"><span>像素间距</span>{{ result.spacingText }}</div>
+            <div v-if="result.modelText"><span>模型版本</span>{{ result.modelText }}</div>
+            <div v-if="result.latencyMs"><span>推理耗时</span>{{ result.latencyMs }} ms</div>
+            <div v-if="result.summaryText"><span>报告输入</span>{{ result.summaryText }}</div>
+            <a v-if="result.downloadUrl" href="" @click.prevent="downloadProtectedResult">下载 mask 结果</a>
+          </div>
+
+          <div class="analysis-actions">
+            <el-button
+              type="success"
+              :loading="analyzing"
+              :disabled="!result.reportInput || !registerId.trim()"
+              @click="runAiAnalysis"
+            >
+              {{ analyzing ? 'AI 分析中...' : 'AI 分析结构化结果' }}
+            </el-button>
+          </div>
+
+          <div v-if="analysisResult" class="analysis-panel">
+            <div class="analysis-title">
+              <strong>AI 分析结论</strong>
+              <el-tag v-if="analysisResult.riskLevel" size="small" type="warning">
+                {{ analysisResult.riskLevel }}
+              </el-tag>
+            </div>
+            <p v-if="analysisResult.summary">{{ analysisResult.summary }}</p>
+            <div v-if="analysisResult.suggestions?.length" class="analysis-list">
+              <span>处理建议</span>
+              <ul>
+                <li v-for="item in analysisResult.suggestions" :key="item">{{ item }}</li>
+              </ul>
+            </div>
+            <div v-if="analysisResult.followUpAdvice" class="analysis-follow">
+              <span>随访建议</span>{{ analysisResult.followUpAdvice }}
+            </div>
+          </div>
+        </template>
+      </section>
+    </div>
+  </div>
+</template>
+
 <style scoped>
-.model-switch {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
-  gap: 12px;
-  max-width: 1240px;
-  margin: 0 auto 16px;
-  align-items: start;
-}
-
-.model-item-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.model-btn-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-}
-
-.model-option {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  min-height: 72px;
-  padding: 16px 18px;
-  border: 1px solid #dbe3ef;
-  border-radius: 8px;
-  background: #fff;
-  color: #334155;
-  cursor: pointer;
-  text-align: left;
-  transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
-}
-
-.model-btn-group {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex-shrink: 0;
-  margin-top: 4px;
-}
-
-.copy-btn {
-  padding: 4px 8px;
-}
-.copy-btn:hover {
-  background-color: rgba(64, 158, 255, 0.1) !important;
-}
-.copy-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.clear-btn {
-  padding: 4px 8px;
-}
-.clear-btn:hover {
-  background-color: rgba(245, 108, 108, 0.1) !important;
-}
-.clear-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-/* 保存按钮区域 */
-.save-report-wrap {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
-  padding-top: 4px;
-  min-width: 200px;
-}
-
-.save-report-btn {
-  width: 100%;
-  font-weight: 600;
-  border-radius: 8px;
-  padding: 12px 20px;
-}
-
-.save-report-btn .el-icon {
-  margin-right: 6px;
-}
-
-.save-hint {
-  font-size: 11px;
-  white-space: nowrap;
-}
-
 .ct-workbench {
   min-height: 100%;
   padding: 28px;
@@ -834,6 +686,21 @@ function formatSliceIndices(value: any) {
   margin: 0 auto 18px;
 }
 
+.page-top-left {
+  min-width: 0;
+}
+
+.back-btn {
+  margin-bottom: 8px;
+  padding-left: 0;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.back-btn:hover {
+  color: #2563eb;
+}
+
 .eyebrow {
   margin: 0 0 6px;
   color: #2563eb;
@@ -844,7 +711,7 @@ function formatSliceIndices(value: any) {
 .page-top h1 {
   margin: 0;
   color: #102033;
-  font-size: 28px;
+  font-size: 30px;
   font-weight: 800;
 }
 
@@ -854,6 +721,21 @@ function formatSliceIndices(value: any) {
   color: #64748b;
   font-size: 14px;
   line-height: 1.7;
+}
+
+.page-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.workflow-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 .service-badge {
@@ -877,12 +759,70 @@ function formatSliceIndices(value: any) {
   background: #22c55e;
 }
 
-.model-option strong {
-  font-size: 16px;
+.task-context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  max-width: 1240px;
+  margin: 0 auto 16px;
+  padding: 12px 16px;
+  border: 1px solid #dbe3ef;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.05);
+}
+
+.task-context span {
+  color: #2563eb;
+  font-size: 12px;
   font-weight: 800;
 }
 
-.model-option span {
+.task-context strong {
+  color: #102033;
+  font-size: 14px;
+}
+
+.task-context em {
+  font-style: normal;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.model-switch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  max-width: 1240px;
+  margin: 0 auto 16px;
+}
+
+.model-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-height: 124px;
+  padding: 18px 20px;
+  border: 1px solid #dbe3ef;
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.94)),
+    #fff;
+  color: #334155;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.model-option strong {
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.model-option > span {
   color: #64748b;
   font-size: 12px;
   font-weight: 700;
@@ -890,13 +830,123 @@ function formatSliceIndices(value: any) {
 
 .model-option.active {
   border-color: #2563eb;
-  background: #f8fbff;
-  box-shadow: 0 8px 20px rgba(37, 99, 235, .12);
+  background:
+    radial-gradient(circle at top right, rgba(37, 99, 235, 0.09), transparent 34%),
+    linear-gradient(135deg, #f8fbff, #ffffff);
+  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.14);
+}
+
+.model-option.upload-ready {
+  transform: translateY(-1px);
 }
 
 .model-option:disabled {
   cursor: not-allowed;
-  opacity: .7;
+  opacity: 0.7;
+}
+
+.model-dataset {
+  width: 100%;
+  margin-top: 10px;
+  padding: 14px 14px 12px;
+  border: 1px dashed #bfdbfe;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.dataset-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dataset-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.dataset-clear {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #64748b;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.dataset-clear:hover {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.dataset-name {
+  margin-top: 10px;
+  color: #102033;
+  font-size: 14px;
+  font-weight: 700;
+  word-break: break-all;
+}
+
+.dataset-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.dataset-meta span {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dataset-hint {
+  margin-top: 10px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.model-dataset-placeholder {
+  width: 100%;
+  margin-top: 10px;
+  padding: 14px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 14px;
+  background: rgba(248, 250, 252, 0.8);
+  color: #64748b;
+  text-align: center;
+}
+
+.model-dataset-placeholder .el-icon {
+  font-size: 24px;
+  color: #2563eb;
+}
+
+.model-dataset-placeholder p {
+  margin: 8px 0 4px;
+  color: #102033;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.model-dataset-placeholder small {
+  font-size: 12px;
 }
 
 .workspace-grid {
@@ -910,14 +960,14 @@ function formatSliceIndices(value: any) {
 
 .panel {
   border: 1px solid #e2e8f0;
-  border-radius: 8px;
+  border-radius: 18px;
   background: #fff;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
 }
 
 .input-panel,
 .result-panel {
-  padding: 20px;
+  padding: 22px;
 }
 
 .panel-head {
@@ -946,22 +996,22 @@ function formatSliceIndices(value: any) {
   margin-bottom: 14px;
 }
 
-.ct-upload {
+.upload-note {
   margin-bottom: 14px;
-}
-
-.ct-upload :deep(.el-upload-dragger) {
-  border-radius: 8px;
-  padding: 34px 18px;
-}
-
-.ct-upload :deep(.el-upload__tip) {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #f8fafc;
   color: #64748b;
   font-size: 12px;
+  line-height: 1.6;
 }
 
 .run-button {
   width: 100%;
+}
+
+.hidden-file-input {
+  display: none;
 }
 
 .empty-state {
@@ -971,7 +1021,7 @@ function formatSliceIndices(value: any) {
   justify-content: center;
   min-height: 420px;
   border: 1px dashed #cbd5e1;
-  border-radius: 8px;
+  border-radius: 16px;
   background: #f8fafc;
   text-align: center;
   padding: 32px;
@@ -1007,31 +1057,64 @@ function formatSliceIndices(value: any) {
 .preview-panel {
   margin-bottom: 16px;
   border: 1px solid #d9e2ec;
-  border-radius: 8px;
-  background: #0f172a;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #081120 0%, #101a2e 100%);
   overflow: hidden;
 }
 
-.preview-panel img {
-  display: block;
-  width: 100%;
-  max-height: 500px;
-  object-fit: contain;
-  background: #020617;
-}
-
-.preview-caption {
+.preview-panel-head {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 14px;
-  color: #e2e8f0;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+  color: #dbeafe;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.preview-panel-head strong {
+  color: #fca5a5;
   font-size: 13px;
 }
 
-.preview-caption strong {
-  flex: 0 0 auto;
-  color: #fca5a5;
+.preview-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 320px;
+  padding: 20px;
+  background:
+    radial-gradient(circle at center, rgba(37, 99, 235, 0.08), transparent 52%),
+    #020617;
+}
+
+.preview-stage img {
+  display: block;
+  max-width: 100%;
+  max-height: min(68vh, 720px);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+.preview-caption {
+  padding: 12px 16px 14px;
+  color: #cbd5e1;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.preview-fallback {
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 16px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.7;
 }
 
 .result-cards {
@@ -1044,7 +1127,7 @@ function formatSliceIndices(value: any) {
 .metric-card {
   padding: 14px;
   border: 1px solid #e2e8f0;
-  border-radius: 8px;
+  border-radius: 14px;
   background: #f8fafc;
 }
 
@@ -1073,7 +1156,7 @@ function formatSliceIndices(value: any) {
 .result-meta {
   padding: 14px 16px;
   border: 1px solid #eef2f7;
-  border-radius: 8px;
+  border-radius: 14px;
   background: #f8fafc;
   color: #475569;
   font-size: 13px;
@@ -1104,7 +1187,7 @@ function formatSliceIndices(value: any) {
   margin-top: 14px;
   padding: 14px 16px;
   border: 1px solid #bbf7d0;
-  border-radius: 8px;
+  border-radius: 14px;
   background: #f6fff7;
   color: #334155;
   font-size: 14px;
@@ -1139,18 +1222,6 @@ function formatSliceIndices(value: any) {
 }
 
 @media (max-width: 980px) {
-  .model-switch {
-    grid-template-columns: 1fr;
-  }
-  
-  .save-report-wrap {
-    align-items: stretch;
-    min-width: unset;
-    padding-top: 8px;
-    border-top: 1px solid #e2e8f0;
-  }
-  
-  .page-top,
   .workspace-grid {
     grid-template-columns: 1fr;
   }
@@ -1159,11 +1230,17 @@ function formatSliceIndices(value: any) {
     display: block;
   }
 
-  .service-badge {
+  .page-actions {
+    align-items: flex-start;
     margin-top: 12px;
   }
-  .model-btn-row {
-    flex-direction: column;
+
+  .workflow-actions {
+    justify-content: flex-start;
+  }
+
+  .service-badge {
+    margin-top: 12px;
   }
 }
 
@@ -1177,8 +1254,15 @@ function formatSliceIndices(value: any) {
     grid-template-columns: 1fr;
   }
 
+  .preview-panel-head,
   .preview-caption {
-    flex-direction: column;
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .preview-stage {
+    min-height: 220px;
+    padding: 14px;
   }
 }
 </style>

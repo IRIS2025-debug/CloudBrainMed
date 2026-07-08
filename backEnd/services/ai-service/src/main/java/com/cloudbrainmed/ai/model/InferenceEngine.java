@@ -1,7 +1,6 @@
 package com.cloudbrainmed.ai.model;
 
 import com.cloudbrainmed.ai.entity.AiInferenceLog;
-import com.cloudbrainmed.ai.entity.ModelVersion;
 import com.cloudbrainmed.ai.mapper.AiInferenceLogMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -45,17 +44,14 @@ public class InferenceEngine {
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
     private final AiInferenceLogMapper inferenceLogMapper;
-    private final ModelLoader modelLoader;
 
     public InferenceEngine(AiInferenceLogMapper inferenceLogMapper,
-                           ModelLoader modelLoader,
                            @Value("${ai.python-service.url:${AI_PYTHON_SERVICE_URL:http://localhost:8010}}")
                            String pythonServiceUrl) {
         this.httpClient = HttpClient.newBuilder().connectTimeout(java.time.Duration.ofSeconds(30)).build();
         this.restTemplate = createRestTemplate();
         this.objectMapper = new ObjectMapper();
         this.inferenceLogMapper = inferenceLogMapper;
-        this.modelLoader = modelLoader;
         this.pythonServiceUrl = normalizePythonServiceUrl(pythonServiceUrl);
     }
 
@@ -121,10 +117,8 @@ public class InferenceEngine {
             result.put("logId", logId);
             result.put("latencyMs", latency);
 
-            ModelVersion activeModel = modelLoader.getActiveModel();
             saveInferenceLog(logId, callSource, "SUCCESS",
-                    activeModel != null ? activeModel.getModelId() : null,
-                    latency, "检测完成", fallbackModelKey);
+                    null, latency, "检测完成", fallbackModelKey);
 
             log.info("{} inference succeeded: {} -> {}ms", logLabel, niftiFile.getOriginalFilename(), latency);
             return result;

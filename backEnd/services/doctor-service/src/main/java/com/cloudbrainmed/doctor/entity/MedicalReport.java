@@ -14,11 +14,11 @@ public class MedicalReport {
     private String conclusion;
     private String abnormalFlag;
     private String attachmentUrl;
+    private String aiResultJson;
     private String reportDoctorId;
     private String status;
     private LocalDateTime performedTime;
     private LocalDateTime reportTime;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
-    private String followUpAdvice;
 }

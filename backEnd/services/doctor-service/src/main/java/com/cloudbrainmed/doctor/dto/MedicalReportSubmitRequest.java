@@ -22,4 +22,7 @@ public class MedicalReportSubmitRequest {
 
     @Size(max = 255)
     private String attachmentUrl;
+
+    @Size(max = 200000)
+    private String aiResultJson;
 }

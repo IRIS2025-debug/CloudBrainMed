@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
  * 检验申请列表视图（medical_order + patient + medical_order_item + medical_item 联表）
  */
 public class InspectionOrderVo {
+    private String orderItemId;
     private String orderId;
     private String patientId;
     private String patientName;
@@ -22,9 +23,15 @@ public class InspectionOrderVo {
     private String status;
     private String payStatus;
     private String assignedRoom;
+    private String assignedDoctorId;
+    private Boolean canStart;
+    private Boolean canWriteReport;
+    private Boolean canViewReport;
     private LocalDateTime confirmedTime;
     private LocalDateTime createTime;
 
+    public String getOrderItemId() { return orderItemId; }
+    public void setOrderItemId(String orderItemId) { this.orderItemId = orderItemId; }
     public String getOrderId() { return orderId; }
     public void setOrderId(String orderId) { this.orderId = orderId; }
     public String getPatientId() { return patientId; }
@@ -57,6 +64,14 @@ public class InspectionOrderVo {
     public void setPayStatus(String payStatus) { this.payStatus = payStatus; }
     public String getAssignedRoom() { return assignedRoom; }
     public void setAssignedRoom(String assignedRoom) { this.assignedRoom = assignedRoom; }
+    public String getAssignedDoctorId() { return assignedDoctorId; }
+    public void setAssignedDoctorId(String assignedDoctorId) { this.assignedDoctorId = assignedDoctorId; }
+    public Boolean getCanStart() { return canStart; }
+    public void setCanStart(Boolean canStart) { this.canStart = canStart; }
+    public Boolean getCanWriteReport() { return canWriteReport; }
+    public void setCanWriteReport(Boolean canWriteReport) { this.canWriteReport = canWriteReport; }
+    public Boolean getCanViewReport() { return canViewReport; }
+    public void setCanViewReport(Boolean canViewReport) { this.canViewReport = canViewReport; }
     public LocalDateTime getConfirmedTime() { return confirmedTime; }
     public void setConfirmedTime(LocalDateTime confirmedTime) { this.confirmedTime = confirmedTime; }
     public LocalDateTime getCreateTime() { return createTime; }

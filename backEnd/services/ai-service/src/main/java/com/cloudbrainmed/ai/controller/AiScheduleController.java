@@ -30,29 +30,31 @@ public class AiScheduleController {
     public Result<AiScheduleGenerateResponse> preview(
             @RequestHeader Map<String, String> headers,
             @Valid @RequestBody AiScheduleGenerateRequest request) {
+        String token = resolveToken(headers);
         return Result.ok(aiScheduleService.preview(
-                request, extractAdminId(headers)));
+                request, requireAdminId(token), token));
     }
 
     @PostMapping("/ai-service/schedule/conflict-check")
     public Result<AiScheduleGenerateResponse> checkConflicts(
             @RequestHeader Map<String, String> headers,
             @Valid @RequestBody AiScheduleConflictCheckRequest request) {
-        extractAdminId(headers);
-        return Result.ok(aiScheduleService.checkConflicts(request));
+        String token = resolveToken(headers);
+        requireAdminId(token);
+        return Result.ok(aiScheduleService.checkConflicts(request, token));
     }
 
     @PostMapping("/ai-service/schedule/publish")
     public Result<AiSchedulePublishResponse> publish(
             @RequestHeader Map<String, String> headers,
             @Valid @RequestBody AiSchedulePublishRequest request) {
+        String token = resolveToken(headers);
         return Result.ok(aiScheduleService.publish(
-                request, extractAdminId(headers)));
+                request, requireAdminId(token), token));
     }
 
-    private String extractAdminId(Map<String, String> headers) {
-        return AdminAuthHelper.requireAdminId(resolveToken(headers),
-                "AI智能排班");
+    private String requireAdminId(String token) {
+        return AdminAuthHelper.requireAdminId(token, "AI智能排班");
     }
 
     private String resolveToken(Map<String, String> headers) {

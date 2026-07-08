@@ -3,9 +3,11 @@ package com.cloudbrainmed.admin.controller;
 import com.cloudbrainmed.admin.entity.DeptInfo;
 import com.cloudbrainmed.admin.mapper.DeptInfoMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.cloudbrainmed.admin.support.AdminAuthHelper;
 import com.cloudbrainmed.common.result.Result;
 import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -18,11 +20,16 @@ public class DeptInfoController {
     @Resource
     private DeptInfoMapper deptInfoMapper;
 
+    @Resource
+    private AdminAuthHelper adminAuthHelper;
+
     /**
      * 获取所有启用的科室列表
      */
     @GetMapping("/list")
-    public Result<List<DeptInfo>> list() {
+    public Result<List<DeptInfo>> list(
+            @RequestHeader(value = "token", required = false) String token) {
+        adminAuthHelper.requireAdmin(token);
         LambdaQueryWrapper<DeptInfo> qw = new LambdaQueryWrapper<>();
         qw.eq(DeptInfo::getStatus, 1);
         qw.orderByAsc(DeptInfo::getCreateTime);

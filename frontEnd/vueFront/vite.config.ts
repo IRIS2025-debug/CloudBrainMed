@@ -51,20 +51,38 @@ export default defineConfig({
           }
           if (
             id.includes('/element-plus/es/components/form') ||
-            id.includes('/element-plus/es/components/form-item') ||
+            id.includes('/element-plus/es/components/form-item')
+          ) {
+            return 'element-form-vendor'
+          }
+          if (
             id.includes('/element-plus/es/components/input') ||
-            id.includes('/element-plus/es/components/input-number') ||
+            id.includes('/element-plus/es/components/input-number')
+          ) {
+            return 'element-input-vendor'
+          }
+          if (
             id.includes('/element-plus/es/components/select') ||
-            id.includes('/element-plus/es/components/option') ||
+            id.includes('/element-plus/es/components/option')
+          ) {
+            return 'element-select-vendor'
+          }
+          if (
+            id.includes('/element-plus/es/components/date-picker') ||
+            id.includes('/element-plus/es/components/time-picker')
+          ) {
+            return 'element-picker-vendor'
+          }
+          if (
             id.includes('/element-plus/es/components/checkbox') ||
             id.includes('/element-plus/es/components/checkbox-group') ||
             id.includes('/element-plus/es/components/radio') ||
-            id.includes('/element-plus/es/components/date-picker') ||
-            id.includes('/element-plus/es/components/time-picker') ||
-            id.includes('/element-plus/es/components/slider') ||
-            id.includes('/element-plus/es/components/upload')
+            id.includes('/element-plus/es/components/slider')
           ) {
-            return 'element-form-vendor'
+            return 'element-choice-vendor'
+          }
+          if (id.includes('/element-plus/es/components/upload')) {
+            return 'element-upload-vendor'
           }
           if (
             id.includes('/element-plus/es/components/dialog') ||
@@ -125,12 +143,24 @@ export default defineConfig({
         target: 'http://localhost:8004',
         changeOrigin: true,
       },
+      '/admin-service/ml': {
+        target: 'http://localhost:8001',
+        changeOrigin: true,
+      },
       '/admin-service': {
         target: 'http://localhost:8000',
         changeOrigin: true,
       },
-      '/files/avatar': {
+      '/files/avatar/doctor': {
+        target: 'http://localhost:8003',
+        changeOrigin: true,
+      },
+      '/files/avatar/admin': {
         target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+      '/files/avatar/patient': {
+        target: 'http://localhost:8004',
         changeOrigin: true,
       },
       '/ai-service': {

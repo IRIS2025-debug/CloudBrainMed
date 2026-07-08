@@ -1,7 +1,6 @@
 package com.cloudbrainmed.doctor.mapper;
 
 import com.cloudbrainmed.doctor.entity.ExamOrder;
-import com.cloudbrainmed.doctor.entity.MedicalReport;
 import org.apache.ibatis.annotations.*;
 
 import java.util.List;
@@ -77,39 +76,4 @@ public interface ExamOrderMapper {
         @Result(column = "create_time", property = "createTime")
     })
     List<ExamOrder> selectByDoctorId(@Param("doctorId") String doctorId);
-
-
-    @Insert("INSERT INTO medical_report (" +
-            "report_id, order_item_id, patient_id, item_category, " +
-            "result_summary, conclusion, abnormal_flag, attachment_url, " +
-            "report_doctor_id, follow_up_advice, status, " +
-            "performed_time, report_time, create_time, update_time" +
-            ") VALUES (" +
-            "#{reportId}, #{orderItemId}, #{patientId}, #{itemCategory}, " +
-            "#{resultSummary}, #{conclusion}, #{abnormalFlag}, #{attachmentUrl}, " +
-            "#{reportDoctorId}, #{followUpAdvice}, #{status}, " +
-            "#{performedTime}, #{reportTime}, #{createTime}, #{updateTime}" +
-            ")")
-    int insertReport(MedicalReport report);
-
-    @Select("SELECT * FROM medical_report WHERE report_id = #{reportId}")
-    MedicalReport selectByReportId(@Param("reportId") String reportId);
-
-    /**
-     * 根据 orderItemId 查询 medical_order_item 的 item_category
-     */
-    @Select("SELECT item_category FROM medical_order_item WHERE order_item_id = #{orderItemId}")
-    String selectItemCategoryByOrderItemId(@Param("orderItemId") String orderItemId);
-
-    /**
-     * 更新检查项目状态为 COMPLETED
-     */
-    @Update("UPDATE medical_order_item SET status = 'COMPLETED', complete_time = NOW() WHERE order_item_id = #{orderItemId}")
-    int updateOrderItemStatusToCompleted(@Param("orderItemId") String orderItemId);
-
-    /**
-     * 根据 orderItemId 查询 assigned_doctor_id
-     */
-    @Select("SELECT assigned_doctor_id FROM medical_order_item WHERE order_item_id = #{orderItemId}")
-    String selectAssignedDoctorIdByOrderItemId(@Param("orderItemId") String orderItemId);
 }

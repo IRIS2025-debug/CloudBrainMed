@@ -57,10 +57,10 @@ public class AiScheduleServiceImpl implements AiScheduleService {
 
     @Override
     public AiScheduleGenerateResponse preview(
-            AiScheduleGenerateRequest request, String adminId) {
+            AiScheduleGenerateRequest request, String adminId, String adminToken) {
         List<String> warnings = new ArrayList<>();
         List<DoctorSchedule> existingSchedules =
-                fetchExistingSchedules(request, warnings);
+                fetchExistingSchedules(request, adminToken, warnings);
 
         AiScheduleGenerateResponse response;
         try {
@@ -80,31 +80,31 @@ public class AiScheduleServiceImpl implements AiScheduleService {
         normalizeResponse(response, request);
         response.getWarnings().addAll(0, warnings);
         response.setModelVersion(modelName);
-        markConflicts(response.getItems(), response.getWarnings());
+        markConflicts(response.getItems(), adminToken, response.getWarnings());
         return response;
     }
 
     @Override
     public AiScheduleGenerateResponse checkConflicts(
-            AiScheduleConflictCheckRequest request) {
+            AiScheduleConflictCheckRequest request, String adminToken) {
         AiScheduleGenerateResponse response = new AiScheduleGenerateResponse();
         response.setStatus("SUCCESS");
         response.setModelVersion(modelName);
         response.setSummary("Conflict check completed.");
         response.setItems(new ArrayList<>(nullToEmpty(request.getItems())));
-        markConflicts(response.getItems(), response.getWarnings());
+        markConflicts(response.getItems(), adminToken, response.getWarnings());
         return response;
     }
 
     @Override
     public AiSchedulePublishResponse publish(
-            AiSchedulePublishRequest request, String adminId) {
+            AiSchedulePublishRequest request, String adminId, String adminToken) {
         AiSchedulePublishResponse response = new AiSchedulePublishResponse();
         List<AiScheduleItem> items = new ArrayList<>(
                 nullToEmpty(request.getItems()));
         response.setSubmittedCount(items.size());
 
-        markConflicts(items, response.getWarnings());
+        markConflicts(items, adminToken, response.getWarnings());
         List<ScheduleSaveDto> publishable = items.stream()
                 .filter(item -> !item.isConflict())
                 .map(this::toScheduleSaveDto)
@@ -117,7 +117,7 @@ public class AiScheduleServiceImpl implements AiScheduleService {
         }
 
         Result<List<DoctorSchedule>> result =
-                adminFeignClient.batchCreateSchedules(publishable);
+                adminFeignClient.batchCreateSchedules(adminToken, publishable);
         if (!ResultCode.SUCCESS.equals(result.getCode())) {
             response.setStatus("FAILED");
             response.getWarnings().add(valueOrDefault(
@@ -393,10 +393,12 @@ public class AiScheduleServiceImpl implements AiScheduleService {
 
     private List<DoctorSchedule> fetchExistingSchedules(
             AiScheduleGenerateRequest request,
+            String adminToken,
             List<String> warnings) {
         try {
             Result<List<DoctorSchedule>> result =
                     adminFeignClient.getDoctorSchedulesForAI(
+                            adminToken,
                             request.getDoctorId(),
                             request.getPeriodStart().toString(),
                             request.getPeriodEnd().toString());
@@ -414,11 +416,13 @@ public class AiScheduleServiceImpl implements AiScheduleService {
 
     private void markConflicts(
             List<AiScheduleItem> items,
+            String adminToken,
             List<String> warnings) {
         for (AiScheduleItem item : nullToEmpty(items)) {
             try {
                 Result<Boolean> result =
-                        adminFeignClient.checkConflict(toDoctorSchedule(item));
+                        adminFeignClient.checkConflict(
+                                adminToken, toDoctorSchedule(item));
                 if (ResultCode.SUCCESS.equals(result.getCode())) {
                     boolean conflict = Boolean.TRUE.equals(result.getData());
                     item.setConflict(conflict);

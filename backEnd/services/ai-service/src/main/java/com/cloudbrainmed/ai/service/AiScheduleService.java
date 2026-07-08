@@ -9,11 +9,11 @@ import com.cloudbrainmed.ai.dto.AiSchedulePublishResponse;
 public interface AiScheduleService {
 
     AiScheduleGenerateResponse preview(
-            AiScheduleGenerateRequest request, String adminId);
+            AiScheduleGenerateRequest request, String adminId, String adminToken);
 
     AiScheduleGenerateResponse checkConflicts(
-            AiScheduleConflictCheckRequest request);
+            AiScheduleConflictCheckRequest request, String adminToken);
 
     AiSchedulePublishResponse publish(
-            AiSchedulePublishRequest request, String adminId);
+            AiSchedulePublishRequest request, String adminId, String adminToken);
 }

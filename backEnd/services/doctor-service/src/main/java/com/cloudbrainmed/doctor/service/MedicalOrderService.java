@@ -10,9 +10,9 @@ import com.cloudbrainmed.doctor.dto.MedicalOrderConfirmResponse;
 
 public interface MedicalOrderService {
     List<InspectionOrderVo> getAllLabOrders();
-    MedicalOrder getByOrderId(String orderId);
+    MedicalOrder getByOrderItemId(String orderItemId);
     MedicalOrderConfirmResponse confirm(
             MedicalOrderConfirmRequest request, String doctorId);
-    MedicalOrder assignOrder(String orderId, String assignedRoom);
+    MedicalOrder assignOrderItem(String orderItemId, String assignedRoom);
     List<MedicalReportVo> getPublishedReportsByRegisterId(String registerId);
 }
