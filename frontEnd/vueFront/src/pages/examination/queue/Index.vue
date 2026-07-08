@@ -58,11 +58,6 @@
           </template>
         </el-table-column>
         <el-table-column prop="createTime" label="创建时间" width="160" />
-        <el-table-column label="操作" width="120" fixed="right">
-          <template #default="{ row }">
-            <el-button type="primary" size="small" @click="handleStart(row)">领取任务</el-button>
-          </template>
-        </el-table-column>
       </el-table>
     </div>
   </div>

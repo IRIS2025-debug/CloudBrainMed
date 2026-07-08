@@ -4,788 +4,864 @@
     <div class="page-header">
       <h2 class="page-title">📄 生成检查报告</h2>
       <div class="header-actions">
-        <el-button type="primary" @click="handleGenerate" :loading="generating">
-          {{ generating ? '生成中...' : '生成检查报告' }}
+        <el-button @click="goBack">返回工作台</el-button>
+        <el-button type="warning" plain @click="handleResetReport">
+          <template #icon>
+            <el-icon><RefreshRight /></el-icon>
+          </template>
+          重新书写报告
         </el-button>
-        <el-button @click="goBack">返回</el-button>
       </div>
     </div>
 
     <!-- 主要内容 -->
     <el-row :gutter="20" class="main-row">
-      <!-- 左侧：最终报告 -->
-      <el-col :span="13" class="left-col">
-        <el-card shadow="hover" class="report-card">
+      <el-col :span="24" class="left-col">
+        <el-card shadow="hover" class="report-card" v-loading="patientLoading || isLoading">
           <template #header>
             <div class="card-header">
-              <span><el-icon><Document /></el-icon> 检查报告</span>
-              <el-tag size="small" type="primary">最终报告</el-tag>
+              <span><el-icon><Document /></el-icon> CT综合检查报告</span>
+              <div class="header-tags">
+                <el-tag size="small" type="primary">最终报告</el-tag>
+                <el-tag v-if="hasCtData" size="small" type="success">CT数据已加载</el-tag>
+                <el-tag v-if="hasCtData" size="small" type="info">{{ ctDataCount }}套模型结果</el-tag>
+              </div>
             </div>
           </template>
 
           <div class="report-content">
             <!-- 报告标题 -->
             <div class="report-title-section">
-              <h3 class="report-title">{{ reportTitle || '检查报告' }}</h3>
+              <h3 class="report-title">{{ reportTitle || 'CT检查报告' }}</h3>
               <div class="report-id">报告编号：{{ reportId }}</div>
             </div>
 
-            <!-- 患者个人信息 -->
-            <div class="report-section">
+            <!-- 患者个人信息 精简，只保留接口返回字段 -->
+            <div class="report-section patient-section">
               <div class="section-title">
-                <el-icon><User /></el-icon> 患者个人信息
+                <el-icon><User /></el-icon> 患者基础信息
               </div>
               <el-descriptions :column="3" border size="small">
-                <el-descriptions-item label="姓名">{{ patientInfo.name }}</el-descriptions-item>
-                <el-descriptions-item label="性别">{{ patientInfo.gender }}</el-descriptions-item>
-                <el-descriptions-item label="年龄">{{ patientInfo.age }}岁</el-descriptions-item>
-                <el-descriptions-item label="就诊科室">{{ patientInfo.department }}</el-descriptions-item>
-                <el-descriptions-item label="申请医师">{{ patientInfo.doctor }}</el-descriptions-item>
-                <el-descriptions-item label="就诊日期">{{ patientInfo.visitDate }}</el-descriptions-item>
-                <el-descriptions-item label="检查项目" :span="3">{{ patientInfo.examItem }}</el-descriptions-item>
+                <el-descriptions-item label="挂号ID">{{ registerId || '--' }}</el-descriptions-item>
+                <el-descriptions-item label="姓名">{{ patientInfo.name || '--' }}</el-descriptions-item>
+                <el-descriptions-item label="性别">{{ patientInfo.gender || '--' }}</el-descriptions-item>
+                <el-descriptions-item label="年龄">{{ patientInfo.age || '--' }}岁</el-descriptions-item>
+                <el-descriptions-item label="检查项目" :span="3">{{ patientInfo.itemName || 'CT平扫检查' }}</el-descriptions-item>
               </el-descriptions>
             </div>
 
-            <!-- 影像分析结果 - 可编辑 -->
-            <div class="report-section">
+            <!-- 影像资料 - 双图并排各占50% -->
+            <div class="report-section image-section">
               <div class="section-title">
-                <el-icon><DataAnalysis /></el-icon> 影像分析结果
-                <el-tag size="small" type="warning" style="margin-left: 8px">可编辑</el-tag>
+                <el-icon><Picture /></el-icon> AI分割影像结果
               </div>
-              <div class="analysis-display">
-                <!-- 影像缩略图 -->
-                <div class="image-thumbnails">
-                  <div v-for="(img, idx) in imageList" :key="idx" class="thumb-item">
-                    <img :src="img.url" alt="影像" @click="previewImage(idx)" />
+
+              <div v-if="artifactImage || lesionImage" class="image-row">
+                <!-- 金属伪影识别影像 50%宽度 -->
+                <div v-if="artifactImage" class="image-col">
+                  <div class="model-image-section">
+                    <div class="model-image-header">
+                      <el-tag type="warning" size="small">金属伪影识别</el-tag>
+                      <span class="model-image-desc">红色区域：金属伪影候选区</span>
+                    </div>
+                    <div class="model-image-wrapper">
+                      <img :src="artifactImage" alt="金属伪影识别结果" @click="previewImage(artifactImage)" />
+                      <div class="image-overlay-info" v-if="artifactData">
+                        <span>伪影占比: {{ formatRatio(artifactData.result?.ratio) }}</span>
+                        <span>伪影像素: {{ formatNumber(artifactData.result?.positivePixels) }}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div v-if="imageList.length === 0" class="empty-thumbs">暂无影像</div>
                 </div>
 
-                <!-- 分析结果 - 可编辑 -->
-                <div v-if="analysisResult" class="analysis-result-display">
-                  <el-row :gutter="12">
-                    <el-col :span="6">
-                      <div class="analysis-stat">
-                        <div class="stat-label">分析模型</div>
-                        <el-input
-                          v-model="analysisResult.model"
-                          size="small"
-                          class="stat-input"
-                        />
-                      </div>
-                    </el-col>
-                    <el-col :span="6">
-                      <div class="analysis-stat">
-                        <div class="stat-label">置信度</div>
-                        <el-input-number
-                          v-model="analysisResult.confidence"
-                          :min="0"
-                          :max="100"
-                          size="small"
-                          class="stat-input-number"
-                        />
-                        <span style="font-size:12px;color:#86909c;">%</span>
-                      </div>
-                    </el-col>
-                    <el-col :span="6">
-                      <div class="analysis-stat">
-                        <div class="stat-label">病灶数量</div>
-                        <el-input-number
-                          v-model="analysisResult.lesions"
-                          :min="0"
-                          :max="20"
-                          size="small"
-                          class="stat-input-number"
-                        />
-                        <span style="font-size:12px;color:#86909c;">处</span>
-                      </div>
-                    </el-col>
-                    <el-col :span="6">
-                      <div class="analysis-stat">
-                        <div class="stat-label">处理时间</div>
-                        <el-input
-                          v-model="analysisResult.processingTime"
-                          size="small"
-                          class="stat-input"
-                        />
-                        <span style="font-size:12px;color:#86909c;">ms</span>
-                      </div>
-                    </el-col>
-                  </el-row>
-                  <div class="analysis-conclusion">
-                    <span class="stat-label" style="margin-right:8px;">结论：</span>
-                    <el-select v-model="analysisResult.conclusionType" size="small" style="width:100px;">
-                      <el-option label="成功" value="success" />
-                      <el-option label="警告" value="warning" />
-                      <el-option label="危险" value="danger" />
-                      <el-option label="信息" value="info" />
-                    </el-select>
-                    <el-input
-                      v-model="analysisResult.conclusion"
-                      size="small"
-                      style="width:300px;margin-left:8px;"
-                      placeholder="输入结论"
-                    />
-                  </div>
-                  <div class="analysis-details">
-                    <div v-for="(detail, idx) in analysisResult.details" :key="idx" class="detail-item">
-                      <el-input
-                        v-model="detail.label"
-                        size="small"
-                        class="detail-label-input"
-                        placeholder="标签"
-                      />
-                      <span style="color:#86909c;margin:0 4px;">：</span>
-                      <el-input
-                        v-model="detail.value"
-                        size="small"
-                        class="detail-value-input"
-                        placeholder="值"
-                      />
-                      <el-button
-                        size="small"
-                        type="danger"
-                        text
-                        @click="removeDetail(idx)"
-                        style="margin-left:4px;"
-                      >
-                        <el-icon><Close /></el-icon>
-                      </el-button>
+                <!-- 病灶识别分割影像 50%宽度 -->
+                <div v-if="lesionImage" class="image-col">
+                  <div class="model-image-section">
+                    <div class="model-image-header">
+                      <el-tag type="danger" size="small">病灶识别分割</el-tag>
+                      <span class="model-image-desc">红色区域：病灶候选区</span>
                     </div>
-                    <el-button size="small" type="primary" text @click="addDetail" style="margin-top:4px;">
-                      <el-icon><Plus /></el-icon> 添加详情
-                    </el-button>
+                    <div class="model-image-wrapper">
+                      <img :src="lesionImage" alt="病灶识别分割结果" @click="previewImage(lesionImage)" />
+                      <div class="image-overlay-info" v-if="lesionData">
+                        <span>病灶占比: {{ formatRatio(lesionData.result?.ratio) }}</span>
+                        <span>病灶像素: {{ formatNumber(lesionData.result?.positivePixels) }}</span>
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div v-else class="empty-analysis-result">
-                  <el-empty description="暂无分析结果，请通过右侧AI助手进行分析" :image-size="60" />
                 </div>
               </div>
+
+              <div v-if="!hasCtData" class="empty-thumbs">暂无影像数据，请返回CT工作台完成推理后保存导入</div>
             </div>
 
-            <!-- 检查报告 -->
-            <div class="report-section">
+            <!-- 检查报告 - 分模型展示 -->
+            <div class="report-section result-section">
               <div class="section-title">
-                <el-icon><Edit /></el-icon> 检查报告
+                <el-icon><Edit /></el-icon> 模型AI分析详情
               </div>
               <div class="report-editor">
-                <el-form label-width="80px" size="small">
-                  <el-form-item label="检查所见">
-                    <el-input
-                      v-model="reportFindings"
-                      type="textarea"
-                      :rows="3"
-                      placeholder="请输入检查所见描述..."
-                    />
-                  </el-form-item>
-                  <el-form-item label="诊断意见">
-                    <el-input
-                      v-model="reportDiagnosis"
-                      type="textarea"
-                      :rows="3"
-                      placeholder="请输入诊断意见..."
-                    />
-                  </el-form-item>
-                  <el-form-item label="建议">
-                    <el-input
-                      v-model="reportAdvice"
-                      type="textarea"
-                      :rows="2"
-                      placeholder="请输入建议..."
-                    />
-                  </el-form-item>
-                  <el-form-item label="报告医师">
-                    <el-input v-model="reportDoctor" placeholder="请输入报告医师姓名" style="width: 200px" />
-                  </el-form-item>
+                <el-form label-width="100px" size="small">
+                  <!-- 金属伪影识别结果 -->
+                  <div v-if="artifactData" class="model-result-section">
+                    <div class="model-result-header">
+                      <el-tag type="warning" size="small">金属伪影识别模型</el-tag>
+                      <el-tag :type="artifactData.result?.ratio > 0 ? 'warning' : 'success'" size="small">
+                        {{ artifactData.result?.ratio > 0 ? '检出伪影' : '无明显伪影' }}
+                      </el-tag>
+                    </div>
+                    <el-form-item label="影像所见">
+                      <el-input
+                        v-model="artifactFindings"
+                        type="textarea"
+                        :rows="3"
+                        placeholder="金属伪影识别结果..."
+                        readonly
+                      />
+                    </el-form-item>
+                    <el-form-item label="AI诊断">
+                      <el-input
+                        v-model="artifactDiagnosis"
+                        type="textarea"
+                        :rows="2"
+                        placeholder="金属伪影诊断意见..."
+                        readonly
+                      />
+                    </el-form-item>
+                    <el-form-item label="处理建议">
+                      <el-input
+                        v-model="artifactAdvice"
+                        type="textarea"
+                        :rows="2"
+                        placeholder="金属伪影处理建议..."
+                        readonly
+                      />
+                    </el-form-item>
+                    <el-form-item label="风险分级">
+                      <el-tag :type="getRiskType(artifactData.analysis?.riskLevel)" size="small">
+                        {{ artifactData.analysis?.riskLevel || '未评估' }}
+                      </el-tag>
+                    </el-form-item>
+                  </div>
+
+                  <!-- 病灶识别分割结果 -->
+                  <div v-if="lesionData" class="model-result-section">
+                    <div class="model-result-header">
+                      <el-tag type="danger" size="small">病灶分割识别模型</el-tag>
+                      <el-tag :type="lesionData.result?.ratio > 0 ? 'danger' : 'success'" size="small">
+                        {{ lesionData.result?.ratio > 0 ? '检出病灶' : '无明显病灶' }}
+                      </el-tag>
+                    </div>
+                    <el-form-item label="影像所见">
+                      <el-input
+                        v-model="lesionFindings"
+                        type="textarea"
+                        :rows="3"
+                        placeholder="病灶识别分割结果..."
+                        readonly
+                      />
+                    </el-form-item>
+                    <el-form-item label="AI诊断">
+                      <el-input
+                        v-model="lesionDiagnosis"
+                        type="textarea"
+                        :rows="2"
+                        placeholder="病灶诊断意见..."
+                        readonly
+                      />
+                    </el-form-item>
+                    <el-form-item label="处理建议">
+                      <el-input
+                        v-model="lesionAdvice"
+                        type="textarea"
+                        :rows="2"
+                        placeholder="病灶处理建议..."
+                        readonly
+                      />
+                    </el-form-item>
+                    <el-form-item label="风险分级">
+                      <el-tag :type="getRiskType(lesionData.analysis?.riskLevel)" size="small">
+                        {{ lesionData.analysis?.riskLevel || '未评估' }}
+                      </el-tag>
+                    </el-form-item>
+                  </div>
+
+                  <!-- 综合报告 -->
+                  <div class="model-result-section comprehensive-block">
+                    <div class="model-result-header">
+                      <el-tag type="primary" size="small">综合诊断报告（医师编辑）</el-tag>
+                    </div>
+                    <el-form-item label="综合影像所见">
+                      <el-input
+                        v-model="reportFindings"
+                        type="textarea"
+                        :rows="4"
+                        placeholder="整合两套模型输出，填写综合CT影像所见..."
+                      />
+                      <div class="textarea-actions">
+                        <el-button size="small" text @click="clearFindings">清空</el-button>
+                        <el-button v-if="hasCtData" size="small" type="primary" @click="autoFillFindings">
+                          一键自动填充
+                        </el-button>
+                      </div>
+                    </el-form-item>
+                    <el-form-item label="综合诊断意见">
+                      <el-input
+                        v-model="reportDiagnosis"
+                        type="textarea"
+                        :rows="4"
+                        placeholder="结合AI结果给出综合诊断结论..."
+                      />
+                      <div class="textarea-actions">
+                        <el-button size="small" text @click="clearDiagnosis">清空</el-button>
+                        <el-button v-if="hasCtData" size="small" type="primary" @click="autoFillDiagnosis">
+                          一键自动填充
+                        </el-button>
+                      </div>
+                    </el-form-item>
+                    <el-form-item label="综合随访建议">
+                      <el-input
+                        v-model="reportAdvice"
+                        type="textarea"
+                        :rows="3"
+                        placeholder="综合随访、复查、诊疗建议..."
+                      />
+                      <div class="textarea-actions">
+                        <el-button size="small" text @click="clearAdvice">清空</el-button>
+                        <el-button v-if="hasCtData" size="small" type="primary" @click="autoFillAdvice">
+                          一键自动填充
+                        </el-button>
+                      </div>
+                    </el-form-item>
+                    <el-form-item label="报告医师">
+                      <el-input v-model="reportDoctor" placeholder="填写签发报告医师姓名" style="width: 240px" />
+                    </el-form-item>
+                  </div>
                 </el-form>
               </div>
             </div>
-          </div>
-        </el-card>
-      </el-col>
 
-      <!-- 右侧：AI 智能体对话 -->
-      <el-col :span="11" class="right-col">
-        <el-card shadow="hover" class="ai-chat-card">
-          <template #header>
-            <div class="card-header">
-              <span class="ai-header">
-                <span class="ai-avatar">🤖</span>
-                AI 智能助手
-              </span>
-              <el-tag size="small" color="#409eff" effect="dark">对话中</el-tag>
-            </div>
-          </template>
-
-          <div class="chat-container">
-            <!-- 对话消息列表 -->
-            <div class="chat-messages" ref="chatMessagesRef">
-              <div v-for="(msg, idx) in chatMessages" :key="idx" class="chat-message" :class="msg.role">
-                <div class="message-avatar">
-                  {{ msg.role === 'user' ? '👤' : '🤖' }}
-                </div>
-                <div class="message-content">
-                  <div class="message-text" v-html="formatMessage(msg.content)"></div>
-                  <div v-if="msg.loading" class="typing-indicator">
-                    <span></span><span></span><span></span>
-                  </div>
-                  <!-- AI生成结果后的采纳按钮 -->
-                  <div v-if="msg.role === 'assistant' && !msg.loading && msg.showActions && msg.reportData" class="message-actions">
-                    <el-button size="small" type="success" @click="acceptAll(msg, idx)">
-                      ✅ 全部采纳
-                    </el-button>
-                    <el-button size="small" type="primary" @click="openPartialAccept(msg, idx)">
-                      📝 部分采纳
-                    </el-button>
-                    <el-button size="small" text @click="dismissMessage(idx)">
-                      忽略
-                    </el-button>
-                  </div>
-                  <div class="message-time">{{ msg.time }}</div>
-                </div>
-              </div>
-              <div v-if="chatMessages.length === 0" class="empty-chat">
-                <div class="empty-chat-icon">💬</div>
-                <div class="empty-chat-text">开始与AI助手对话<br />发送消息或选择快捷指令</div>
-              </div>
-            </div>
-
-            <!-- 快捷指令 -->
-            <div class="quick-actions">
-              <el-button size="small" @click="sendQuickMessage('分析影像')">📊 分析影像</el-button>
-              <el-button size="small" @click="sendQuickMessage('生成报告')">📄 生成报告</el-button>
-              <el-button size="small" @click="sendQuickMessage('诊断建议')">💊 诊断建议</el-button>
-              <el-button size="small" @click="sendQuickMessage('报告模板')">📋 报告模板</el-button>
-            </div>
-
-            <!-- 输入框 -->
-            <div class="chat-input-area">
-              <el-input
-                v-model="chatInput"
-                placeholder="输入消息，与AI助手对话..."
-                @keyup.enter="sendMessage"
-                clearable
-              >
-                <template #append>
-                  <el-button type="primary" @click="sendMessage" :disabled="!chatInput.trim() || aiLoading">
-                    <el-icon><Promotion /></el-icon> 发送
-                  </el-button>
+            <!-- 生成报告按钮 放置页面最底部 -->
+            <div class="generate-footer">
+              <el-button type="primary" size="large" @click="handleGenerate" :loading="generating">
+                <template #icon>
+                  <el-icon><Document /></el-icon>
                 </template>
-              </el-input>
+                {{ generating ? '报告生成中，请稍候...' : '生成完整CT检查报告' }}
+              </el-button>
             </div>
           </div>
         </el-card>
       </el-col>
     </el-row>
 
-    <!-- 部分采纳弹窗 -->
-    <el-dialog
-      v-model="partialDialogVisible"
-      title="📝 部分采纳 - 选择要应用的内容"
-      width="60%"
-      :close-on-click-modal="false"
-    >
-      <div class="partial-accept-content">
-        <el-alert
-          title="请勾选您希望采纳到左侧报告中的内容"
-          type="info"
-          :closable="false"
-          style="margin-bottom:16px;"
-        />
-        <div v-if="pendingPartialData" class="partial-items">
-          <div class="partial-item">
-            <el-checkbox v-model="partialSelections.findings">
-              <strong>检查所见</strong>
-            </el-checkbox>
-            <div class="partial-preview">{{ pendingPartialData.findings || '（空）' }}</div>
-          </div>
-          <div class="partial-item">
-            <el-checkbox v-model="partialSelections.diagnosis">
-              <strong>诊断意见</strong>
-            </el-checkbox>
-            <div class="partial-preview">{{ pendingPartialData.diagnosis || '（空）' }}</div>
-          </div>
-          <div class="partial-item">
-            <el-checkbox v-model="partialSelections.advice">
-              <strong>建议</strong>
-            </el-checkbox>
-            <div class="partial-preview">{{ pendingPartialData.advice || '（空）' }}</div>
-          </div>
-          <div class="partial-item">
-            <el-checkbox v-model="partialSelections.analysis">
-              <strong>影像分析结果</strong>
-            </el-checkbox>
-            <div class="partial-preview">
-              模型：{{ pendingPartialData.analysis?.model || '—' }}，
-              置信度：{{ pendingPartialData.analysis?.confidence || '—' }}%，
-              病灶数：{{ pendingPartialData.analysis?.lesions || '—' }}处
-            </div>
-          </div>
-        </div>
+    <!-- 图片预览对话框 -->
+    <el-dialog v-model="previewDialogVisible" title="影像大图预览" width="75%" :close-on-click-modal="true">
+      <div class="preview-dialog-content">
+        <img :src="previewImageUrl" alt="预览图" />
+      </div>
+    </el-dialog>
+
+    <!-- 重置确认对话框 -->
+    <el-dialog v-model="resetDialogVisible" title="⚠️ 重新书写报告" width="440px" :close-on-click-modal="false">
+      <div class="reset-dialog-content">
+        <el-icon class="reset-warning-icon" color="#e6a23c" :size="48">
+          <WarningFilled />
+        </el-icon>
+        <p class="reset-dialog-text">
+          此操作将清空所有已填写的报告内容，包括：
+        </p>
+        <ul class="reset-dialog-list">
+          <li>综合影像所见</li>
+          <li>综合诊断意见</li>
+          <li>综合随访建议</li>
+          <li>报告医师</li>
+          <li>AI模型分析详情（只读内容）</li>
+          <li>影像预览图</li>
+        </ul>
+        <p class="reset-dialog-text" style="color: #409eff; font-weight: 500;">
+          ✅ 患者基础信息将完整保留
+        </p>
+        <p class="reset-dialog-text" style="color: #e6a23c; font-weight: 500;">
+          ⚠️ 清空后需要重新从CT工作台导入数据
+        </p>
       </div>
       <template #footer>
-        <el-button @click="partialDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="applyPartialAccept">确认应用</el-button>
+        <el-button @click="resetDialogVisible = false">取消</el-button>
+        <el-button type="warning" @click="confirmResetReport" :loading="resetLoading">
+          确认重新书写
+        </el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, reactive } from 'vue'
+defineOptions({
+  name: 'ReportGeneration'
+})
+
+import { ref, onMounted, computed, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Document,
   User,
-  DataAnalysis,
   Edit,
-  Promotion,
-  Close,
-  Plus
+  Picture,
+  RefreshRight,
+  WarningFilled
 } from '@element-plus/icons-vue'
+import { useRouter, useRoute } from 'vue-router'
+import { getTaskDetail } from '@/api/doctor/task'
 
-// ---------- 报告信息 ----------
-const reportId = ref('RPT-2026-06-26-001')
+
+const router = useRouter()
+const route = useRoute()
+
+// ---------- 报告基础信息 ----------
+const reportId = ref(`RPT-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-001`)
 const reportTitle = ref('头颅CT平扫检查报告')
 
-// ---------- 患者信息 ----------
+// ---------- 患者加载状态 ----------
+const patientLoading = ref(false)
+const isLoading = ref(false)
+
+// ---------- 挂号ID ----------
+const registerId = ref('')
+
+// ---------- 患者信息（精简，仅接口返回字段） ----------
 const patientInfo = ref({
-  name: '王小明',
-  gender: '男',
-  age: 45,
-  department: '神经内科',
-  doctor: '李敏',
-  visitDate: '2026-06-26',
-  examItem: '头颅CT平扫'
+  name: '',
+  gender: '',
+  age: '',
+  itemName: ''
 })
 
-// ---------- 影像列表 ----------
-const imageList = ref([
-  { name: 'CT_001.dcm', url: 'https://picsum.photos/200/200?random=1' },
-  { name: 'CT_002.dcm', url: 'https://picsum.photos/200/200?random=2' },
-  { name: 'CT_003.dcm', url: 'https://picsum.photos/200/200?random=3' }
-])
+// ---------- 图片预览弹窗 ----------
+const previewDialogVisible = ref(false)
+const previewImageUrl = ref('')
 
-// ---------- 分析结果 - 可编辑 ----------
-interface AnalysisDetail {
-  label: string
-  value: string
+// ---------- 重置对话框 ----------
+const resetDialogVisible = ref(false)
+const resetLoading = ref(false)
+
+const orderItemId = ref('')
+// ---------- CT工作台存储的数据类型定义 ----------
+interface ModelData {
+  result: any
+  analysis: any
 }
 
-interface AnalysisResult {
-  model: string
-  confidence: number
-  lesions: number
-  processingTime: string
-  conclusion: string
-  conclusionType: 'success' | 'warning' | 'danger' | 'info'
-  details: AnalysisDetail[]
+interface CtReportData {
+  registerId: string
+  artifact: ModelData
+  lesion: ModelData
+  findings: {
+    artifactSummary: string
+    lesionSummary: string
+    artifactSuggestions: string[]
+    lesionSuggestions: string[]
+    artifactFollowUp: string
+    lesionFollowUp: string
+  }
+  previewImages: string[]
+  maskFiles: string[]
+  timestamp: string
 }
 
-const analysisResult = ref<AnalysisResult | null>(null)
+// 全局CT缓存数据
+const ctData = ref<CtReportData | null>(null)
+const hasCtData = computed(() => ctData.value !== null)
+const ctDataCount = computed(() => {
+  if (!ctData.value) return 0
+  let count = 0
+  if (ctData.value.artifact?.result) count++
+  if (ctData.value.lesion?.result) count++
+  return count
+})
 
-// ---------- 报告内容 ----------
+// 分模型快捷取值
+const artifactData = computed(() => ctData.value?.artifact)
+const lesionData = computed(() => ctData.value?.lesion)
+
+// 分离两张预览图
+const artifactImage = computed(() => {
+  if (!ctData.value?.previewImages || ctData.value.previewImages.length === 0) return ''
+  return ctData.value.previewImages[0] || ''
+})
+const lesionImage = computed(() => {
+  if (!ctData.value?.previewImages || ctData.value.previewImages.length < 2) return ''
+  return ctData.value.previewImages[1] || ''
+})
+
+// mask文件数组（页面已删除此模块，变量保留不影响逻辑）
+const maskFiles = computed(() => ctData.value?.maskFiles || [])
+
+// 单模型只读文本域绑定值
+const artifactFindings = ref('')
+const artifactDiagnosis = ref('')
+const artifactAdvice = ref('')
+
+const lesionFindings = ref('')
+const lesionDiagnosis = ref('')
+const lesionAdvice = ref('')
+
+// 综合报告编辑框
 const reportFindings = ref('')
 const reportDiagnosis = ref('')
 const reportAdvice = ref('')
-const reportDoctor = ref('李敏')
+const reportDoctor = ref('')
 
-// ---------- 聊天相关 ----------
-interface ReportData {
-  findings?: string
-  diagnosis?: string
-  advice?: string
-  analysis?: AnalysisResult
-}
-
-interface ChatMessage {
-  role: 'user' | 'assistant'
-  content: string
-  time: string
-  loading?: boolean
-  showActions?: boolean
-  reportData?: ReportData
-  applied?: boolean // 标记是否已被采纳
-}
-
-const chatMessages = ref<ChatMessage[]>([])
-const chatInput = ref('')
-const aiLoading = ref(false)
+// 生成按钮loading
 const generating = ref(false)
-const chatMessagesRef = ref<HTMLElement>()
 
-// 是否已分析影像
-const isAnalyzed = ref(false)
-
-// ---------- 部分采纳相关 ----------
-const partialDialogVisible = ref(false)
-const pendingPartialData = ref<ReportData | null>(null)
-const pendingMessageIndex = ref(-1)
-
-const partialSelections = reactive({
-  findings: true,
-  diagnosis: true,
-  advice: true,
-  analysis: true
-})
-
-// ---------- 方法 ----------
-const getCurrentTime = () => {
-  const now = new Date()
-  return now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+// ========= 通用格式化工具函数 =========
+const formatNumber = (value?: number) => {
+  return value === undefined || value === null ? '--' : value.toLocaleString()
 }
-
-const formatMessage = (content: string) => {
-  return content.replace(/\n/g, '<br>')
+const formatRatio = (value?: number) => {
+  return value === undefined || value === null ? '--' : `${value}%`
 }
-
-const scrollToBottom = async () => {
-  await nextTick()
-  if (chatMessagesRef.value) {
-    chatMessagesRef.value.scrollTop = chatMessagesRef.value.scrollHeight
+// 风险等级标签样式映射
+const getRiskType = (level?: string) => {
+  if (!level) return 'info'
+  const map: Record<string, string> = {
+    '低风险': 'success',
+    '中风险': 'warning',
+    '高风险': 'danger',
+    '极高风险': 'danger'
   }
+  return map[level] || 'info'
 }
 
-const addAssistantMessage = (content: string, loading = false, reportData?: ReportData) => {
-  chatMessages.value.push({
-    role: 'assistant',
-    content,
-    time: getCurrentTime(),
-    loading,
-    showActions: false,
-    reportData,
-    applied: false
-  })
-  scrollToBottom()
+// ========= 综合文本框清空方法 =========
+const clearFindings = () => {
+  reportFindings.value = ''
+  ElMessage.info('已清空综合影像所见')
+}
+const clearDiagnosis = () => {
+  reportDiagnosis.value = ''
+  ElMessage.info('已清空综合诊断意见')
+}
+const clearAdvice = () => {
+  reportAdvice.value = ''
+  ElMessage.info('已清空综合随访建议')
 }
 
-const addUserMessage = (content: string) => {
-  chatMessages.value.push({
-    role: 'user',
-    content,
-    time: getCurrentTime()
-  })
-  scrollToBottom()
-}
-
-// 添加详情
-const addDetail = () => {
-  if (analysisResult.value) {
-    analysisResult.value.details.push({ label: '新标签', value: '新值' })
+// ========= 自动填充综合报告文本 =========
+const autoFillFindings = () => {
+  if (!ctData.value) {
+    ElMessage.warning('暂无CT模型数据，无法自动填充')
+    return
   }
-}
+  const data = ctData.value
+  const parts: string[] = []
 
-const removeDetail = (index: number) => {
-  if (analysisResult.value) {
-    analysisResult.value.details.splice(index, 1)
+  if (data.findings.artifactSummary) {
+    parts.push(`【金属伪影识别】${data.findings.artifactSummary}`)
   }
-}
-
-// 发送消息
-const sendMessage = async () => {
-  const text = chatInput.value.trim()
-  if (!text) return
-
-  addUserMessage(text)
-  chatInput.value = ''
-
-  await processAIResponse(text)
-}
-
-// 快捷指令
-const sendQuickMessage = async (command: string) => {
-  addUserMessage(command)
-  await processAIResponse(command)
-}
-
-// AI 响应处理
-const processAIResponse = async (userInput: string) => {
-  aiLoading.value = true
-
-  const loadingIndex = chatMessages.value.length
-  chatMessages.value.push({
-    role: 'assistant',
-    content: '',
-    time: getCurrentTime(),
-    loading: true,
-    showActions: false,
-    reportData: undefined,
-    applied: false
-  })
-  scrollToBottom()
-
-  try {
-    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 1000))
-
-    let response = ''
-    const reportData: ReportData = {}
-
-    if (userInput.includes('分析影像') || userInput.includes('分析')) {
-      if (imageList.value.length === 0) {
-        response = '⚠️ 请先上传影像文件，我才能进行分析。\n\n请点击「上传影像」按钮上传患者的检查影像。'
-      } else {
-        const newResult: AnalysisResult = {
-          model: '肺结节检测 (CNN)',
-          confidence: 87,
-          lesions: 2,
-          processingTime: '235',
-          conclusion: '检测到2处可疑结节，建议进一步检查',
-          conclusionType: 'warning',
-          details: [
-            { label: '结节1位置', value: '右肺上叶 (RUL)，大小 5.2mm' },
-            { label: '结节2位置', value: '左肺下叶 (LLL)，大小 3.8mm' },
-            { label: '影像质量', value: '良好' },
-            { label: '建议', value: '建议3个月后复查' }
-          ]
-        }
-        reportData.analysis = newResult
-        isAnalyzed.value = true
-
-        response = '🔍 影像分析完成！\n\n' +
-          '**分析结果：**\n' +
-          '• 模型：肺结节检测 (CNN)\n' +
-          '• 置信度：87%\n' +
-          '• 病灶数量：2 处\n' +
-          '• 处理时间：235 ms\n\n' +
-          '**结论：** 检测到2处可疑结节，建议进一步检查\n\n' +
-          '💡 您可以点击下方「全部采纳」或「部分采纳」将结果应用到报告中。'
-      }
-    } else if (userInput.includes('生成报告')) {
-      if (!isAnalyzed.value && !analysisResult.value) {
-        response = '⚠️ 请先进行影像分析，我才能生成报告。\n\n请发送「分析影像」或点击快捷按钮开始分析。'
-      } else {
-        const findings = '头颅CT平扫显示：双侧大脑半球对称，灰白质界限清晰。右侧额叶可见一大小约5mm的低密度灶，边界欠清。左侧顶叶可见一大小约3mm的结节影。脑室系统未见明显扩张，中线结构居中。'
-        const diagnosis = '1. 右侧额叶低密度灶，考虑良性病变可能性大，建议增强扫描进一步明确。\n2. 左侧顶叶小结节，建议定期随访观察。'
-        const advice = '建议：1. 完善头颅增强MRI检查。2. 3个月后复查头颅CT。3. 如有头痛、恶心等症状及时就诊。'
-
-        reportData.findings = findings
-        reportData.diagnosis = diagnosis
-        reportData.advice = advice
-
-        response = '📄 已为您生成报告草稿：\n\n' +
-          '**【检查所见】**\n' + findings + '\n\n' +
-          '**【诊断意见】**\n' + diagnosis + '\n\n' +
-          '**【建议】**\n' + advice + '\n\n' +
-          '💡 您可以点击下方「全部采纳」或「部分采纳」将内容应用到左侧报告。'
-      }
-    } else if (userInput.includes('诊断建议')) {
-      response = '💊 **诊断建议：**\n\n' +
-        '基于影像分析结果，提供以下诊断建议：\n\n' +
-        '1. **右侧额叶低密度灶**\n' +
-        '   - 考虑为良性病变（如血管瘤、脂肪瘤）\n' +
-        '   - 建议进行增强MRI进一步明确诊断\n\n' +
-        '2. **左侧顶叶小结节**\n' +
-        '   - 大小约3mm，边界清晰\n' +
-        '   - 建议3个月后复查CT，观察变化\n\n' +
-        '3. **临床建议**\n' +
-        '   - 密切关注患者有无头痛、恶心等症状\n' +
-        '   - 如有症状加重，建议及时就诊'
-    } else if (userInput.includes('报告模板')) {
-      response = '📋 **检查报告模板：**\n\n' +
-        '**【检查所见】**\n' +
-        '（描述影像所见，包括位置、大小、形态、密度/信号特征等）\n\n' +
-        '**【诊断意见】**\n' +
-        '（给出明确的诊断结论，分级描述）\n\n' +
-        '**【建议】**\n' +
-        '（给出后续检查或治疗建议）\n\n' +
-        '---\n' +
-        '💡 您可以在左侧报告区域直接编辑，或让我帮你生成完整报告。'
-    } else {
-      response = '您好！我是AI智能助手，可以帮助您：\n\n' +
-        '📊 **分析影像** - 对上传的影像进行智能分析\n' +
-        '📄 **生成报告** - 基于分析结果生成检查报告\n' +
-        '💊 **诊断建议** - 提供专业的诊断参考建议\n' +
-        '📋 **报告模板** - 查看标准报告模板格式\n\n' +
-        '请选择上方快捷按钮，或直接输入您的需求。'
-    }
-
-    const lastMsg = chatMessages.value[loadingIndex]
-    if (lastMsg) {
-      lastMsg.content = response
-      lastMsg.loading = false
-      // 如果有报告数据，显示操作按钮
-      if (Object.keys(reportData).length > 0) {
-        lastMsg.showActions = true
-        lastMsg.reportData = reportData
-        lastMsg.applied = false
-      } else {
-        lastMsg.showActions = false
-      }
-    }
-
-  } catch (error) {
-    const lastMsg = chatMessages.value[loadingIndex]
-    if (lastMsg) {
-      lastMsg.content = '❌ 抱歉，处理您的请求时出现错误，请稍后重试。'
-      lastMsg.loading = false
-      lastMsg.showActions = false
-    }
+  if (data.findings.lesionSummary) {
+    parts.push(`【病灶识别分割】${data.findings.lesionSummary}`)
   }
 
-  aiLoading.value = false
-  scrollToBottom()
-}
-
-// ---------- 采纳功能 ----------
-// 全部采纳 - 直接应用到左侧报告
-const acceptAll = (msg: ChatMessage, index: number) => {
-  if (!msg.reportData) {
-    ElMessage.warning('没有可采纳的数据')
+  if (parts.length === 0) {
+    ElMessage.warning('未读取到影像总结内容')
     return
   }
 
-  const data = msg.reportData
-  let appliedCount = 0
-
-  if (data.findings) {
-    reportFindings.value = data.findings
-    appliedCount++
-  }
-  if (data.diagnosis) {
-    reportDiagnosis.value = data.diagnosis
-    appliedCount++
-  }
-  if (data.advice) {
-    reportAdvice.value = data.advice
-    appliedCount++
-  }
-  if (data.analysis) {
-    analysisResult.value = JSON.parse(JSON.stringify(data.analysis))
-    appliedCount++
-  }
-
-  // 标记消息已应用
-  msg.applied = true
-  msg.showActions = false
-
-  // 更新数组
-  chatMessages.value[index] = { ...msg }
-
-  ElMessage.success(`✅ 已应用 ${appliedCount} 项内容到左侧报告`)
+  reportFindings.value = parts.join('\n\n')
+  ElMessage.success('综合影像所见自动填充完成')
 }
 
-// 部分采纳 - 打开弹窗
-const openPartialAccept = (msg: ChatMessage, index: number) => {
-  if (!msg.reportData) {
-    ElMessage.warning('没有可采纳的数据')
+const autoFillDiagnosis = () => {
+  if (!ctData.value) {
+    ElMessage.warning('暂无CT模型数据，无法自动填充')
+    return
+  }
+  const data = ctData.value
+  const parts: string[] = []
+
+  const allSuggestions = [
+    ...(data.findings.artifactSuggestions || []),
+    ...(data.findings.lesionSuggestions || [])
+  ]
+
+  if (allSuggestions.length > 0) {
+    allSuggestions.forEach((s, i) => {
+      parts.push(`${i + 1}. ${s}`)
+    })
+  }
+
+  if (data.artifact.analysis?.riskLevel) {
+    parts.push(`金属伪影风险等级：${data.artifact.analysis.riskLevel}`)
+  }
+  if (data.lesion.analysis?.riskLevel) {
+    parts.push(`病灶风险等级：${data.lesion.analysis.riskLevel}`)
+  }
+
+  if (parts.length === 0) {
+    ElMessage.warning('未读取到诊断建议内容')
     return
   }
 
-  pendingPartialData.value = { ...msg.reportData }
-  pendingMessageIndex.value = index
-
-  // 重置选择状态（默认全部选中）
-  partialSelections.findings = true
-  partialSelections.diagnosis = true
-  partialSelections.advice = true
-  partialSelections.analysis = true
-
-  partialDialogVisible.value = true
+  reportDiagnosis.value = parts.join('\n')
+  ElMessage.success('综合诊断意见自动填充完成')
 }
 
-// 应用部分采纳
-const applyPartialAccept = () => {
-  if (!pendingPartialData.value) return
+const autoFillAdvice = () => {
+  if (!ctData.value) {
+    ElMessage.warning('暂无CT模型数据，无法自动填充')
+    return
+  }
+  const data = ctData.value
+  const parts: string[] = []
 
-  const data = pendingPartialData.value
-  let appliedCount = 0
-
-  if (partialSelections.findings && data.findings) {
-    reportFindings.value = data.findings
-    appliedCount++
+  if (data.findings.artifactFollowUp) {
+    parts.push(`【金属伪影随访建议】${data.findings.artifactFollowUp}`)
   }
-  if (partialSelections.diagnosis && data.diagnosis) {
-    reportDiagnosis.value = data.diagnosis
-    appliedCount++
-  }
-  if (partialSelections.advice && data.advice) {
-    reportAdvice.value = data.advice
-    appliedCount++
-  }
-  if (partialSelections.analysis && data.analysis) {
-    analysisResult.value = JSON.parse(JSON.stringify(data.analysis))
-    appliedCount++
+  if (data.findings.lesionFollowUp) {
+    parts.push(`【病灶随访建议】${data.findings.lesionFollowUp}`)
   }
 
-  partialDialogVisible.value = false
-
-  // 隐藏该消息的操作按钮
-  if (pendingMessageIndex.value >= 0 && pendingMessageIndex.value < chatMessages.value.length) {
-    const msg = chatMessages.value[pendingMessageIndex.value]
-    if (!msg) return
-    msg.showActions = false
-    msg.applied = true
-    chatMessages.value[pendingMessageIndex.value] = { ...msg }
+  if (parts.length === 0) {
+    ElMessage.warning('未读取到随访建议内容')
+    return
   }
 
-  ElMessage.success(`✅ 已应用 ${appliedCount} 项内容到左侧报告`)
-  pendingPartialData.value = null
-  pendingMessageIndex.value = -1
+  reportAdvice.value = parts.join('\n')
+  ElMessage.success('综合随访建议自动填充完成')
 }
 
-// 忽略消息
-const dismissMessage = (index: number) => {
-  const msg = chatMessages.value[index]
-  if (!msg) return
-  msg.showActions = false
-  msg.applied = true
-  chatMessages.value[index] = { ...msg }
-  ElMessage.info('已忽略该建议')
+// ========= 大图预览弹窗 =========
+const previewImage = (url: string) => {
+  previewImageUrl.value = url
+  previewDialogVisible.value = true
 }
 
-// 预览影像
-const previewImage = (index: number) => {
-  ElMessage.info(`预览影像 ${index + 1}`)
-}
-
+// ========= 返回工作台页面 =========
 const goBack = () => {
-  ElMessage.info('返回上一页')
+  router.back()
 }
 
-// 生成检查报告
+// ========= 读取CT推理缓存数据（核心方法，可多次调用） =========
+const loadCtData = (showMessage = false) => {
+  const stored = sessionStorage.getItem('ct_report_data')
+  if (stored) {
+    try {
+      const data = JSON.parse(stored) as CtReportData
+      ctData.value = data
+
+      // 同步挂号ID
+      if (data.registerId) {
+        registerId.value = data.registerId
+      }
+
+      // 填充金属伪影模块只读文本
+      if (data.artifact) {
+        if (data.artifact.analysis?.summary) {
+          artifactFindings.value = data.artifact.analysis.summary
+        } else if (data.artifact.result?.summaryText) {
+          artifactFindings.value = data.artifact.result.summaryText
+        }
+        if (data.artifact.analysis?.suggestions?.length) {
+          artifactDiagnosis.value = data.artifact.analysis.suggestions.join('\n')
+        }
+        if (data.artifact.analysis?.followUpAdvice) {
+          artifactAdvice.value = data.artifact.analysis.followUpAdvice
+        }
+      }
+
+      // 填充病灶模块只读文本
+      if (data.lesion) {
+        if (data.lesion.analysis?.summary) {
+          lesionFindings.value = data.lesion.analysis.summary
+        } else if (data.lesion.result?.summaryText) {
+          lesionFindings.value = data.lesion.result.summaryText
+        }
+        if (data.lesion.analysis?.suggestions?.length) {
+          lesionDiagnosis.value = data.lesion.analysis.suggestions.join('\n')
+        }
+        if (data.lesion.analysis?.followUpAdvice) {
+          lesionAdvice.value = data.lesion.analysis.followUpAdvice
+        }
+      }
+
+      // 自动填充综合三栏
+      autoFillFindings()
+      autoFillDiagnosis()
+      autoFillAdvice()
+
+      if (showMessage) {
+        ElMessage.success('已加载CT工作台双模型推理数据')
+      }
+      return true
+    } catch (e) {
+      console.error('解析CT缓存数据失败:', e)
+      if (showMessage) {
+        ElMessage.warning('CT数据解析失败，请返回工作台重新保存')
+      }
+      return false
+    }
+  }
+  return false
+}
+
+// ========= 带重试的加载方法 =========
+const loadCtDataWithRetry = async (maxRetries = 5, interval = 300) => {
+  isLoading.value = true
+  try {
+    // 首先尝试直接加载
+    if (loadCtData(false)) {
+      console.log('✅ CT数据加载成功')
+      return
+    }
+
+    // 如果是从CT工作台跳转过来的，等待数据写入
+    const fromCtWorkbench = route.query.fromCtWorkbench === 'true'
+    if (fromCtWorkbench) {
+      console.log('⏳ 从CT工作台跳转，等待数据写入...')
+      let retries = 0
+      while (retries < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, interval))
+        if (loadCtData(false)) {
+          console.log(`✅ CT数据加载成功 (第${retries + 1}次尝试)`)
+          ElMessage.success('已加载CT工作台数据')
+          return
+        }
+        retries++
+        console.log(`⏳ 第${retries}次等待，数据尚未就绪...`)
+      }
+      ElMessage.warning('数据加载超时，请手动刷新页面重试')
+    } else {
+      // 非CT工作台跳转，显示空状态
+      console.log('📭 无CT数据，等待用户导入')
+    }
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// ========= 新增：读取orderItemId，拉取患者详情 =========
+const loadPatientInfo = async () => {
+  const storedOrderItemId = sessionStorage.getItem('current_order_item_id')
+  if (!storedOrderItemId) {
+    console.warn('未找到 orderItemId')
+    return
+  }
+  
+  orderItemId.value = storedOrderItemId
+  
+  patientLoading.value = true
+  try {
+    const res = await getTaskDetail(storedOrderItemId)
+    const detail = res.data
+    console.log('患者详情:', detail)
+    console.log(detail.assignedDoctorName)
+    registerId.value = detail.registerId
+    patientInfo.value = {
+      name: detail.patientName,
+      gender: detail.gender === 1 ? '男' : '女',
+      age: detail.age,
+      itemName: detail.itemName
+    }
+    
+    // ===== 自动填充报告医师（使用新字段） =====
+    if (detail.assignedDoctorName) {
+      reportDoctor.value = detail.assignedDoctorName
+      console.log('✅ 报告医师自动填充:', detail.assignedDoctorName)
+    } else {
+      console.warn('⚠️ 未获取到医生姓名，请手动填写')
+    }
+    
+  } catch (err) {
+    console.error('获取患者信息失败', err)
+    ElMessage.warning('加载患者信息失败，请重新从任务列表进入')
+  } finally {
+    patientLoading.value = false
+  }
+}
+
+// ========= 重新书写报告 - 清空所有报告内容（保留患者信息） =========
+const handleResetReport = () => {
+  // 检查是否有内容需要清空
+  const hasContent = 
+    reportFindings.value || 
+    reportDiagnosis.value || 
+    reportAdvice.value || 
+    reportDoctor.value ||
+    artifactFindings.value ||
+    artifactDiagnosis.value ||
+    artifactAdvice.value ||
+    lesionFindings.value ||
+    lesionDiagnosis.value ||
+    lesionAdvice.value ||
+    ctData.value !== null
+
+  if (!hasContent) {
+    ElMessage.info('当前报告内容已为空，无需重新书写')
+    return
+  }
+
+  resetDialogVisible.value = true
+}
+
+// ReportGeneration.vue - confirmResetReport
+
+const confirmResetReport = async () => {
+  resetLoading.value = true
+  try {
+    await new Promise(resolve => setTimeout(resolve, 300))
+
+    // 清空所有报告相关内容
+    ctData.value = null
+    artifactFindings.value = ''
+    artifactDiagnosis.value = ''
+    artifactAdvice.value = ''
+    lesionFindings.value = ''
+    lesionDiagnosis.value = ''
+    lesionAdvice.value = ''
+    reportFindings.value = ''
+    reportDiagnosis.value = ''
+    reportAdvice.value = ''
+    reportDoctor.value = ''
+    
+    // ===== 清空 orderItemId =====
+    orderItemId.value = ''
+    registerId.value = ''
+
+    sessionStorage.removeItem('ct_report_data')
+    sessionStorage.removeItem('final_report')
+
+    previewImageUrl.value = ''
+
+    ElMessage.success('✅ 已清空所有报告内容，请重新从CT工作台导入数据并书写报告')
+    resetDialogVisible.value = false
+  } catch (error) {
+    ElMessage.error('重置失败，请重试')
+  } finally {
+    resetLoading.value = false
+  }
+}
+
+// ========= 生成最终完整报告（存储到sessionStorage） =========
+// 在 handleGenerate 方法中，替换原来的 sessionStorage 存储逻辑
+
+import { examApi } from '@/api/examination/examApi'
+
+// ReportGeneration.vue - handleGenerate 方法
+
 const handleGenerate = async () => {
+  if (!artifactData.value && !lesionData.value) {
+    ElMessage.warning('请先从CT工作台导入AI推理数据')
+    return
+  }
   if (!reportFindings.value || !reportDiagnosis.value) {
-    ElMessage.warning('请填写检查所见和诊断意见')
+    ElMessage.warning('请完善综合影像所见、综合诊断意见后再生成报告')
     return
   }
 
   try {
-    await ElMessageBox.confirm('确认生成最终检查报告？', '提示', {
+    await ElMessageBox.confirm('确认生成正式CT检查报告？', '操作确认', {
       confirmButtonText: '确认生成',
       cancelButtonText: '取消',
       type: 'info'
     })
-
+    
     generating.value = true
-    await new Promise(resolve => setTimeout(resolve, 1500))
 
-    const msg: ChatMessage = {
-      role: 'assistant',
-      content: '✅ 检查报告已成功生成！\n\n' +
-        '报告编号：' + reportId.value + '\n' +
-        '生成时间：' + new Date().toLocaleString() + '\n\n' +
-        '📄 请检查左侧报告内容，确认无误后即可使用。',
-      time: getCurrentTime(),
-      loading: false,
-      showActions: false,
-      reportData: undefined,
-      applied: false
+    // 构建请求体
+    const requestData = {
+      // ===== 传入 orderItemId（检查项目ID） =====
+      orderItemId: orderItemId.value,
+      // ===== registerId 改为用于患者信息展示 =====
+      registerId: registerId.value,
+      reportTitle: reportTitle.value,
+      artifact: {
+        findings: artifactFindings.value,
+        diagnosis: artifactDiagnosis.value,
+        advice: artifactAdvice.value,
+        riskLevel: artifactData.value?.analysis?.riskLevel,
+        rawResult: artifactData.value?.result
+      },
+      lesion: {
+        findings: lesionFindings.value,
+        diagnosis: lesionDiagnosis.value,
+        advice: lesionAdvice.value,
+        riskLevel: lesionData.value?.analysis?.riskLevel,
+        rawResult: lesionData.value?.result
+      },
+      comprehensive: {
+        findings: reportFindings.value,
+        diagnosis: reportDiagnosis.value,
+        advice: reportAdvice.value
+      },
+      images: {
+        artifact: artifactImage.value,
+        lesion: lesionImage.value
+      },
+      reportDoctor: reportDoctor.value
     }
-    chatMessages.value.push(msg)
 
-    ElMessage.success('✅ 检查报告已生成！')
-    generating.value = false
-    scrollToBottom()
-  } catch {
+    // 调用后端保存接口
+    const response = await examApi.saveReport(requestData)
+    
+    if (response.code === 200) {
+      ElMessage.success('✅ CT检查报告保存成功')
+      
+      // 保存成功后清除临时数据
+      sessionStorage.removeItem('ct_report_data')
+      sessionStorage.removeItem('current_order_item_id')
+      
+      // 可选：跳转
+      // router.push(`/report/detail/${response.data.reportId}`)
+    } else {
+      ElMessage.error(response.msg || '报告保存失败')
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('报告保存异常，请重试')
+      console.error('保存报告失败:', error)
+    }
+  } finally {
     generating.value = false
   }
 }
+
+// ========= 监听 storage 变化（跨标签页/同一页面不同标签） =========
+const handleStorageChange = (event: StorageEvent) => {
+  if (event.key === 'ct_report_data') {
+    console.log('📦 storage变化检测到，重新加载CT数据')
+    if (event.newValue) {
+      loadCtData(true)
+    } else {
+      // 数据被清空
+      ctData.value = null
+    }
+  }
+}
+
+// ========= 页面初始化读取数据 =========
+onMounted(async () => {
+  // 1、先加载患者信息
+  await loadPatientInfo()
+  
+  // 2、加载CT影像推理数据（带重试机制）
+  await loadCtDataWithRetry()
+  
+  // 3、监听storage变化（以便其他标签页更新数据时同步）
+  window.addEventListener('storage', handleStorageChange)
+})
+
+// ========= 页面卸载时移除监听 =========
+onBeforeUnmount(() => {
+  window.removeEventListener('storage', handleStorageChange)
+})
 </script>
 
 <style scoped>
 .report-generation-page {
   padding: 24px;
-  background: #f0f2f5;
+  background: #f5f7fa;
   min-height: 100vh;
 }
 
@@ -793,14 +869,14 @@ const handleGenerate = async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
   padding: 0 4px;
 }
 
 .page-title {
-  font-size: 22px;
-  font-weight: 600;
-  color: #1d2129;
+  font-size: 24px;
+  font-weight: 700;
+  color: #111827;
   margin: 0;
 }
 
@@ -810,36 +886,38 @@ const handleGenerate = async () => {
 }
 
 .el-card {
-  border-radius: 12px;
+  border-radius: 14px;
   overflow: hidden;
+  border: none;
 }
 
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 15px;
-  font-weight: 500;
-  color: #1d2129;
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
 }
 
 .card-header .el-icon {
   margin-right: 6px;
 }
 
+.header-tags {
+  display: flex;
+  gap: 8px;
+}
+
 .main-row {
-  height: calc(100vh - 140px);
   min-height: 600px;
 }
 
-.left-col,
-.right-col {
-  height: 100%;
+.left-col {
+  width: 100%;
 }
 
-/* ========== 左侧 ========== */
 .report-card {
-  height: 100%;
   display: flex;
   flex-direction: column;
 }
@@ -847,462 +925,309 @@ const handleGenerate = async () => {
 .report-card :deep(.el-card__body) {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 20px;
+  padding: 24px;
 }
 
 .report-content {
-  height: 100%;
+  width: 100%;
 }
 
 .report-title-section {
   text-align: center;
-  border-bottom: 2px solid #e8eaed;
-  padding-bottom: 12px;
-  margin-bottom: 16px;
+  border-bottom: 2px solid #e5e7eb;
+  padding-bottom: 14px;
+  margin-bottom: 24px;
 }
 
 .report-title {
-  font-size: 20px;
-  font-weight: 600;
-  color: #1d2129;
-  margin: 0 0 4px 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 6px 0;
 }
 
 .report-id {
-  font-size: 12px;
-  color: #86909c;
+  font-size: 13px;
+  color: #6b7280;
 }
 
 .report-section {
-  margin-bottom: 16px;
-  border-bottom: 1px solid #f0f0f0;
-  padding-bottom: 16px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 20px;
 }
-
-.report-section:last-child {
+.report-section:last-of-type {
   border-bottom: none;
   margin-bottom: 0;
   padding-bottom: 0;
 }
+.patient-section {
+  background: #f9fafb;
+  padding: 16px;
+  border-radius: 10px;
+}
+.image-section {
+  padding-bottom: 24px;
+}
+.result-section {
+  padding-bottom: 24px;
+}
 
 .section-title {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
-  color: #1d2129;
-  margin-bottom: 12px;
+  color: #1f2937;
+  margin-bottom: 16px;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .section-title .el-icon {
-  font-size: 16px;
+  font-size: 18px;
   color: #409eff;
 }
 
-/* 影像缩略图 */
-.image-thumbnails {
+/* 双图并排布局 各占50% */
+.image-row {
   display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
+  gap: 16px;
+  width: 100%;
+}
+.image-col {
+  flex: 1;
+  width: 50%;
 }
 
-.thumb-item {
-  width: 70px;
+.model-image-section {
+  margin-bottom: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.model-image-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.model-image-desc {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.model-image-wrapper {
+  position: relative;
+  background: #0f172a;
+  padding: 10px;
+}
+
+.model-image-wrapper img {
+  width: 100%;
+  max-height: 320px;
+  object-fit: contain;
   cursor: pointer;
   border-radius: 6px;
-  overflow: hidden;
-  border: 2px solid #e5e6eb;
-  transition: border-color 0.3s;
-  background: #f7f8fa;
+  transition: opacity 0.24s ease;
+}
+.model-image-wrapper img:hover {
+  opacity: 0.88;
 }
 
-.thumb-item:hover {
-  border-color: #409eff;
+.image-overlay-info {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  display: flex;
+  gap: 12px;
+  padding: 8px 14px;
+  background: rgba(0, 0, 0, 0.75);
+  border-radius: 6px;
+  color: #fff;
+  font-size: 12px;
 }
-
-.thumb-item img {
-  width: 100%;
-  height: 60px;
-  object-fit: cover;
-  display: block;
+.image-overlay-info span {
+  padding: 3px 8px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
 }
 
 .empty-thumbs {
-  color: #86909c;
-  font-size: 13px;
-}
-
-/* 分析结果 - 可编辑 */
-.analysis-result-display {
-  background: #f7f8fa;
-  border-radius: 8px;
-  padding: 12px 16px;
-}
-
-.analysis-stat {
+  color: #6b7280;
+  font-size: 14px;
+  padding: 40px 20px;
   text-align: center;
+  border: 1px dashed #d1d5db;
+  border-radius: 10px;
+  background: #f9fafb;
 }
 
-.stat-label {
-  font-size: 12px;
-  color: #86909c;
-  display: block;
-  margin-bottom: 4px;
+/* 模型结果区域美化 */
+.model-result-section {
+  margin-bottom: 22px;
+  padding: 16px 20px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f9fafb;
+}
+.model-result-section:last-child {
+  margin-bottom: 0;
+}
+.comprehensive-block {
+  background: #ecf5ff;
+  border-color: #b3d8ff;
 }
 
-.stat-input {
-  width: 80px;
-}
-
-.stat-input-number {
-  width: 80px;
-}
-
-.analysis-conclusion {
+.model-result-header {
   display: flex;
   align-items: center;
-  justify-content: center;
-  margin: 12px 0 8px 0;
-  flex-wrap: wrap;
-  gap: 4px;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e5e7eb;
 }
 
-.analysis-details {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 8px 12px;
-  background: #fff;
-  border-radius: 6px;
+.model-result-section .el-form-item {
+  margin-bottom: 14px;
 }
-
-.detail-item {
-  display: flex;
-  align-items: center;
-  padding: 2px 0;
-}
-
-.detail-label-input {
-  width: 120px;
-}
-
-.detail-value-input {
-  flex: 1;
-  min-width: 150px;
-}
-
-.empty-analysis-result {
-  padding: 8px 0;
-}
-
-/* 报告编辑 */
-.report-editor {
-  padding: 4px 0;
-}
-
-.report-editor :deep(.el-form-item) {
-  margin-bottom: 12px;
-}
-
-.report-editor :deep(.el-form-item:last-child) {
+.model-result-section .el-form-item:last-child {
   margin-bottom: 0;
 }
 
-/* ========== 右侧：AI 聊天 ========== */
-.ai-chat-card {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-.ai-chat-card :deep(.el-card__body) {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  padding: 12px 16px 12px 16px;
-  overflow: hidden;
-}
-
-.ai-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.ai-avatar {
-  font-size: 20px;
-}
-
-.chat-container {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  height: 100%;
-  min-height: 0;
-}
-
-.chat-messages {
-  flex: 1;
-  overflow-y: auto;
-  padding: 8px 4px 8px 4px;
-  min-height: 0;
-  max-height: none;
-}
-
-.chat-message {
+.textarea-actions {
   display: flex;
   gap: 10px;
-  margin-bottom: 14px;
-  animation: fadeIn 0.3s ease;
+  margin-top: 6px;
+  justify-content: flex-end;
 }
 
-.chat-message.user {
-  flex-direction: row-reverse;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.message-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  flex-shrink: 0;
-  background: #f0f2f5;
-}
-
-.chat-message.user .message-avatar {
-  background: #409eff;
-}
-
-.chat-message.assistant .message-avatar {
-  background: #e8f5e9;
-}
-
-.message-content {
-  max-width: 80%;
-}
-
-.chat-message.user .message-content {
-  text-align: right;
-}
-
-.message-text {
-  background: #f7f8fa;
-  padding: 10px 14px;
-  border-radius: 12px;
-  font-size: 14px;
-  line-height: 1.7;
-  color: #1d2129;
-  word-break: break-word;
-  white-space: pre-wrap;
-}
-
-.chat-message.user .message-text {
-  background: #409eff;
-  color: #fff;
-}
-
-.message-time {
-  font-size: 11px;
-  color: #86909c;
-  margin-top: 2px;
-  padding: 0 4px;
-}
-
-/* 消息操作按钮 */
-.message-actions {
-  margin-top: 8px;
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-/* 打字动画 */
-.typing-indicator {
-  display: flex;
-  gap: 4px;
-  padding: 8px 0;
-  align-items: center;
-}
-
-.typing-indicator span {
-  width: 8px;
-  height: 8px;
-  background: #409eff;
-  border-radius: 50%;
-  animation: typingBounce 1.4s infinite;
-}
-
-.typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
-.typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
-
-@keyframes typingBounce {
-  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-  30% { transform: translateY(-8px); opacity: 1; }
-}
-
-.empty-chat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  color: #86909c;
-}
-
-.empty-chat-icon {
-  font-size: 48px;
-  margin-bottom: 12px;
-}
-
-.empty-chat-text {
-  font-size: 14px;
+/* 底部生成按钮区域 */
+.generate-footer {
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid #e5e7eb;
   text-align: center;
-  line-height: 1.8;
+}
+.generate-footer .el-button {
+  padding: 14px 40px;
+  font-size: 16px;
+  font-weight: 600;
+  border-radius: 10px;
 }
 
-.quick-actions {
+/* 预览对话框 */
+.preview-dialog-content {
   display: flex;
-  gap: 8px;
-  padding: 8px 0;
-  flex-wrap: wrap;
-  border-top: 1px solid #e8eaed;
-  border-bottom: 1px solid #e8eaed;
-  margin: 4px 0;
-  flex-shrink: 0;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+  background: #0f172a;
+  border-radius: 8px;
+  padding: 20px;
+}
+.preview-dialog-content img {
+  max-width: 100%;
+  max-height: 75vh;
+  object-fit: contain;
 }
 
-.quick-actions .el-button {
-  flex: 1;
-  min-width: 70px;
-}
-
-.chat-input-area {
-  padding-top: 10px;
-  flex-shrink: 0;
-}
-
-.chat-input-area :deep(.el-input-group__append) {
-  padding: 0 12px;
-}
-
-/* ========== 部分采纳弹窗 ========== */
-.partial-accept-content {
-  padding: 4px 0;
-}
-
-.partial-items {
+/* 重置对话框样式 */
+.reset-dialog-content {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 0;
 }
 
-.partial-item {
-  padding: 12px 16px;
-  background: #f7f8fa;
-  border-radius: 8px;
-  border-left: 3px solid #409eff;
+.reset-warning-icon {
+  align-self: center;
+  margin-bottom: 16px;
 }
 
-.partial-preview {
-  margin-top: 4px;
-  padding: 6px 10px;
-  background: #fff;
-  border-radius: 4px;
-  font-size: 13px;
-  color: #4e5969;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  max-height: 80px;
-  overflow-y: auto;
+.reset-dialog-text {
+  font-size: 15px;
+  color: #4b5563;
+  text-align: left;
+  line-height: 1.8;
+  margin: 0 0 8px 0;
+}
+.reset-dialog-text strong {
+  color: #1f2937;
 }
 
-/* 响应式 */
+.reset-dialog-list {
+  padding-left: 20px;
+  margin: 8px 0 12px 0;
+  color: #4b5563;
+  font-size: 14px;
+  line-height: 2;
+}
+.reset-dialog-list li {
+  list-style-type: disc;
+}
+
+/* 响应式适配 */
 @media (max-width: 992px) {
-  .main-row {
-    height: auto;
-    min-height: auto;
+  .image-row {
+    flex-direction: column;
   }
-
-  .left-col,
-  .right-col {
-    height: auto;
-    margin-bottom: 20px;
+  .image-col {
+    width: 100%;
   }
-
-  .el-col {
-    flex: 0 0 100%;
-    max-width: 100%;
+  .model-image-wrapper img {
+    max-height: 260px;
   }
-
-  .chat-container {
-    height: 420px;
-    min-height: 350px;
+  .image-overlay-info {
+    position: static;
+    margin-top: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
   }
+}
 
-  .analysis-details {
-    grid-template-columns: 1fr;
+@media (max-width: 768px) {
+  .report-generation-page {
+    padding: 16px;
+  }
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+  .header-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .header-actions .el-button {
+    flex: 1;
+  }
+  .report-card :deep(.el-card__body) {
+    padding: 16px;
+  }
+  .generate-footer .el-button {
+    width: 100%;
   }
 }
 
 @media (max-width: 576px) {
-  .page-header {
+  .card-header {
     flex-direction: column;
     align-items: stretch;
-    gap: 12px;
+    gap: 10px;
   }
-
-  .header-actions {
-    justify-content: stretch;
-  }
-
-  .header-actions .el-button {
-    flex: 1;
-  }
-
-  .quick-actions {
-    flex-direction: column;
-  }
-
-  .quick-actions .el-button {
-    flex: none;
-  }
-
-  .chat-container {
-    height: 360px;
-    min-height: 280px;
-  }
-
-  .detail-item {
+  .header-tags {
     flex-wrap: wrap;
   }
-
-  .detail-label-input {
-    width: 80px;
+  .model-image-header {
+    flex-wrap: wrap;
   }
-
-  .analysis-conclusion {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .analysis-conclusion .el-select {
-    width: 100% !important;
-  }
-
-  .analysis-conclusion .el-input {
-    width: 100% !important;
-    margin-left: 0 !important;
-    margin-top: 4px;
+  .reset-dialog-list {
+    padding-left: 16px;
   }
 }
 </style>

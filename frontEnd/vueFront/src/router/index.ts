@@ -135,21 +135,9 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 2, doctorTypes: [2, 3] }
     },
     {
-      path: '/examination-doctor/home',
-      name: 'ExaminationHome',
-      component: () => import('@/pages/examination/ExaminationHome.vue'),
-      meta: { requiresAuth: true, role: 2, doctorType: 2 }
-    },
-    {
       path: '/examination-doctor/ct-inference',
       name: 'ExaminationCTInference',
       component: () => import('@/pages/examination/CTInference.vue'),
-      meta: { requiresAuth: true, role: 2, doctorType: 2 }
-    },
-    {
-      path: '/examination-doctor/application',
-      name: 'ApplicationList',
-      component: () => import('@/pages/examination/application/ApplicationList.vue'),
       meta: { requiresAuth: true, role: 2, doctorType: 2 }
     },
     {
@@ -158,18 +146,6 @@ const router = createRouter({
       redirect: '/examination-doctor/ct-inference',
       meta: { requiresAuth: true, role: 2, doctorType: 2 }
     },
-    {
-      path: '/examination-doctor/analysis',
-      name: 'ImageAnalysis',
-      component: () => import('@/pages/examination/analysis/ImageAnalysis.vue'),
-      meta: { requiresAuth: true, role: 2, doctorType: 2 }
-    },
-    // {
-    //   path: '/examination-doctor/report',
-    //   name: 'ReportPreview',
-    //   component: () => import('@/pages/examination/report/ReportPreview.vue'),
-    //   meta: { requiresAuth: true }
-    // },
     {
       path: '/examination-doctor/report',
       name: 'ReportGeneration',

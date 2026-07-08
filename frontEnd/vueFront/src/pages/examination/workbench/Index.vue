@@ -75,14 +75,12 @@
         <el-table-column prop="createTime" label="创建时间" width="160" />
         <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" size="small" @click="$router.push(`/doctor/task/${row.orderItemId}`)">
-              查看
+            <!-- 改造：跳转前存储orderItemId到sessionStorage -->
+            <el-button type="primary" size="small" @click="handleView(row)">
+              确认检查
             </el-button>
             <el-button v-if="row.status === 'QUEUED'" type="success" size="small" @click="handleStart(row)">
               开始
-            </el-button>
-            <el-button v-if="row.status === 'IN_PROCESS'" type="warning" size="small" @click="$router.push(`/doctor/task/${row.orderItemId}`)">
-              提交报告
             </el-button>
             <el-button v-if="row.status === 'IN_PROCESS'" type="info" size="small" @click="handleSkip(row)">
               跳过
@@ -99,7 +97,9 @@ import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { getWorkbench, startTask, skipTask, getQueue } from '@/api/doctor/task'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { List, Refresh } from '@element-plus/icons-vue'
+import { useRouter } from 'vue-router'
 
+const router = useRouter()
 const tasks = ref<any[]>([])
 const loading = ref(false)
 const autoRefresh = ref(true)
@@ -127,14 +127,18 @@ onUnmounted(() => {
   stopAutoRefresh()
 })
 
+// 新增：查看任务，存入orderItemId
+function handleView(row: any) {
+  sessionStorage.setItem('current_order_item_id', row.orderItemId)
+  router.push(`/doctor/task/${row.orderItemId}`)
+}
+
 function startAutoRefresh() {
   stopAutoRefresh()
-  // 每30秒自动刷新
   timer = setInterval(() => {
     fetchTasks()
     countdown.value = 30
   }, 30000)
-  // 倒计时显示
   countdownTimer = setInterval(() => {
     if (countdown.value > 0) countdown.value--
   }, 1000)
@@ -214,7 +218,6 @@ async function handleSkip(row: any) {
 .auto-refresh-hint { font-size: 12px; color: #999; }
 .card { background: #fff; border-radius: 8px; padding: 20px; }
 
-/* 统计卡片 */
 .stats-row { display: flex; gap: 12px; margin-bottom: 16px; }
 .stat-card { background: #fff; border-radius: 8px; padding: 12px 20px; flex: 1; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
 .stat-value { font-size: 28px; font-weight: 700; color: #1e293b; }
@@ -228,7 +231,6 @@ async function handleSkip(row: any) {
 .badge-URGENT { background: #fdf6ec; color: #e6a23c; }
 .badge-NORMAL { background: #f0f9eb; color: #67c23a; }
 .badge-aged { background: #fef4e6; color: #d46b08; border: 1px solid #ffd591; }
-
 .aged-icon { font-size: 11px; }
 
 .status-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
@@ -236,7 +238,6 @@ async function handleSkip(row: any) {
 .st-IN_PROCESS { background: #fdf6ec; color: #e6a23c; }
 .st-COMPLETED { background: #f0f9eb; color: #67c23a; }
 .st-WAITING_ASSIGN { background: #f4f4f5; color: #909399; }
-
 .wait-long { color: #f56c6c; font-weight: 600; }
 
 .patient-cell { display: flex; align-items: center; gap: 8px; }
