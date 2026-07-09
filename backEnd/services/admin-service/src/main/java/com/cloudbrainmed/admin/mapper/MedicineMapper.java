@@ -9,18 +9,18 @@ import java.util.List;
 public interface MedicineMapper {
 
     /**
-     * 查询所有药品
+     * 查询所有药品 - 按名称排序
      */
     @Select("SELECT medicine_id, name, spec, usage, indication, attention, stock, price, create_time " +
-            "FROM medicine ORDER BY create_time DESC")
+            "FROM medicine ORDER BY name COLLATE \"zh_CN\" ASC")
     List<Medicine> selectAll();
 
     /**
-     * 根据名称模糊查询
+     * 根据名称模糊查询 - 按名称首字母排序
      */
     @Select("SELECT medicine_id, name, spec, usage, indication, attention, stock, price, create_time " +
             "FROM medicine WHERE name LIKE CONCAT('%', #{keyword}, '%') " +
-            "ORDER BY create_time DESC")
+            "ORDER BY name COLLATE \"zh_CN\" ASC")
     List<Medicine> selectByName(@Param("keyword") String keyword);
 
     /**

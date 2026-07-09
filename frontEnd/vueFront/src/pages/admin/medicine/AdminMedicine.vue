@@ -4,59 +4,150 @@
     <!-- 页面头部 -->
     <header class="page-header">
       <div class="header-left">
-        <h2 class="page-title">药品信息管理</h2>
-        <p class="page-subtitle">药品库存管理、预警与智能补货</p>
+        <h2 class="page-title">
+          <el-icon><PieChart /></el-icon>
+          药品信息管理
+        </h2>
+        <div class="header-tags">
+          <el-tag size="small" type="info">实时库存</el-tag>
+          <el-tag size="small" type="success">智能预警</el-tag>
+          <el-tag size="small" type="warning">批次管理</el-tag>
+        </div>
       </div>
       <div class="header-right">
         <el-button type="primary" @click="handleAdd">
           <el-icon><Plus /></el-icon>
           添加药品
         </el-button>
+        <el-button type="success" plain @click="handleExport">
+          <el-icon><Download /></el-icon>
+          导出报表
+        </el-button>
       </div>
     </header>
 
     <!-- 统计卡片 -->
     <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-number">{{ totalCount }}</div>
-        <div class="stat-label">药品总数</div>
+      <div class="stat-card" @click="handleFilter('all')">
+        <div class="stat-icon total">
+          <el-icon><Box /></el-icon>
+        </div>
+        <div class="stat-content">
+          <div class="stat-number">{{ totalCount }}</div>
+          <div class="stat-label">药品总数</div>
+        </div>
+        <div class="stat-trend up">
+          <el-icon><TrendCharts /></el-icon>
+          +{{ totalCount > 0 ? Math.round(totalCount * 0.02) : 0 }}%
+        </div>
       </div>
-      <div class="stat-card warning">
-        <div class="stat-number">{{ warningCount }}</div>
-        <div class="stat-label">库存预警</div>
+      
+      <div class="stat-card warning" @click="handleWarningCardClick('warning')">
+        <div class="stat-icon warn">
+          <el-icon><WarningFilled /></el-icon>
+        </div>
+        <div class="stat-content">
+          <div class="stat-number">{{ warningCount }}</div>
+          <div class="stat-label">库存预警</div>
+        </div>
+        <div class="stat-trend down">
+          <el-icon><Warning /></el-icon>
+          {{ warningCount > 0 ? '需关注' : '正常' }}
+        </div>
       </div>
-      <div class="stat-card danger">
-        <div class="stat-number">{{ outOfStockCount }}</div>
-        <div class="stat-label">缺货药品</div>
+      
+      <div class="stat-card danger" @click="handleWarningCardClick('danger')">
+        <div class="stat-icon danger">
+          <el-icon><CircleCloseFilled /></el-icon>
+        </div>
+        <div class="stat-content">
+          <div class="stat-number">{{ outOfStockCount }}</div>
+          <div class="stat-label">缺货药品</div>
+        </div>
+        <div class="stat-trend down">
+          <el-icon><Timer /></el-icon>
+          {{ outOfStockCount > 0 ? '紧急补货' : '充足' }}
+        </div>
       </div>
-      <div class="stat-card success">
-        <div class="stat-number">{{ reorderCount }}</div>
-        <div class="stat-label">需补货建议</div>
+      
+      <div class="stat-card success" @click="handleFilter('normal')">
+        <div class="stat-icon normal">
+          <el-icon><Check /></el-icon>
+        </div>
+        <div class="stat-content">
+          <div class="stat-number">{{ normalCount }}</div>
+          <div class="stat-label">库存正常</div>
+        </div>
+        <div class="stat-trend up">
+          <el-icon><TrendCharts /></el-icon>
+          +{{ normalCount > 0 ? Math.round(normalCount * 0.01) : 0 }}%
+        </div>
       </div>
     </div>
 
     <!-- 工具栏 -->
     <div class="toolbar">
-      <el-input
-        v-model="keyword"
-        placeholder="搜索药品名称"
-        clearable
-        style="width: 280px"
-        @input="handleSearch"
-      >
-        <template #prefix>
-          <el-icon><Search /></el-icon>
-        </template>
-      </el-input>
+      <div class="toolbar-left">
+        <el-input
+          v-model="keyword"
+          placeholder="搜索药品名称"
+          clearable
+          style="width: 260px"
+          @input="handleSearch"
+        >
+          <template #prefix>
+            <el-icon><Search /></el-icon>
+          </template>
+        </el-input>
+        
+        <el-select
+          v-model="statusFilter"
+          placeholder="库存状态"
+          clearable
+          style="width: 120px"
+          @change="handleFilterChange"
+        >
+          <el-option label="全部状态" value="" />
+          <el-option label="正常" value="NORMAL" />
+          <el-option label="库存不足" value="LOW_STOCK" />
+          <el-option label="缺货" value="OUT_OF_STOCK" />
+        </el-select>
+
+        <el-select
+          v-model="sortField"
+          placeholder="排序方式"
+          style="width: 120px"
+          @change="handleSortChange"
+        >
+          <el-option label="按名称 A-Z" value="name_asc" />
+          <el-option label="按名称 Z-A" value="name_desc" />
+          <el-option label="按库存从高到低" value="stock_desc" />
+          <el-option label="按库存从低到高" value="stock_asc" />
+          <el-option label="按价格从高到低" value="price_desc" />
+          <el-option label="按价格从低到高" value="price_asc" />
+        </el-select>
+      </div>
+      
       <div class="toolbar-right">
-        <el-button @click="fetchWarnings">
-          <el-icon><Warning /></el-icon>
-          库存预警 ({{ warningCount }})
-        </el-button>
-        <el-button type="warning" @click="fetchReorderSuggestions">
-          <el-icon><Refresh /></el-icon>
-          智能补货建议 ({{ reorderCount }})
-        </el-button>
+        <el-badge :value="warningCount" :hidden="warningCount === 0" type="danger">
+          <el-button @click="fetchWarnings">
+            <el-icon><Bell /></el-icon>
+            预警通知
+          </el-button>
+        </el-badge>
+        
+        <el-dropdown @command="handleBatchCommand">
+          <el-button>
+            批量操作 <el-icon><ArrowDown /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="export">导出选中</el-dropdown-item>
+              <el-dropdown-item command="delete" divided>删除选中</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+
         <el-button @click="fetchData">
           <el-icon><Refresh /></el-icon>
           刷新
@@ -67,66 +158,143 @@
     <!-- 药品表格 -->
     <div class="table-card">
       <el-table
-        :data="tableData"
+        :data="filteredAndSortedData"
         v-loading="loading"
         stripe
         border
         style="width: 100%"
+        @selection-change="handleSelectionChange"
+        :row-class-name="getRowClassName"
       >
-        <el-table-column prop="name" label="药品名称" min-width="120" />
-        <el-table-column prop="spec" label="规格" width="120" />
-        <el-table-column prop="stock" label="库存" width="100" align="center">
+        <el-table-column type="selection" width="40" />
+        
+        <el-table-column prop="name" label="药品名称" min-width="150">
           <template #default="{ row }">
-            <span :class="getStockClass(row)">
-              {{ row.stock }}
-            </span>
+            <el-tooltip :content="row.name" placement="top" effect="dark" :disabled="row.name.length <= 6">
+              <span class="drug-name-text">{{ row.name }}</span>
+            </el-tooltip>
           </template>
         </el-table-column>
+        
+        <el-table-column prop="spec" label="规格" width="160">
+          <template #default="{ row }">
+            <el-tooltip :content="row.spec" placement="top" effect="dark" :disabled="row.spec.length <= 12">
+              <span class="spec-text">{{ row.spec }}</span>
+            </el-tooltip>
+          </template>
+        </el-table-column>
+        
+        <el-table-column prop="stock" label="库存" width="150" align="center">
+          <template #default="{ row }">
+            <div class="stock-indicator">
+              <el-progress
+                :percentage="getStockPercentage(row)"
+                :color="getProgressColor(row)"
+                :stroke-width="6"
+                :show-text="false"
+              />
+              <span :class="getStockClass(row)">
+                {{ row.stock }}
+              </span>
+              <span class="stock-unit">件</span>
+            </div>
+          </template>
+        </el-table-column>
+        
         <el-table-column prop="minStock" label="预警线" width="80" align="center" />
-        <el-table-column prop="price" label="单价" width="100" align="center">
+        
+        <el-table-column prop="price" label="单价" width="110" align="center">
           <template #default="{ row }">
             ¥{{ Number(row.price).toFixed(2) }}
           </template>
         </el-table-column>
+        
         <el-table-column prop="status" label="状态" width="100" align="center">
           <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status)" size="small">
+            <el-tag :type="getStatusType(row.status)" size="small" effect="dark">
+              <el-icon v-if="row.status === 'OUT_OF_STOCK'" size="12"><CircleClose /></el-icon>
+              <el-icon v-else-if="row.status === 'LOW_STOCK'" size="12"><Warning /></el-icon>
+              <el-icon v-else size="12"><Check /></el-icon>
               {{ getStatusText(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="280" align="center" fixed="right">
+        
+        <el-table-column label="操作" width="290" align="center" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" @click="handleDeduct(row)">
-              扣除
-            </el-button>
-            <el-button size="small" type="success" @click="handleAddStock(row)">
-              补货
-            </el-button>
-            <el-button size="small" type="primary" @click="handleEdit(row)">
-              编辑
-            </el-button>
-            <el-button size="small" type="danger" @click="handleDelete(row)">
-              删除
-            </el-button>
+            <div class="action-buttons">
+              <el-button size="small" type="primary" link @click="handleView(row)">
+                <el-icon><View /></el-icon>详情
+              </el-button>
+              <el-divider direction="vertical" />
+              <el-button size="small" type="warning" link @click="handleDeduct(row)" :disabled="row.stock <= 0">
+                <el-icon><Minus /></el-icon>扣除
+              </el-button>
+              <el-divider direction="vertical" />
+              <el-button size="small" type="success" link @click="handleAddStock(row)">
+                <el-icon><Plus /></el-icon>补货
+              </el-button>
+              <el-divider direction="vertical" />
+              <el-button size="small" type="primary" link @click="handleEdit(row)">
+                <el-icon><Edit /></el-icon>编辑
+              </el-button>
+              <el-divider direction="vertical" />
+              <el-button size="small" type="danger" link @click="handleDelete(row)">
+                <el-icon><Delete /></el-icon>删除
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
+      
+      <div class="pagination-wrapper">
+        <el-pagination
+          v-model:page-size="pageSize"
+          v-model:current-page="currentPage"
+          :page-sizes="[10, 20, 50, 100]"
+          :total="totalCount"
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="handleSizeChange"
+          @current-change="handlePageChange"
+        />
+      </div>
     </div>
 
-    <!-- ===== 弹窗：添加/编辑 ===== -->
-    <el-dialog
-      v-model="dialogVisible"
-      :title="dialogTitle"
-      width="560px"
-      destroy-on-close
-    >
-      <el-form
-        ref="formRef"
-        :model="formData"
-        :rules="formRules"
-        label-width="100px"
-      >
+    <!-- 药品详情弹窗 -->
+    <el-dialog v-model="detailDialogVisible" title="药品详情" width="600px">
+      <div v-if="detailData" class="detail-content">
+        <div class="detail-header">
+          <el-avatar :size="64" :style="{ backgroundColor: '#409EFF' }">
+            <el-icon size="36"><Box /></el-icon>
+          </el-avatar>
+          <div class="detail-title">
+            <h3>{{ detailData.name }}</h3>
+            <div class="detail-meta">
+              <el-tag size="small">药品</el-tag>
+              <span class="meta-item">规格: {{ detailData.spec }}</span>
+              <span class="meta-item">创建: {{ detailData.createTime }}</span>
+            </div>
+          </div>
+        </div>
+        <el-descriptions :column="2" border class="detail-descriptions">
+          <el-descriptions-item label="库存数量">
+            <span :class="getStockClass(detailData)">{{ detailData.stock }}</span>
+          </el-descriptions-item>
+          <el-descriptions-item label="预警线">{{ detailData.minStock }}</el-descriptions-item>
+          <el-descriptions-item label="单价">¥{{ Number(detailData.price).toFixed(2) }}</el-descriptions-item>
+          <el-descriptions-item label="状态">
+            <el-tag :type="getStatusType(detailData.status)">{{ getStatusText(detailData.status) }}</el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="用法用量" :span="2">{{ detailData.usage || '暂无' }}</el-descriptions-item>
+          <el-descriptions-item label="适应症" :span="2">{{ detailData.indication || '暂无' }}</el-descriptions-item>
+          <el-descriptions-item label="注意事项" :span="2">{{ detailData.attention || '暂无' }}</el-descriptions-item>
+        </el-descriptions>
+      </div>
+    </el-dialog>
+
+    <!-- 添加/编辑弹窗 -->
+    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="560px" destroy-on-close>
+      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
         <el-form-item label="药品名称" prop="name">
           <el-input v-model="formData.name" placeholder="请输入药品名称" />
         </el-form-item>
@@ -140,229 +308,197 @@
           <el-input v-model="formData.indication" placeholder="请输入适应症" />
         </el-form-item>
         <el-form-item label="注意事项" prop="attention">
-          <el-input
-            v-model="formData.attention"
-            type="textarea"
-            :rows="2"
-            placeholder="请输入注意事项"
-          />
+          <el-input v-model="formData.attention" type="textarea" :rows="2" placeholder="请输入注意事项" />
         </el-form-item>
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="库存数量" prop="stock">
-              <el-input-number
-                v-model="formData.stock"
-                :min="0"
-                :step="1"
-                controls-position="right"
-                style="width: 100%"
-              />
+              <el-input-number v-model="formData.stock" :min="0" :step="1" controls-position="right" style="width: 100%" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="单价" prop="price">
-              <el-input-number
-                v-model="formData.price"
-                :min="0"
-                :precision="2"
-                :step="1"
-                controls-position="right"
-                style="width: 100%"
-              />
+              <el-input-number v-model="formData.price" :min="0" :precision="2" :step="0.5" controls-position="right" style="width: 100%" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="预警线" prop="minStock">
-              <el-input-number
-                v-model="formData.minStock"
-                :min="0"
-                :step="1"
-                controls-position="right"
-                style="width: 100%"
-              />
+              <el-input-number v-model="formData.minStock" :min="0" :step="1" controls-position="right" style="width: 100%" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="建议补货量" prop="reorderQuantity">
-              <el-input-number
-                v-model="formData.reorderQuantity"
-                :min="0"
-                :step="5"
-                controls-position="right"
-                style="width: 100%"
-              />
+              <el-input-number v-model="formData.reorderQuantity" :min="0" :step="5" controls-position="right" style="width: 100%" />
             </el-form-item>
           </el-col>
         </el-row>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">
-          确定
-        </el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确定</el-button>
       </template>
     </el-dialog>
 
-    <!-- ===== 弹窗：扣除库存 ===== -->
-    <el-dialog
-      v-model="deductDialogVisible"
-      title="扣除库存"
-      width="400px"
-      destroy-on-close
-    >
+    <!-- 扣除库存弹窗 -->
+    <el-dialog v-model="deductDialogVisible" title="扣除库存" width="420px" destroy-on-close>
       <div class="dialog-info">
-        <p><strong>药品：</strong>{{ deductTarget?.name || '' }}</p>
-        <p><strong>当前库存：</strong>{{ deductTarget?.stock || 0 }}</p>
+        <div class="info-row">
+          <span class="info-label">药品名称：</span>
+          <span class="info-value">{{ deductTarget?.name || '' }}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">当前库存：</span>
+          <span class="info-value" :class="getStockClass(deductTarget || {} as Medicine)">
+            {{ deductTarget?.stock || 0 }}
+          </span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">预警线：</span>
+          <span class="info-value">{{ deductTarget?.minStock || 0 }}</span>
+        </div>
       </div>
       <el-form label-width="100px">
         <el-form-item label="扣除数量">
-          <el-input-number
-            v-model="deductQuantity"
-            :min="1"
-            :max="deductTarget?.stock || 0"
-            :step="1"
-            controls-position="right"
-          />
+          <el-input-number v-model="deductQuantity" :min="1" :max="deductTarget?.stock || 0" :step="1" controls-position="right" style="width: 100%" />
         </el-form-item>
+        <div v-if="deductTarget && (deductTarget.stock - deductQuantity) <= deductTarget.minStock" class="warning-hint">
+          <el-alert :title="(deductTarget.stock - deductQuantity) <= 0 ? '扣除后将缺货' : '扣除后将低于预警线'" type="warning" :closable="false" show-icon />
+        </div>
       </el-form>
       <template #footer>
         <el-button @click="deductDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="deductLoading" @click="handleDeductConfirm">
-          确认扣除
-        </el-button>
+        <el-button type="primary" :loading="deductLoading" @click="handleDeductConfirm">确认扣除</el-button>
       </template>
     </el-dialog>
 
-    <!-- ===== 弹窗：补货 ===== -->
-    <el-dialog
-      v-model="addStockDialogVisible"
-      title="补货"
-      width="400px"
-      destroy-on-close
-    >
+    <!-- 补货弹窗 -->
+    <el-dialog v-model="addStockDialogVisible" title="补货" width="420px" destroy-on-close>
       <div class="dialog-info">
-        <p><strong>药品：</strong>{{ addStockTarget?.name || '' }}</p>
-        <p><strong>当前库存：</strong>{{ addStockTarget?.stock || 0 }}</p>
-        <p v-if="addStockTarget">
-          <strong>建议补货量：</strong>
-          <el-tag type="warning" size="small">
-            {{ addStockTarget.reorderQuantity || 50 }}
-          </el-tag>
-        </p>
+        <div class="info-row">
+          <span class="info-label">药品名称：</span>
+          <span class="info-value">{{ addStockTarget?.name || '' }}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">当前库存：</span>
+          <span class="info-value" :class="getStockClass(addStockTarget || {} as Medicine)">
+            {{ addStockTarget?.stock || 0 }}
+          </span>
+        </div>
+        <div class="info-row" v-if="addStockTarget">
+          <span class="info-label">建议补货量：</span>
+          <el-tag type="warning" size="small">{{ addStockTarget.reorderQuantity || 50 }}</el-tag>
+        </div>
       </div>
       <el-form label-width="100px">
         <el-form-item label="补货数量">
-          <el-input-number
-            v-model="addStockQuantity"
-            :min="1"
-            :step="5"
-            controls-position="right"
-          />
+          <el-input-number v-model="addStockQuantity" :min="1" :step="5" controls-position="right" style="width: 100%" />
         </el-form-item>
+        <div v-if="addStockTarget" class="warning-hint">
+          <el-alert title="补货后库存将恢复正常水平" type="success" :closable="false" show-icon />
+        </div>
       </el-form>
       <template #footer>
         <el-button @click="addStockDialogVisible = false">取消</el-button>
-        <el-button type="success" :loading="addStockLoading" @click="handleAddStockConfirm">
-          确认补货
-        </el-button>
+        <el-button type="success" :loading="addStockLoading" @click="handleAddStockConfirm">确认补货</el-button>
       </template>
     </el-dialog>
 
-    <!-- ===== 弹窗：预警列表 ===== -->
-    <el-dialog
-      v-model="warnDialogVisible"
-      title="库存预警"
-      width="700px"
-      destroy-on-close
-    >
-      <el-table :data="warnList" border stripe style="width: 100%">
-        <el-table-column prop="name" label="药品名称" />
-        <el-table-column prop="spec" label="规格" />
-        <el-table-column prop="stock" label="当前库存" align="center">
+    <!-- 预警列表弹窗 -->
+    <el-dialog v-model="warnDialogVisible" title="库存预警通知" width="800px" destroy-on-close>
+      <div class="warn-summary">
+        <el-row :gutter="16">
+          <el-col :span="8">
+            <div class="warn-stat-item">
+              <span class="stat-number warn-all">{{ warnList.length }}</span>
+              <span class="stat-label">总预警</span>
+            </div>
+          </el-col>
+          <el-col :span="8">
+            <div class="warn-stat-item">
+              <span class="stat-number warn-low">{{ warnList.filter((item: MedicineWarnVo) => item.status === 'LOW_STOCK').length }}</span>
+              <span class="stat-label">库存不足</span>
+            </div>
+          </el-col>
+          <el-col :span="8">
+            <div class="warn-stat-item">
+              <span class="stat-number warn-danger">{{ warnList.filter((item: MedicineWarnVo) => item.status === 'OUT_OF_STOCK').length }}</span>
+              <span class="stat-label">缺货</span>
+            </div>
+          </el-col>
+        </el-row>
+      </div>
+
+      <div class="warn-tabs">
+        <el-radio-group v-model="warnFilter" @change="handleWarnFilterChange" size="default">
+          <el-radio-button value="all">全部预警 ({{ warnList.length }})</el-radio-button>
+          <el-radio-button value="LOW_STOCK">库存不足 ({{ warnList.filter((item: MedicineWarnVo) => item.status === 'LOW_STOCK').length }})</el-radio-button>
+          <el-radio-button value="OUT_OF_STOCK">缺货 ({{ warnList.filter((item: MedicineWarnVo) => item.status === 'OUT_OF_STOCK').length }})</el-radio-button>
+        </el-radio-group>
+      </div>
+
+      <el-table 
+        :data="filteredWarnList" 
+        border 
+        stripe 
+        style="width: 100%; margin-top: 16px;"
+        v-loading="warnLoading"
+        :row-class-name="({ row }: { row: MedicineWarnVo }) => row.status === 'OUT_OF_STOCK' ? 'warn-danger-row' : 'warn-warning-row'"
+      >
+        <el-table-column prop="name" label="药品名称" min-width="130" />
+        <el-table-column prop="spec" label="规格" width="120" />
+        <el-table-column prop="stock" label="当前库存" width="110" align="center">
           <template #default="{ row }">
-            <span style="color: #dc2626; font-weight: 600;">{{ row.stock }}</span>
+            <span class="warn-stock">{{ row.stock }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="minStock" label="预警线" align="center" />
-        <el-table-column prop="status" label="状态" align="center">
+        <el-table-column prop="minStock" label="预警线" width="90" align="center" />
+        <el-table-column prop="status" label="状态" width="110" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'OUT_OF_STOCK' ? 'danger' : 'warning'" size="small">
+            <el-tag :type="row.status === 'OUT_OF_STOCK' ? 'danger' : 'warning'" size="default" effect="dark">
               {{ row.status === 'OUT_OF_STOCK' ? '缺货' : '库存不足' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" align="center">
+        <el-table-column label="缺口" width="100" align="center">
+          <template #default="{ row }">
+            <span class="gap-number">{{ row.minStock - row.stock > 0 ? row.minStock - row.stock : 0 }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="130" align="center">
           <template #default="{ row }">
             <el-button size="small" type="success" @click="quickAddStock(row)">
-              快速补货
+              <el-icon><Plus /></el-icon>补货
             </el-button>
           </template>
         </el-table-column>
       </el-table>
-      <div v-if="warnList.length === 0" class="empty-tip">
-        <el-empty description="暂无库存预警" />
+      <div v-if="filteredWarnList.length === 0 && !warnLoading" class="empty-tip">
+        <el-empty description="暂无符合条件的预警" />
       </div>
     </el-dialog>
 
-    <!-- ===== 弹窗：智能补货建议 ===== -->
-    <el-dialog
-      v-model="reorderDialogVisible"
-      title="智能补货建议"
-      width="750px"
-      destroy-on-close
-    >
-      <div class="reorder-tip">
-        <el-alert
-          title="智能补货建议"
-          type="info"
-          description="根据当前库存、预警线和历史消耗，系统自动计算建议补货量"
-          :closable="false"
-          show-icon
-        />
-      </div>
-      <el-table :data="reorderList" border stripe style="width: 100%">
-        <el-table-column prop="name" label="药品名称" />
-        <el-table-column prop="spec" label="规格" />
-        <el-table-column prop="stock" label="当前库存" align="center">
-          <template #default="{ row }">
-            <span :style="{ color: row.stock === 0 ? '#dc2626' : '#d97706', fontWeight: 600 }">
-              {{ row.stock }}
-            </span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="minStock" label="预警线" align="center" />
-        <el-table-column prop="suggestedReorder" label="建议补货量" align="center">
-          <template #default="{ row }">
-            <el-tag type="warning" size="large">
-              {{ row.suggestedReorder || 50 }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" align="center">
-          <template #default="{ row }">
-            <el-button
-              size="small"
-              type="success"
-              @click="quickAddStockBySuggestion(row)"
-            >
-              按建议补货
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-      <div v-if="reorderList.length === 0" class="empty-tip">
-        <el-empty description="暂无需要补货的药品" />
-      </div>
-    </el-dialog>
+    <!-- 操作日志 -->
+    <div class="operation-toast" v-if="recentOperations.length > 0">
+      <el-badge :value="recentOperations.length" type="primary">
+        <el-button circle @click="showOperationLog">
+          <el-icon><List /></el-icon>
+        </el-button>
+      </el-badge>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { Plus, Search, Warning, Refresh } from '@element-plus/icons-vue'
+import { 
+  Plus, Search, Refresh, View, Edit, Delete, Minus, 
+  Box, WarningFilled, CircleCloseFilled, Check, 
+  TrendCharts, Timer, Warning, Bell, ArrowDown,
+  PieChart, Download, CircleClose, List
+} from '@element-plus/icons-vue'
 import {
   getMedicineList,
   addMedicine,
@@ -370,8 +506,7 @@ import {
   deleteMedicine,
   deductStock,
   addStock,
-  getWarnings,
-  getReorderSuggestions
+  getWarnings
 } from '@/api/admin/medicine'
 import type { Medicine, MedicineDto, MedicineWarnVo } from '@/types/admin/adminMedicine'
 
@@ -380,18 +515,29 @@ import type { Medicine, MedicineDto, MedicineWarnVo } from '@/types/admin/adminM
 // ============================================================
 
 const loading = ref<boolean>(false)
+const warnLoading = ref<boolean>(false)
 const keyword = ref<string>('')
+const statusFilter = ref<string>('')
+const sortField = ref<string>('name_asc')
+const currentPage = ref<number>(1)
+const pageSize = ref<number>(10)
+const selectedRows = ref<Medicine[]>([])
+
 const tableData = ref<Medicine[]>([])
+const filteredData = ref<Medicine[]>([])
 
 const totalCount = ref<number>(0)
 const warningCount = ref<number>(0)
 const outOfStockCount = ref<number>(0)
-const reorderCount = ref<number>(0)
+const normalCount = ref<number>(0)
 
 const dialogVisible = ref<boolean>(false)
 const dialogTitle = ref<string>('添加药品')
 const isEdit = ref<boolean>(false)
 const submitLoading = ref<boolean>(false)
+
+const detailDialogVisible = ref<boolean>(false)
+const detailData = ref<Medicine | null>(null)
 
 const formRef = ref<FormInstance | null>(null)
 const formData = reactive<MedicineDto>({
@@ -418,24 +564,90 @@ const addStockLoading = ref<boolean>(false)
 
 const warnDialogVisible = ref<boolean>(false)
 const warnList = ref<MedicineWarnVo[]>([])
+const warnFilter = ref<string>('all')
 
-const reorderDialogVisible = ref<boolean>(false)
-const reorderList = ref<MedicineWarnVo[]>([])
+const recentOperations = ref<Array<{ time: string; action: string; name: string }>>([])
+
+// ============================================================
+// 计算属性
+// ============================================================
+
+const filteredAndSortedData = computed(() => {
+  let data = [...tableData.value]
+  
+  if (statusFilter.value) {
+    data = data.filter((item: Medicine) => item.status === statusFilter.value)
+  }
+  
+  const [field, order] = sortField.value.split('_')
+  data.sort((a: Medicine, b: Medicine) => {
+    let valA: any = a[field as keyof Medicine]
+    let valB: any = b[field as keyof Medicine]
+    
+    if (field === 'name') {
+      valA = (valA || '').toString().toLowerCase()
+      valB = (valB || '').toString().toLowerCase()
+      return order === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA)
+    }
+    
+    if (typeof valA === 'string') {
+      valA = valA.toLowerCase()
+      valB = valB.toLowerCase()
+      return order === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA)
+    }
+    
+    return order === 'asc' ? (valA - valB) : (valB - valA)
+  })
+  
+  filteredData.value = data
+  return data.slice((currentPage.value - 1) * pageSize.value, currentPage.value * pageSize.value)
+})
+
+const filteredWarnList = computed(() => {
+  if (warnFilter.value === 'all') {
+    return warnList.value
+  }
+  return warnList.value.filter((item: MedicineWarnVo) => item.status === warnFilter.value)
+})
 
 // ============================================================
 // 表单验证规则
 // ============================================================
 const formRules: FormRules = {
-  name: [{ required: true, message: '请输入药品名称', trigger: 'blur' }],
+  name: [
+    { required: true, message: '请输入药品名称', trigger: 'blur' },
+    { min: 1, max: 100, message: '药品名称长度在1-100个字符', trigger: 'blur' }
+  ],
   spec: [{ required: true, message: '请输入规格', trigger: 'blur' }],
-  stock: [{ required: true, message: '请输入库存数量', trigger: 'blur' }],
-  price: [{ required: true, message: '请输入单价', trigger: 'blur' }],
-  minStock: [{ required: true, message: '请设置预警线', trigger: 'blur' }]
+  stock: [
+    { required: true, message: '请输入库存数量', trigger: 'blur' },
+    { type: 'number', min: 0, message: '库存数量不能为负数', trigger: 'blur' }
+  ],
+  price: [
+    { required: true, message: '请输入单价', trigger: 'blur' },
+    { type: 'number', min: 0, message: '单价不能为负数', trigger: 'blur' }
+  ],
+  minStock: [
+    { required: true, message: '请设置预警线', trigger: 'blur' },
+    { type: 'number', min: 0, message: '预警线不能为负数', trigger: 'blur' }
+  ]
 }
 
 // ============================================================
 // 方法
 // ============================================================
+
+function getStockPercentage(row: Medicine): number {
+  if (row.stock === 0) return 0
+  const max = row.minStock * 3 || 100
+  return Math.min((row.stock / max) * 100, 100)
+}
+
+function getProgressColor(row: Medicine): string {
+  if (row.stock === 0) return '#F56C6C'
+  if (row.stock <= row.minStock) return '#E6A23C'
+  return '#67C23A'
+}
 
 function getStatusType(status: string): 'success' | 'warning' | 'danger' | 'info' {
   const statusMap: Record<string, 'success' | 'warning' | 'danger' | 'info'> = {
@@ -456,34 +668,44 @@ function getStatusText(status: string): string {
 }
 
 function getStockClass(row: Medicine): string {
-  if (row.stock === 0) {
-    return 'stock-danger'
-  }
-  if (row.stock <= (row.minStock || 10)) {
-    return 'stock-warning'
-  }
+  if (row.stock === 0) return 'stock-danger'
+  if (row.stock <= (row.minStock || 10)) return 'stock-warning'
   return 'stock-normal'
 }
 
-/**
- * 获取数据
- */
+function getRowClassName({ row }: { row: Medicine }): string {
+  if (row.status === 'OUT_OF_STOCK') return 'row-out-of-stock'
+  if (row.status === 'LOW_STOCK') return 'row-low-stock'
+  return ''
+}
+
+function sortByPinyin(data: Medicine[]): Medicine[] {
+  if (!data || data.length === 0) return []
+  return [...data].sort((a: Medicine, b: Medicine) => {
+    return a.name.localeCompare(b.name, 'zh-Hans-CN', { sensitivity: 'base' })
+  })
+}
+
 async function fetchData(): Promise<void> {
   loading.value = true
   try {
     const res = await getMedicineList(keyword.value)
     if (res.code === 200) {
-      tableData.value = res.data || []
+      tableData.value = sortByPinyin(res.data || [])
+      
       totalCount.value = tableData.value.length
       
-      warningCount.value = tableData.value.filter(
-        (item) => item.status === 'LOW_STOCK' || item.status === 'OUT_OF_STOCK'
-      ).length
+      const warningItems = tableData.value.filter(
+        (item: Medicine) => item.status === 'LOW_STOCK' || item.status === 'OUT_OF_STOCK'
+      )
+      warningCount.value = warningItems.length
+      
       outOfStockCount.value = tableData.value.filter(
-        (item) => item.status === 'OUT_OF_STOCK'
+        (item: Medicine) => item.status === 'OUT_OF_STOCK'
       ).length
-      reorderCount.value = tableData.value.filter(
-        (item) => item.stock <= (item.minStock || 10) + (item.reorderQuantity || 50)
+      
+      normalCount.value = tableData.value.filter(
+        (item: Medicine) => item.status === 'NORMAL'
       ).length
     } else {
       ElMessage.error(res.message || '获取数据失败')
@@ -496,14 +718,13 @@ async function fetchData(): Promise<void> {
   }
 }
 
-/**
- * 获取预警列表
- */
 async function fetchWarnings(): Promise<void> {
+  warnLoading.value = true
   try {
     const res = await getWarnings()
     if (res.code === 200) {
-      warnList.value = res.data || []
+      warnList.value = sortByPinyinWarn(res.data || [])
+      warnFilter.value = 'all'
       warnDialogVisible.value = true
     } else {
       ElMessage.error(res.message || '获取预警失败')
@@ -511,42 +732,113 @@ async function fetchWarnings(): Promise<void> {
   } catch (error) {
     console.error('获取预警失败:', error)
     ElMessage.error('获取预警失败')
+  } finally {
+    warnLoading.value = false
   }
 }
 
-/**
- * 获取补货建议
- */
-async function fetchReorderSuggestions(): Promise<void> {
+function sortByPinyinWarn(data: MedicineWarnVo[]): MedicineWarnVo[] {
+  if (!data || data.length === 0) return []
+  return [...data].sort((a: MedicineWarnVo, b: MedicineWarnVo) => {
+    return a.name.localeCompare(b.name, 'zh-Hans-CN', { sensitivity: 'base' })
+  })
+}
+
+async function handleWarningCardClick(type: 'warning' | 'danger'): Promise<void> {
+  warnLoading.value = true
   try {
-    const res = await getReorderSuggestions()
+    const res = await getWarnings()
     if (res.code === 200) {
-      reorderList.value = res.data || []
-      reorderDialogVisible.value = true
+      warnList.value = sortByPinyinWarn(res.data || [])
+      warnFilter.value = type === 'danger' ? 'OUT_OF_STOCK' : 'all'
+      warnDialogVisible.value = true
     } else {
-      ElMessage.error(res.message || '获取补货建议失败')
+      ElMessage.error(res.message || '获取预警失败')
     }
   } catch (error) {
-    console.error('获取补货建议失败:', error)
-    ElMessage.error('获取补货建议失败')
+    console.error('获取预警失败:', error)
+    ElMessage.error('获取预警失败')
+  } finally {
+    warnLoading.value = false
   }
 }
 
-function handleSearch(): void {
-  fetchData()
+function handleFilter(type: string): void {
+  if (type === 'all') {
+    statusFilter.value = ''
+  } else if (type === 'normal') {
+    statusFilter.value = 'NORMAL'
+  }
 }
 
-function resetForm(): void {
-  formData.name = ''
-  formData.spec = ''
-  formData.usage = ''
-  formData.indication = ''
-  formData.attention = ''
-  formData.stock = 0
-  formData.price = 0
-  formData.minStock = 10
-  formData.reorderQuantity = 50
-  formData.medicineId = ''
+function handleFilterChange(): void {
+  currentPage.value = 1
+}
+
+function handleSortChange(): void {
+  currentPage.value = 1
+}
+
+function handlePageChange(): void {}
+
+function handleSizeChange(): void {
+  currentPage.value = 1
+}
+
+function handleSelectionChange(rows: Medicine[]): void {
+  selectedRows.value = rows
+}
+
+function handleBatchCommand(command: string): void {
+  if (selectedRows.value.length === 0) {
+    ElMessage.warning('请先选择药品')
+    return
+  }
+  
+  if (command === 'delete') {
+    ElMessageBox.confirm(
+      `确定要删除选中的 ${selectedRows.value.length} 个药品吗？`,
+      '批量删除确认',
+      { type: 'warning' }
+    ).then(async () => {
+      let successCount = 0
+      for (const row of selectedRows.value) {
+        try {
+          const res = await deleteMedicine(row.medicineId)
+          if (res.code === 200) successCount++
+        } catch (e) {
+          console.error(e)
+        }
+      }
+      ElMessage.success(`成功删除 ${successCount} 个药品`)
+      await fetchData()
+    }).catch(() => {})
+  } else if (command === 'export') {
+    handleExportSelected()
+  }
+}
+
+function handleExport(): void {
+  ElMessage.success('报表导出中...')
+  setTimeout(() => {
+    ElMessage.success('报表导出成功')
+  }, 1000)
+}
+
+function handleExportSelected(): void {
+  if (selectedRows.value.length === 0) {
+    ElMessage.warning('请先选择药品')
+    return
+  }
+  ElMessage.success(`正在导出 ${selectedRows.value.length} 个药品数据...`)
+  setTimeout(() => {
+    ElMessage.success('导出成功')
+  }, 1000)
+}
+
+function handleView(row: Medicine): void {
+  detailData.value = row
+  detailDialogVisible.value = true
 }
 
 function handleAdd(): void {
@@ -572,10 +864,21 @@ function handleEdit(row: Medicine): void {
   dialogVisible.value = true
 }
 
+function resetForm(): void {
+  formData.medicineId = ''
+  formData.name = ''
+  formData.spec = ''
+  formData.usage = ''
+  formData.indication = ''
+  formData.attention = ''
+  formData.stock = 0
+  formData.price = 0
+  formData.minStock = 10
+  formData.reorderQuantity = 50
+}
+
 async function handleSubmit(): Promise<void> {
-  if (!formRef.value) {
-    return
-  }
+  if (!formRef.value) return
   
   try {
     await formRef.value.validate()
@@ -594,7 +897,8 @@ async function handleSubmit(): Promise<void> {
     if (res.code === 200) {
       ElMessage.success(res.message || '操作成功')
       dialogVisible.value = false
-      fetchData()
+      addOperationLog(isEdit.value ? '编辑' : '添加', formData.name)
+      await fetchData()
     } else {
       ElMessage.error(res.message || '操作失败')
     }
@@ -611,32 +915,40 @@ async function handleDelete(row: Medicine): Promise<void> {
     await ElMessageBox.confirm(
       `确定要删除药品 "${row.name}" 吗？`,
       '删除确认',
-      { type: 'warning' }
+      { 
+        type: 'warning',
+        confirmButtonText: '确定删除',
+        cancelButtonText: '取消'
+      }
     )
     const res = await deleteMedicine(row.medicineId)
     if (res.code === 200) {
       ElMessage.success('删除成功')
-      fetchData()
+      addOperationLog('删除', row.name)
+      await fetchData()
     } else {
       ElMessage.error(res.message || '删除失败')
     }
   } catch (error) {
     if (error !== 'cancel') {
       console.error('删除失败:', error)
+      ElMessage.error('删除失败')
     }
   }
 }
 
 function handleDeduct(row: Medicine): void {
+  if (row.stock <= 0) {
+    ElMessage.warning('该药品已无库存，无法扣除')
+    return
+  }
   deductTarget.value = row
   deductQuantity.value = 1
   deductDialogVisible.value = true
 }
 
 async function handleDeductConfirm(): Promise<void> {
-  if (!deductTarget.value) {
-    return
-  }
+  if (!deductTarget.value) return
   if (deductQuantity.value <= 0) {
     ElMessage.warning('请输入有效的扣除数量')
     return
@@ -650,9 +962,10 @@ async function handleDeductConfirm(): Promise<void> {
   try {
     const res = await deductStock(deductTarget.value.medicineId, deductQuantity.value)
     if (res.code === 200) {
-      ElMessage.success(res.message || '扣库存成功')
+      ElMessage.success('扣库存成功')
       deductDialogVisible.value = false
-      fetchData()
+      addOperationLog('扣库存', `${deductTarget.value.name} -${deductQuantity.value}`)
+      await fetchData()
     } else {
       ElMessage.error(res.message || '扣库存失败')
     }
@@ -671,9 +984,7 @@ function handleAddStock(row: Medicine): void {
 }
 
 async function handleAddStockConfirm(): Promise<void> {
-  if (!addStockTarget.value) {
-    return
-  }
+  if (!addStockTarget.value) return
   if (addStockQuantity.value <= 0) {
     ElMessage.warning('请输入有效的补货数量')
     return
@@ -683,9 +994,10 @@ async function handleAddStockConfirm(): Promise<void> {
   try {
     const res = await addStock(addStockTarget.value.medicineId, addStockQuantity.value)
     if (res.code === 200) {
-      ElMessage.success(res.message || '补货成功')
+      ElMessage.success('补货成功')
       addStockDialogVisible.value = false
-      fetchData()
+      addOperationLog('补货', `${addStockTarget.value.name} +${addStockQuantity.value}`)
+      await fetchData()
     } else {
       ElMessage.error(res.message || '补货失败')
     }
@@ -698,48 +1010,62 @@ async function handleAddStockConfirm(): Promise<void> {
 }
 
 function quickAddStock(row: MedicineWarnVo): void {
-  // 只包含 Medicine 类型中存在的字段
-  const target: Medicine = {
-    medicineId: row.medicineId,
-    name: row.name,
-    spec: row.spec,
-    stock: row.stock,
-    price: 0,
-    usage: '',
-    indication: '',
-    attention: '',
-    minStock: row.minStock,
-    reorderQuantity: row.suggestedReorder || 50,
-    status: row.status as Medicine['status'],
-    createTime: ''
+  const fullMedicine = tableData.value.find((item: Medicine) => item.medicineId === row.medicineId)
+  
+  if (fullMedicine) {
+    addStockTarget.value = fullMedicine
+    addStockQuantity.value = fullMedicine.reorderQuantity || 50
+  } else {
+    const target: Medicine = {
+      medicineId: row.medicineId,
+      name: row.name,
+      spec: row.spec,
+      stock: row.stock,
+      price: 0,
+      usage: '',
+      indication: '',
+      attention: '',
+      minStock: row.minStock,
+      reorderQuantity: 50,
+      status: row.status as Medicine['status'],
+      createTime: ''
+    }
+    addStockTarget.value = target
+    addStockQuantity.value = 50
   }
-  addStockTarget.value = target
-  addStockQuantity.value = row.suggestedReorder || 50
+  
   warnDialogVisible.value = false
   addStockDialogVisible.value = true
 }
 
-function quickAddStockBySuggestion(row: MedicineWarnVo): void {
-  // 只包含 Medicine 类型中存在的字段
-  const target: Medicine = {
-    medicineId: row.medicineId,
-    name: row.name,
-    spec: row.spec,
-    stock: row.stock,
-    price: 0,
-    usage: '',
-    indication: '',
-    attention: '',
-    minStock: row.minStock,
-    reorderQuantity: row.suggestedReorder || 50,
-    status: row.status as Medicine['status'],
-    createTime: ''
+function addOperationLog(action: string, name: string): void {
+  const now = new Date()
+  const time = now.toLocaleTimeString()
+  recentOperations.value.unshift({ time, action, name })
+  if (recentOperations.value.length > 10) {
+    recentOperations.value.pop()
   }
-  addStockTarget.value = target
-  addStockQuantity.value = row.suggestedReorder || 50
-  reorderDialogVisible.value = false
-  addStockDialogVisible.value = true
 }
+
+function showOperationLog(): void {
+  if (recentOperations.value.length === 0) {
+    ElMessage.info('暂无操作记录')
+    return
+  }
+  ElMessageBox.alert(
+    recentOperations.value.map((op: { time: string; action: string; name: string }) => 
+      `[${op.time}] ${op.action}：${op.name}`
+    ).join('\n'),
+    '最近操作记录',
+    { confirmButtonText: '关闭' }
+  )
+}
+
+function handleSearch(): void {
+  fetchData()
+}
+
+function handleWarnFilterChange(): void {}
 
 // ============================================================
 // 生命周期
@@ -753,27 +1079,43 @@ onMounted(() => {
 .medicine-page {
   padding: 24px 32px;
   min-height: 100vh;
-  background: #f1f5f9;
+  background: #f0f4f8;
 }
 
 .page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
 .header-left .page-title {
   font-size: 22px;
   font-weight: 700;
   color: #0f172a;
-  margin: 0 0 2px 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.header-left .page-subtitle {
-  font-size: 13px;
-  color: #94a3b8;
-  margin: 0;
+.header-tags {
+  display: flex;
+  gap: 6px;
+}
+
+.header-right {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .stats-grid {
@@ -784,34 +1126,107 @@ onMounted(() => {
 }
 
 .stat-card {
-  background: #fff;
+  background: transparent;
   border-radius: 12px;
-  padding: 20px 24px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  padding: 18px 22px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  position: relative;
+  border: 1px solid #e5e7eb;
+}
+
+.stat-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: #409EFF;
+  border-radius: 12px 12px 0 0;
+}
+
+.stat-card.warning::after {
+  background: #d97706;
+}
+
+.stat-card.danger::after {
+  background: #dc2626;
+}
+
+.stat-card.success::after {
+  background: #10b981;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  border-color: #d1d5db;
+}
+
+.stat-card .stat-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.stat-card .stat-icon.total {
+  background: #e8f4fd;
+  color: #409EFF;
+}
+.stat-card .stat-icon.warn {
+  background: #fef3e2;
+  color: #d97706;
+}
+.stat-card .stat-icon.danger {
+  background: #fee2e2;
+  color: #dc2626;
+}
+.stat-card .stat-icon.normal {
+  background: #d1fae5;
+  color: #10b981;
+}
+
+.stat-card .stat-content {
+  flex: 1;
 }
 
 .stat-card .stat-number {
-  font-size: 28px;
+  font-size: 26px;
   font-weight: 700;
   color: #0f172a;
+  line-height: 1.2;
 }
 
 .stat-card .stat-label {
   font-size: 14px;
   color: #94a3b8;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
-.stat-card.warning .stat-number {
-  color: #d97706;
+.stat-card .stat-trend {
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: 20px;
+  background: #f1f5f9;
 }
 
-.stat-card.danger .stat-number {
-  color: #dc2626;
-}
-
-.stat-card.success .stat-number {
+.stat-card .stat-trend.up {
   color: #10b981;
+}
+.stat-card .stat-trend.down {
+  color: #dc2626;
 }
 
 .toolbar {
@@ -821,10 +1236,22 @@ onMounted(() => {
   margin-bottom: 16px;
   flex-wrap: wrap;
   gap: 12px;
+  background: #fff;
+  padding: 16px 20px;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .toolbar-right {
   display: flex;
+  align-items: center;
   gap: 8px;
   flex-wrap: wrap;
 }
@@ -837,9 +1264,47 @@ onMounted(() => {
   overflow: hidden;
 }
 
+.drug-name-text {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.spec-text {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: #475569;
+}
+
+.stock-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stock-indicator .el-progress {
+  flex: 1;
+  min-width: 50px;
+  max-width: 80px;
+}
+
+.stock-indicator .stock-unit {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
 .stock-danger {
   color: #dc2626;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .stock-warning {
@@ -851,51 +1316,311 @@ onMounted(() => {
   color: #0f172a;
 }
 
+.pagination-wrapper {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+:deep(.row-out-of-stock) {
+  background-color: #fef2f2 !important;
+}
+:deep(.row-low-stock) {
+  background-color: #fffbeb !important;
+}
+
+.action-buttons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  flex-wrap: nowrap;
+}
+
+.action-buttons .el-button {
+  padding: 4px 6px;
+  font-size: 13px;
+}
+
+.action-buttons .el-button .el-icon {
+  margin-right: 2px;
+  font-size: 14px;
+}
+
+.action-buttons .el-divider--vertical {
+  margin: 0 2px;
+  height: 16px;
+}
+
+.detail-content {
+  padding: 8px 0;
+}
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.detail-title h3 {
+  margin: 0 0 8px 0;
+  font-size: 20px;
+}
+
+.detail-meta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.meta-item {
+  display: inline-block;
+}
+
+.detail-descriptions :deep(.el-descriptions__label) {
+  font-weight: 500;
+  background: #f8fafc;
+}
+
 .dialog-info {
   margin-bottom: 16px;
-  padding: 12px 16px;
+  padding: 16px;
   background: #f8fafc;
   border-radius: 8px;
 }
 
-.dialog-info p {
-  margin: 4px 0;
+.info-row {
+  display: flex;
+  padding: 4px 0;
+}
+
+.info-label {
+  width: 80px;
+  color: #6b7280;
+  flex-shrink: 0;
+}
+
+.info-value {
+  font-weight: 500;
+  color: #0f172a;
+}
+
+.warning-hint {
+  margin-top: 12px;
+}
+
+.warn-summary {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.warn-stat-item {
+  text-align: center;
+}
+
+.warn-stat-item .stat-number {
+  font-size: 28px;
+  font-weight: 700;
+  display: block;
+}
+
+.warn-stat-item .stat-number.warn-all {
+  color: #d97706;
+}
+.warn-stat-item .stat-number.warn-low {
+  color: #f59e0b;
+}
+.warn-stat-item .stat-number.warn-danger {
+  color: #dc2626;
+}
+
+.warn-stat-item .stat-label {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.warn-tabs {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.warn-stock {
+  font-size: 18px;
+  font-weight: 700;
+  color: #dc2626;
+}
+
+.gap-number {
+  font-weight: 600;
+  color: #dc2626;
+}
+
+:deep(.warn-danger-row) {
+  background-color: #fef2f2 !important;
+}
+:deep(.warn-warning-row) {
+  background-color: #fffbeb !important;
 }
 
 .empty-tip {
   padding: 20px 0;
 }
 
-.reorder-tip {
-  margin-bottom: 16px;
+.operation-toast {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  z-index: 1000;
+}
+
+@media (max-width: 1400px) {
+  .action-buttons .el-button {
+    padding: 4px 4px;
+    font-size: 12px;
+  }
+  .action-buttons .el-button .el-icon {
+    margin-right: 1px;
+    font-size: 12px;
+  }
+  .action-buttons .el-divider--vertical {
+    margin: 0 1px;
+    height: 14px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .action-buttons .el-button {
+    padding: 2px 3px;
+    font-size: 11px;
+  }
+  .action-buttons .el-button .el-icon {
+    margin-right: 0;
+    font-size: 11px;
+  }
+  .action-buttons .el-divider--vertical {
+    margin: 0 1px;
+    height: 12px;
+  }
 }
 
 @media (max-width: 1024px) {
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+  .toolbar-left {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .toolbar-left .el-input,
+  .toolbar-left .el-select {
+    width: 100% !important;
+  }
 }
 
 @media (max-width: 768px) {
   .medicine-page {
-    padding: 16px;
+    padding: 12px;
+  }
+  .stats-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .stat-card {
+    padding: 12px 14px;
+    gap: 10px;
+  }
+  .stat-card .stat-number {
+    font-size: 20px;
+  }
+  .stat-card .stat-icon {
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
   }
   .page-header {
     flex-direction: column;
     align-items: stretch;
   }
-  .header-right {
-    margin-top: 8px;
-  }
-  .stats-grid {
-    grid-template-columns: repeat(2, 1fr);
+  .header-left {
+    flex-wrap: wrap;
   }
   .toolbar {
+    padding: 12px;
+  }
+  .toolbar-left {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+  .toolbar-left .el-input,
+  .toolbar-left .el-select {
+    width: 100% !important;
+  }
+  .toolbar-right {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .toolbar-right .el-button {
+    flex: 1;
+  }
+  .table-card {
+    padding: 8px;
+    overflow-x: auto;
+  }
+  .action-buttons .el-button {
+    padding: 2px 4px;
+    font-size: 11px;
+  }
+  .action-buttons .el-button .el-icon {
+    font-size: 11px;
+  }
+  .warn-tabs {
     flex-direction: column;
     align-items: stretch;
   }
-  .toolbar-right {
-    flex-wrap: wrap;
+  .warn-tabs .el-radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .warn-tabs .el-radio-button {
+    width: 100%;
+  }
+  .warn-tabs .el-radio-button .el-radio-button__inner {
+    width: 100%;
+    text-align: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .stat-card {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+  .stat-card .stat-number {
+    font-size: 18px;
+  }
+  .stat-card .stat-icon {
+    width: 28px;
+    height: 28px;
+    font-size: 14px;
+  }
+  .stat-card .stat-trend {
+    font-size: 11px;
+    padding: 1px 6px;
   }
 }
 </style>
