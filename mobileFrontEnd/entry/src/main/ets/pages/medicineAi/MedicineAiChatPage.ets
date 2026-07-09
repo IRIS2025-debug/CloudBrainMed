@@ -1,12 +1,15 @@
 // pages/aiConsult/MedicineAiChatPage.ets
 import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
+import pasteboard from '@ohos.pasteboard';
 import { PatientManager } from '../common/PatientManager';
 import { MedicineAiService } from './MedicineAiService';
 
 interface ChatMessage {
   role: string;
   content: string;
+  question?: string;
+  expanded?: boolean;
 }
 
 @Entry
@@ -20,9 +23,11 @@ struct MedicineAiChatPage {
     }
   ];
   @State isLoading: boolean = false;
+  @State answerVersion: number = 0;
   private sessionId: string = '';
   private scroller: Scroller = new Scroller();
   private botIndex: number = -1;
+  private lastQuestion: string = '';
 
   aboutToAppear(): void {
     const params = router.getParams() as Record<string, string>;
@@ -41,6 +46,45 @@ struct MedicineAiChatPage {
     }, 50);
   }
 
+  private formatAnswer(content: string): string {
+    if (!content) {
+      return '';
+    }
+    return content
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      .replace(/\*\*/g, '')
+      .replace(/__([^_]+)__/g, '$1')
+      .replace(/^#{1,6}\s*/gm, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+
+  private isSectionHeader(line: string): boolean {
+    const text: string = line.trim();
+    return text.endsWith('：') || text.endsWith(':') ||
+      text.includes('用药建议') || text.includes('注意事项') ||
+      text.includes('不良反应') || text.includes('禁忌') ||
+      text.includes('建议') ||
+      text.includes('风险') || text.includes('提醒');
+  }
+
+  private isWarningLine(line: string): boolean {
+    const text: string = line.trim();
+    return text.includes('立即就医') || text.includes('尽快就医') ||
+      text.includes('咨询医生') || text.includes('咨询药师') ||
+      text.includes('过敏') || text.includes('胸痛') ||
+      text.includes('呼吸困难') || text.includes('意识异常') ||
+      text.includes('禁忌') || text.includes('慎用');
+  }
+
+  private normalizeBulletLine(line: string): string {
+    let text: string = line.trim();
+    text = text.replace(/^[-*•·]\s*/, '');
+    text = text.replace(/^\d+[.、)]\s*/, '');
+    text = text.replace(/^\d+\s+/, '');
+    return text;
+  }
+
   private appendBotChunk(chunk: string): void {
     if (this.botIndex < 0 || this.botIndex >= this.messages.length) {
       return;
@@ -49,10 +93,27 @@ struct MedicineAiChatPage {
     const updated: ChatMessage[] = [...this.messages];
     updated[this.botIndex] = {
       role: current.role,
-      content: current.content + chunk
+      content: this.formatAnswer(chunk)
     };
     this.messages = updated;
     this.scrollToBottom();
+  }
+
+  private copyText(text: string): void {
+    try {
+      const pasteData = pasteboard.createData('text/plain', text);
+      pasteboard.getSystemPasteboard().setData(pasteData);
+      promptAction.showToast({ message: '已复制回复', duration: 1500 });
+    } catch (error) {
+      promptAction.showToast({ message: '复制失败，请重试', duration: 1500 });
+    }
+  }
+
+  private regenerateAnswer(): void {
+    if (!this.lastQuestion || this.isLoading) {
+      return;
+    }
+    this.sendMessage(this.lastQuestion);
   }
 
   private updateBotMessage(content: string): void {
@@ -63,7 +124,7 @@ struct MedicineAiChatPage {
     const updated: ChatMessage[] = [...this.messages];
     updated[this.botIndex] = {
       role: current.role,
-      content: content
+      content: this.formatAnswer(content)
     };
     this.messages = updated;
   }
@@ -77,9 +138,10 @@ struct MedicineAiChatPage {
       return;
     }
 
+    this.lastQuestion = question;
     const userMessages: ChatMessage[] = [...this.messages];
-    userMessages.push({ role: 'user', content: question });
-    userMessages.push({ role: 'bot', content: '' });
+    userMessages.push({ role: 'user', content: question, question: question, expanded: true });
+    userMessages.push({ role: 'bot', content: '', question: question, expanded: true });
     this.messages = userMessages;
     this.botIndex = this.messages.length - 1;
     this.isLoading = true;
@@ -117,22 +179,40 @@ struct MedicineAiChatPage {
   private isTitleLine(line: string): boolean {
     const trimmed = line.trim();
     return trimmed.startsWith('💊') ||
-    trimmed.startsWith('📋') ||
-    trimmed.startsWith('⚠️') ||
-    trimmed.startsWith('💡');
+      trimmed.startsWith('📋') ||
+      trimmed.startsWith('⚠️') ||
+      trimmed.startsWith('💡') ||
+      this.isSectionHeader(trimmed);
   }
 
   private formatLine(line: string): string {
-    // 提取表情符号和内容
-    const trimmed = line.trim();
-    return trimmed;
+    return this.normalizeBulletLine(line.trim());
+  }
+
+  private toggleExpanded(index: number): void {
+    const updated: ChatMessage[] = [...this.messages];
+    const current = updated[index];
+    updated[index] = {
+      role: current.role,
+      content: current.content,
+      question: current.question,
+      expanded: !(current.expanded ?? true)
+    };
+    this.messages = updated;
+  }
+
+  private getDisplayLines(content: string, expanded: boolean): string[] {
+    const lines = this.parseContentToLines(content);
+    if (expanded) {
+      return lines;
+    }
+    return lines.slice(0, 8);
   }
 
   @Builder
-  BotMessage(content: string) {
+  BotMessage(content: string, index: number) {
     Row() {
       Column() {
-        // 头像 + 名称
         Row() {
           Column() {
             Text('💊')
@@ -152,31 +232,52 @@ struct MedicineAiChatPage {
             .fontWeight(FontWeight.Medium)
         }
         .width('100%')
-        .margin({ bottom: 6 })
+        .margin({ bottom: 8 })
 
-        // 消息内容
         Column() {
-          ForEach(this.parseContentToLines(content), (line: string, index: number) => {
+          ForEach(this.getDisplayLines(content, this.messages[index].expanded ?? true), (line: string, lineIndex: number) => {
             if (line.trim() === '') {
-              Blank()
-                .height(4)
-            } else if (this.isTitleLine(line)) {
-              Text(this.formatLine(line))
-                .fontSize(14)
+              Blank().height(8)
+            } else if (this.isSectionHeader(line.trim())) {
+              Text(this.normalizeBulletLine(line.trim()))
+                .fontSize(15)
                 .fontWeight(FontWeight.Bold)
-                .fontColor('#1A1A2E')
-                .margin({ top: index > 0 ? 6 : 0 })
+                .fontColor('#1D4ED8')
+                .margin({ top: lineIndex > 0 ? 8 : 0, bottom: 4 })
                 .width('100%')
                 .lineHeight(22)
+            } else if (this.isWarningLine(line.trim())) {
+              Row() {
+                Text('⚠️')
+                  .fontSize(14)
+                  .margin({ right: 6 })
+                Text(this.normalizeBulletLine(line.trim()))
+                  .fontSize(14)
+                  .fontColor('#B45309')
+                  .lineHeight(22)
+                  .layoutWeight(1)
+              }
+              .width('100%')
+              .padding({ left: 10, right: 10, top: 8, bottom: 8 })
+              .margin({ top: 4, bottom: 4 })
+              .backgroundColor('#FFF7ED')
+              .borderRadius(10)
             } else {
-              Text(this.formatLine(line))
-                .fontSize(14)
-                .fontColor('#334155')
-                .margin({ top: 2 })
-                .width('100%')
-                .lineHeight(22)
+              Row() {
+                Text('•')
+                  .fontSize(14)
+                  .fontColor('#94A3B8')
+                  .margin({ right: 8, top: 1 })
+                Text(this.normalizeBulletLine(line.trim()))
+                  .fontSize(14)
+                  .fontColor('#334155')
+                  .lineHeight(22)
+                  .layoutWeight(1)
+              }
+              .width('100%')
+              .padding({ left: 0, right: 0, top: 2, bottom: 2 })
             }
-          }, (line: string, index: number) => index.toString())
+          }, (line: string, lineIndex: number) => lineIndex.toString())
         }
         .width('100%')
         .padding(14)
@@ -188,6 +289,44 @@ struct MedicineAiChatPage {
           offsetY: 1
         })
         .alignItems(HorizontalAlign.Start)
+
+        Row() {
+          Button() {
+            Text('📋')
+              .fontSize(14)
+          }
+          .width(30)
+          .height(30)
+          .backgroundColor('#EFF6FF')
+          .fontColor('#2563EB')
+          .borderRadius(15)
+          .onClick(() => { this.copyText(content); })
+
+          Button() {
+            Text('↻')
+              .fontSize(14)
+          }
+          .width(30)
+          .height(30)
+          .margin({ left: 8 })
+          .backgroundColor('#F1F5F9')
+          .fontColor('#475569')
+          .borderRadius(15)
+          .enabled(!this.isLoading)
+          .onClick(() => { this.regenerateAnswer(); })
+
+          Button(this.messages[index].expanded ?? true ? '收起' : '展开')
+            .height(30)
+            .padding({ left: 10, right: 10 })
+            .margin({ left: 8 })
+            .backgroundColor('#F8FAFC')
+            .fontColor('#0F172A')
+            .borderRadius(15)
+            .onClick(() => { this.toggleExpanded(index); })
+        }
+        .width('100%')
+        .justifyContent(FlexAlign.End)
+        .margin({ top: 8 })
       }
       .alignItems(HorizontalAlign.Start)
       .margin({ right: 40 })
@@ -316,7 +455,7 @@ struct MedicineAiChatPage {
               if (index === this.messages.length - 1 && this.isLoading && msg.content === '') {
                 this.LoadingMessage()
               } else {
-                this.BotMessage(msg.content)
+                this.BotMessage(msg.content, index)
               }
             } else {
               this.UserMessage(msg.content)
