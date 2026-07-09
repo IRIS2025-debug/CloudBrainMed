@@ -21,7 +21,6 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -57,7 +56,6 @@ class MedicalOrderServiceImplTest {
         consult.setRegisterId("REG001");
         consult.setPatientId("P001");
         consult.setDoctorId("D001");
-        consult.setVisitDate(LocalDate.now());
         when(consultMapper.findDetail("REG001")).thenReturn(consult);
 
         MedicalItem item = new MedicalItem();
@@ -114,7 +112,6 @@ class MedicalOrderServiceImplTest {
         consult.setPatientId("P001");
         consult.setPatientName("Alice");
         consult.setDoctorId("D001");
-        consult.setVisitDate(LocalDate.now());
         when(consultMapper.findDetail("REG001")).thenReturn(consult);
 
         MedicalItem item = new MedicalItem();
@@ -158,7 +155,6 @@ class MedicalOrderServiceImplTest {
         consult.setPatientId("P001");
         consult.setPatientName("Alice");
         consult.setDoctorId("D001");
-        consult.setVisitDate(LocalDate.now());
         when(consultMapper.findDetail("REG001")).thenReturn(consult);
 
         MedicalItem item = new MedicalItem();
@@ -198,7 +194,6 @@ class MedicalOrderServiceImplTest {
         consult.setPatientId("P001");
         consult.setPatientName("Alice");
         consult.setDoctorId("D001");
-        consult.setVisitDate(LocalDate.now());
         when(consultMapper.findDetail("REG001")).thenReturn(consult);
 
         MedicalItem item = new MedicalItem();
@@ -242,50 +237,11 @@ class MedicalOrderServiceImplTest {
     }
 
     @Test
-    void confirmRejectsExpiredVisitDate() {
-        ConsultRecord consult = new ConsultRecord();
-        consult.setRegisterId("REG001");
-        consult.setPatientId("P001");
-        consult.setDoctorId("D001");
-        consult.setVisitDate(LocalDate.now().minusDays(1));
-        when(consultMapper.findDetail("REG001")).thenReturn(consult);
-        when(medicalItemMapper.selectEnabledByCode("CRANIAL_CT_PLAIN"))
-                .thenReturn(enabledExamItem());
-
-        assertThatThrownBy(() -> service.confirm(
-                request(List.of(itemRequest(
-                        "CRANIAL_CT_PLAIN", null))), "D001"))
-                .isInstanceOf(BusinessException.class);
-        verify(medicalOrderMapper, never())
-                .insertOrder(any(MedicalOrder.class));
-    }
-
-    @Test
-    void confirmRejectsFutureVisitDate() {
-        ConsultRecord consult = new ConsultRecord();
-        consult.setRegisterId("REG001");
-        consult.setPatientId("P001");
-        consult.setDoctorId("D001");
-        consult.setVisitDate(LocalDate.now().plusDays(1));
-        when(consultMapper.findDetail("REG001")).thenReturn(consult);
-        when(medicalItemMapper.selectEnabledByCode("CRANIAL_CT_PLAIN"))
-                .thenReturn(enabledExamItem());
-
-        assertThatThrownBy(() -> service.confirm(
-                request(List.of(itemRequest(
-                        "CRANIAL_CT_PLAIN", null))), "D001"))
-                .isInstanceOf(BusinessException.class);
-        verify(medicalOrderMapper, never())
-                .insertOrder(any(MedicalOrder.class));
-    }
-
-    @Test
     void confirmRejectsDuplicateItems() {
         ConsultRecord consult = new ConsultRecord();
         consult.setRegisterId("REG001");
         consult.setPatientId("P001");
         consult.setDoctorId("D001");
-        consult.setVisitDate(LocalDate.now());
         when(consultMapper.findDetail("REG001")).thenReturn(consult);
 
         MedicalItem item = new MedicalItem();
@@ -311,7 +267,6 @@ class MedicalOrderServiceImplTest {
         consult.setRegisterId("REG001");
         consult.setPatientId("P001");
         consult.setDoctorId("D001");
-        consult.setVisitDate(LocalDate.now());
         when(consultMapper.findDetail("REG001")).thenReturn(consult);
 
         MedicalItem item = new MedicalItem();
@@ -332,56 +287,51 @@ class MedicalOrderServiceImplTest {
     }
 
     @Test
-    void assignPaidWaitingOrderItemQueuesItWithRoom() {
+    void assignPaidWaitingOrderQueuesItWithRoom() {
         MedicalOrder order = new MedicalOrder();
         order.setOrderId("MO001");
         order.setPayStatus("PAID");
         order.setStatus("WAITING_ASSIGN");
-        when(medicalOrderMapper.selectByOrderItemId("MOI001"))
+        when(medicalOrderMapper.selectByOrderId("MO001"))
                 .thenReturn(order);
-        when(medicalOrderMapper.assignOrderRoom("MO001", "CT-1"))
-                .thenReturn(1);
-        when(medicalOrderMapper.enqueueOrderItemForAssignment("MOI001"))
+        when(medicalOrderMapper.assignOrder("MO001", "CT-1"))
                 .thenReturn(1);
 
-        MedicalOrder result = service.assignOrderItem("MOI001", "CT-1");
+        MedicalOrder result = service.assignOrder("MO001", "CT-1");
 
-        verify(medicalOrderMapper).assignOrderRoom("MO001", "CT-1");
-        verify(medicalOrderMapper).enqueueOrderItemForAssignment("MOI001");
+        verify(medicalOrderMapper).assignOrder("MO001", "CT-1");
         assertThat(result.getStatus()).isEqualTo("QUEUED");
         assertThat(result.getAssignedRoom()).isEqualTo("CT-1");
     }
 
     @Test
-    void assignItemRejectsUnpaidOrder() {
+    void assignRejectsUnpaidOrder() {
         MedicalOrder order = new MedicalOrder();
         order.setOrderId("MO001");
         order.setPayStatus("WAITING");
         order.setStatus("WAITING_ASSIGN");
-        when(medicalOrderMapper.selectByOrderItemId("MOI001"))
+        when(medicalOrderMapper.selectByOrderId("MO001"))
                 .thenReturn(order);
 
-        assertThatThrownBy(() -> service.assignOrderItem("MOI001", "CT-1"))
+        assertThatThrownBy(() -> service.assignOrder("MO001", "CT-1"))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("pay");
-        verify(medicalOrderMapper, never()).assignOrderRoom(any(), any());
-        verify(medicalOrderMapper, never()).enqueueOrderItemForAssignment(any());
+        verify(medicalOrderMapper, never()).assignOrder(any(), any());
     }
 
     @Test
-    void assignItemRejectsBlankRoom() {
+    void assignRejectsBlankRoom() {
         MedicalOrder order = new MedicalOrder();
         order.setOrderId("MO001");
         order.setPayStatus("PAID");
         order.setStatus("WAITING_ASSIGN");
-        when(medicalOrderMapper.selectByOrderItemId("MOI001"))
+        when(medicalOrderMapper.selectByOrderId("MO001"))
                 .thenReturn(order);
 
-        assertThatThrownBy(() -> service.assignOrderItem("MOI001", "  "))
+        assertThatThrownBy(() -> service.assignOrder("MO001", "  "))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("room");
-        verify(medicalOrderMapper, never()).assignOrderRoom(any(), any());
-        verify(medicalOrderMapper, never()).enqueueOrderItemForAssignment(any());
+        verify(medicalOrderMapper, never()).assignOrder(any(), any());
     }
 
     private MedicalOrderConfirmRequest request(
@@ -402,17 +352,5 @@ class MedicalOrderServiceImplTest {
         request.setItemCode(itemCode);
         request.setUrgencyLevel(urgency);
         return request;
-    }
-
-    private MedicalItem enabledExamItem() {
-        MedicalItem item = new MedicalItem();
-        item.setItemId("ITEM001");
-        item.setItemCode("CRANIAL_CT_PLAIN");
-        item.setItemName("Cranial CT");
-        item.setItemCategory("EXAM");
-        item.setDeptId("DEPT001");
-        item.setPrice(new BigDecimal("280.00"));
-        item.setStatus(1);
-        return item;
     }
 }

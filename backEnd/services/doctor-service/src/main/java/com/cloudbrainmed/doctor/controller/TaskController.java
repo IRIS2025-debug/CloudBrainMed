@@ -1,24 +1,18 @@
 package com.cloudbrainmed.doctor.controller;
 
-import com.cloudbrainmed.common.exception.BusinessException;
 import com.cloudbrainmed.common.result.Result;
 import com.cloudbrainmed.common.utils.DoctorJwtUtil;
+import com.cloudbrainmed.common.exception.BusinessException;
 import com.cloudbrainmed.doctor.dto.MedicalReportSubmitRequest;
 import com.cloudbrainmed.doctor.service.TaskSchedulerService;
-import com.cloudbrainmed.doctor.vo.DoctorTaskDetailVo;
 import jakarta.validation.Valid;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
 /**
- * 检查/检验医生任务处理接口。
+ * 医生任务调度控制器
+ * 提供医生端工作台、队列、任务操作接口
  */
 @RestController
 @RequestMapping("/doctor-service/task")
@@ -30,31 +24,52 @@ public class TaskController {
         this.taskSchedulerService = taskSchedulerService;
     }
 
+    @GetMapping("/workbench")
+    public Result<?> workbench(@RequestHeader(value = "token", required = false) String token) {
+        String doctorId = extractDoctorId(token);
+        Integer doctorType = extractDoctorType(token);
+        return Result.ok(taskSchedulerService.getDoctorWorkbench(doctorId, doctorType));
+    }
+
+    @GetMapping("/queue")
+    public Result<?> queue(@RequestHeader(value = "token", required = false) String token) {
+        String doctorId = extractDoctorId(token);
+        Integer doctorType = extractDoctorType(token);
+        return Result.ok(Map.of(
+                "doctorId", doctorId,
+                "tasks", taskSchedulerService.getAssignableQueue(doctorId, doctorType),
+                "queueCount", taskSchedulerService.getAssignableQueueCount(doctorId, doctorType)
+        ));
+    }
+
     @GetMapping("/detail")
     public Result<?> detail(@RequestHeader(value = "token", required = false) String token,
                             @RequestParam String orderItemId) {
-        DoctorContext doctor = extractDoctorContext(token);
-        DoctorTaskDetailVo detail = taskSchedulerService.getTaskDetail(
-                orderItemId, doctor.doctorId(), doctor.doctorType());
-        requireDoctorTypeForItem(detail.getItemCategory(), doctor.doctorType());
-        return Result.ok(detail);
+        String doctorId = extractDoctorId(token);
+        return Result.ok(taskSchedulerService.getTaskDetail(orderItemId, doctorId));
     }
 
     @PostMapping("/start")
     public Result<?> startTask(@RequestHeader(value = "token", required = false) String token,
                                @RequestBody Map<String, String> body) {
-        DoctorContext doctor = extractDoctorContext(token);
-        taskSchedulerService.startTask(
-                body.get("orderItemId"), doctor.doctorId(), doctor.doctorType());
+        String doctorId = extractDoctorId(token);
+        taskSchedulerService.startTask(body.get("orderItemId"), doctorId);
         return Result.ok();
     }
 
     @PostMapping("/complete")
     public Result<?> completeTask(@RequestHeader(value = "token", required = false) String token,
                                   @RequestBody Map<String, String> body) {
-        DoctorContext doctor = extractDoctorContext(token);
-        taskSchedulerService.completeTask(
-                body.get("orderItemId"), doctor.doctorId(), doctor.doctorType());
+        String doctorId = extractDoctorId(token);
+        taskSchedulerService.completeTask(body.get("orderItemId"), doctorId);
+        return Result.ok();
+    }
+
+    @PostMapping("/skip")
+    public Result<?> skipTask(@RequestHeader(value = "token", required = false) String token,
+                              @RequestBody Map<String, String> body) {
+        String doctorId = extractDoctorId(token);
+        taskSchedulerService.skipTask(body.get("orderItemId"), doctorId);
         return Result.ok();
     }
 
@@ -62,12 +77,23 @@ public class TaskController {
     public Result<?> submitReport(
             @RequestHeader(value = "token", required = false) String token,
             @Valid @RequestBody MedicalReportSubmitRequest request) {
-        DoctorContext doctor = extractDoctorContext(token);
-        return Result.ok(taskSchedulerService.submitReport(
-                request, doctor.doctorId(), doctor.doctorType()));
+        String doctorId = extractDoctorId(token);
+        return Result.ok(taskSchedulerService.submitReport(request, doctorId));
     }
 
-    private DoctorContext extractDoctorContext(String token) {
+    /**
+     * 手动触发调度（调试用）
+     */
+    @PostMapping("/scheduler/run")
+    public Result<?> runScheduler() {
+        int assigned = taskSchedulerService.runScheduler();
+        return Result.ok(Map.of(
+                "assigned", assigned,
+                "queueCount", taskSchedulerService.getQueueCount()
+        ));
+    }
+
+    private String extractDoctorId(String token) {
         if (token == null || token.isBlank()) {
             throw new BusinessException("未登录，请先登录");
         }
@@ -80,7 +106,7 @@ public class TaskController {
             if (doctorType == null || Integer.valueOf(1).equals(doctorType)) {
                 throw new BusinessException("仅检查/检验医生可访问此功能");
             }
-            return new DoctorContext(DoctorJwtUtil.getUserId(token), doctorType);
+            return DoctorJwtUtil.getUserId(token);
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
@@ -88,14 +114,7 @@ public class TaskController {
         }
     }
 
-    private record DoctorContext(String doctorId, Integer doctorType) {
-    }
-
-    private void requireDoctorTypeForItem(String itemCategory, Integer doctorType) {
-        boolean allowed = ("EXAM".equals(itemCategory) && Integer.valueOf(2).equals(doctorType))
-                || ("LAB".equals(itemCategory) && Integer.valueOf(3).equals(doctorType));
-        if (!allowed) {
-            throw new BusinessException("无权处理该检查/检验任务");
-        }
+    private Integer extractDoctorType(String token) {
+        return DoctorJwtUtil.getDoctorType(token);
     }
 }

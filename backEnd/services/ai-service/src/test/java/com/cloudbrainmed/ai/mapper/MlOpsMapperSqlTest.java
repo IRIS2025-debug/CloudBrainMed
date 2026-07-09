@@ -22,6 +22,22 @@ class MlOpsMapperSqlTest {
                 .doesNotContain("create_time");
     }
 
+    @Test
+    void modelVersionMapperUsesCurrentRuntimeRegistryTable() {
+        String sql = mapperSql(ModelVersionMapper.class);
+
+        assertThat(sql).contains("ai_model_registry")
+                .doesNotContain("ai_model_version");
+    }
+
+    @Test
+    void trainingSampleMapperUsesCurrentRuntimeFeedbackTable() {
+        String sql = mapperSql(TrainingSampleMapper.class);
+
+        assertThat(sql).contains("ai_feedback_sample")
+                .doesNotContain("training_sample");
+    }
+
     private String mapperSql(Class<?> mapperType) {
         return Arrays.stream(mapperType.getDeclaredMethods())
                 .map(this::sqlAnnotationValue)

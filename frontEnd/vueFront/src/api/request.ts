@@ -17,12 +17,12 @@ const request = axios.create({
   timeout: 60000,
 })
 
-export function isAuthFailure(data: ApiResponse) {
+function isAuthFailure(data: ApiResponse) {
   const message = data.msg || data.message || ''
   return data.code === 401 || message.includes('未登录') || message.includes('凭证无效')
 }
 
-export function redirectToLogin(message: string) {
+function redirectToLogin(message: string) {
   ElMessage.error(message)
   sessionStorage.removeItem('token')
   sessionStorage.removeItem('roleType')
@@ -33,19 +33,12 @@ export function redirectToLogin(message: string) {
   }
 }
 
-export function getStoredAuthHeaders(): Record<string, string> {
-  const token = sessionStorage.getItem('token')
-  if (!token) {
-    return {}
-  }
-  return {
-    Authorization: `Bearer ${token}`,
-    token,
-  }
-}
-
 request.interceptors.request.use((config) => {
-  Object.assign(config.headers, getStoredAuthHeaders())
+  const token = sessionStorage.getItem('token')
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+    config.headers.token = token
+  }
   return config
 })
 

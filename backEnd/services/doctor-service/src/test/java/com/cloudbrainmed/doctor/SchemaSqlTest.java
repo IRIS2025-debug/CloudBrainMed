@@ -16,6 +16,5 @@ class SchemaSqlTest {
         assertThat(schema).contains("CREATE TABLE IF NOT EXISTS medical_report");
         assertThat(schema).contains("UNIQUE");
         assertThat(schema).contains("order_item_id");
-        assertThat(schema).contains("ai_result_json TEXT");
     }
 }

@@ -18,14 +18,9 @@ public interface ConsultMapper {
 
     @Select("<script>" +
         "SELECT r.register_id, r.patient_id, r.doctor_id, r.name, r.gender, r.birthday, " +
-        "r.chief_complaint, r.department, r.consult_room, " +
-        "COALESCE(r.visit_date, rr.visit_date, " +
-        "CASE WHEN r.consult_status = 'COMPLETED' THEN r.create_time::date END) " +
-        "AS effective_visit_date, r.consult_time, " +
+        "r.chief_complaint, r.department, r.consult_room, r.visit_date, r.consult_time, " +
         "r.price, r.pay_status, r.consult_status, r.create_time, " +
         "EXTRACT(YEAR FROM AGE(NOW(), r.birthday)) AS patient_age, " +
-        "(SELECT COUNT(*) FROM medical_order mo " +
-        " WHERE mo.register_id = r.register_id) AS medical_order_count, " +
         "(SELECT COUNT(*) FROM medical_order mo " +
         " JOIN medical_order_item moi ON moi.order_id = mo.order_id " +
         " JOIN medical_report mr ON mr.order_item_id = moi.order_item_id " +
@@ -34,13 +29,10 @@ public interface ConsultMapper {
         " JOIN medical_order_item moi ON moi.order_id = mo.order_id " +
         " JOIN medical_report mr ON mr.order_item_id = moi.order_item_id " +
         " WHERE mo.register_id = r.register_id AND mr.status = 'PUBLISHED') AS latest_report_time " +
-        "FROM registration r LEFT JOIN (" +
-        " SELECT register_id, MAX(visit_date) AS visit_date FROM register_report GROUP BY register_id" +
-        ") rr ON r.register_id = rr.register_id " +
+        "FROM registration r " +
         "WHERE r.doctor_id = #{doctorId} " +
         "<if test='consultStatus != null and consultStatus != \"\"'>AND r.consult_status = #{consultStatus}</if> " +
-        "<if test='date != null and date != \"\"'>AND COALESCE(r.visit_date, rr.visit_date, " +
-        "CASE WHEN r.consult_status = 'COMPLETED' THEN r.create_time::date END) = #{date}::date</if> " +
+        "<if test='date != null and date != \"\"'>AND r.visit_date = #{date}::date</if> " +
         "<if test='reportReturnedOnly'>AND EXISTS (SELECT 1 FROM medical_order mo " +
         " JOIN medical_order_item moi ON moi.order_id = mo.order_id " +
         " JOIN medical_report mr ON mr.order_item_id = moi.order_item_id " +
@@ -53,13 +45,12 @@ public interface ConsultMapper {
         @Result(column = "doctor_id", property = "doctorId"),
         @Result(column = "chief_complaint", property = "chiefComplaint"),
         @Result(column = "consult_room", property = "consultRoom"),
-        @Result(column = "effective_visit_date", property = "visitDate"),
+        @Result(column = "visit_date", property = "visitDate"),
         @Result(column = "consult_time", property = "consultTime"),
         @Result(column = "pay_status", property = "payStatus"),
         @Result(column = "consult_status", property = "consultStatus"),
         @Result(column = "create_time", property = "createTime"),
         @Result(column = "patient_age", property = "patientAge"),
-        @Result(column = "medical_order_count", property = "medicalOrderCount"),
         @Result(column = "report_count", property = "reportCount"),
         @Result(column = "latest_report_time", property = "latestReportTime")
     })
@@ -70,9 +61,7 @@ public interface ConsultMapper {
                                   @Param("offset") int offset,
                                   @Param("limit") int limit);
 
-    @Select("SELECT r.*, COALESCE(r.visit_date, m.visit_date, " +
-        "CASE WHEN r.consult_status = 'COMPLETED' THEN r.create_time::date END) AS effective_visit_date, " +
-        "m.record_id, COALESCE(m.doctor_name, d.name) AS doctor_name, " +
+    @Select("SELECT r.*, m.record_id, COALESCE(m.doctor_name, d.name) AS doctor_name, " +
         "m.patient_name, m.visit_age, m.description, m.create_time AS record_create_time, " +
         "EXTRACT(YEAR FROM AGE(NOW(), r.birthday)) AS patient_age " +
         "FROM registration r LEFT JOIN register_report m ON r.register_id = m.register_id " +
@@ -84,7 +73,7 @@ public interface ConsultMapper {
         @Result(column = "doctor_id", property = "doctorId"),
         @Result(column = "chief_complaint", property = "chiefComplaint"),
         @Result(column = "consult_room", property = "consultRoom"),
-        @Result(column = "effective_visit_date", property = "visitDate"),
+        @Result(column = "visit_date", property = "visitDate"),
         @Result(column = "consult_time", property = "consultTime"),
         @Result(column = "pay_status", property = "payStatus"),
         @Result(column = "consult_status", property = "consultStatus"),
@@ -151,24 +140,6 @@ public interface ConsultMapper {
 
     @Update("UPDATE registration SET consult_status='COMPLETED' WHERE register_id=#{registerId}")
     int completeConsult(@Param("registerId") String registerId);
-
-    @Select("""
-        SELECT COUNT(*)
-        FROM medical_order mo
-        JOIN medical_order_item moi ON moi.order_id = mo.order_id
-        WHERE mo.register_id = #{registerId}
-          AND moi.status <> 'CANCELLED'
-          AND (
-              moi.status <> 'COMPLETED'
-              OR NOT EXISTS (
-                  SELECT 1
-                  FROM medical_report mr
-                  WHERE mr.order_item_id = moi.order_item_id
-                    AND mr.status = 'PUBLISHED'
-              )
-          )
-        """)
-    int countPendingMedicalOrderItems(@Param("registerId") String registerId);
 
     @Select("""
         SELECT description

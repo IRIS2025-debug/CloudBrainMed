@@ -52,6 +52,10 @@
     <el-icon><List /></el-icon>
     接诊工作台
   </el-button>
+  <el-button type="primary" @click="$router.push('/doctor/ai-medicine')">
+    <el-icon><Cpu /></el-icon>
+    AI 药物推荐
+  </el-button>
   <el-button @click="$router.push('/doctor/profile')">
     <el-icon><UserFilled /></el-icon>
     个人信息
@@ -68,7 +72,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { List, UserFilled, SwitchButton, DocumentCopy, Calendar, Check, Warning } from '@element-plus/icons-vue'
+import { List, Cpu, UserFilled, SwitchButton, DocumentCopy, Calendar, Check, Warning } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const currentDateTime = ref('')

@@ -1,7 +1,7 @@
-import { createRouter, createWebHashHistory } from 'vue-router'
+import { createRouter, createWebHistory } from 'vue-router'
 
 const router = createRouter({
-  history: createWebHashHistory(import.meta.env.BASE_URL),
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
       path: '/',
@@ -17,7 +17,7 @@ const router = createRouter({
       path: '/doctor/home',
       name: 'DoctorHome',
       component: () => import('@/pages/HomeView.vue'),
-      meta: { requiresAuth: true, role: 2, doctorType: 1 }
+      meta: { requiresAuth: true }
     },
     {
       path: '/doctor/profile',
@@ -29,13 +29,19 @@ const router = createRouter({
       path: '/doctor/consult',
       name: 'doctorConsult',
       component: () => import('@/pages/doctor/consult/List.vue'),
-      meta: { requiresAuth: true, role: 2, doctorType: 1 }
+      meta: { requiresAuth: true, role: 2 }
     },
     {
       path: '/doctor/consult/:registerId',
       name: 'doctorConsultDetail',
       component: () => import('@/pages/doctor/consult/Detail.vue'),
-      meta: { requiresAuth: true, role: 2, doctorType: 1 }
+      meta: { requiresAuth: true, role: 2 }
+    },
+    {
+      path: '/doctor/ai-medicine',
+      name: 'aiMedicine',
+      component: () => import('@/pages/doctor/ai-medicine/Index.vue'),
+      meta: { requiresAuth: true, role: 2 }
     },
     {
       path: '/doctor/ai-exam-generate',
@@ -50,15 +56,39 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 2 }
     },
     {
+      path: '/doctor/workbench',
+      name: 'doctorWorkbench',
+      component: () => import('@/pages/doctor/workbench/Index.vue'),
+      meta: { requiresAuth: true, role: 2 }
+    },
+    {
+      path: '/doctor/queue',
+      name: 'doctorQueue',
+      component: () => import('@/pages/doctor/queue/Index.vue'),
+      meta: { requiresAuth: true, role: 2 }
+    },
+    {
       path: '/doctor/task/:id',
       name: 'doctorTaskDetail',
       component: () => import('@/pages/doctor/task-detail/Index.vue'),
-      meta: { requiresAuth: true, role: 2, doctorTypes: [2, 3] }
+      meta: { requiresAuth: true, role: 2 }
     },
     {
       path: '/admin/ml/dashboard',
       name: 'mlDashboard',
       component: () => import('@/pages/admin/ml/Dashboard.vue'),
+      meta: { requiresAuth: true, role: 3 }
+    },
+    {
+      path: '/admin/ml/samples',
+      name: 'mlSamples',
+      component: () => import('@/pages/admin/ml/Samples.vue'),
+      meta: { requiresAuth: true, role: 3 }
+    },
+    {
+      path: '/admin/ml/models',
+      name: 'mlModels',
+      component: () => import('@/pages/admin/ml/Models.vue'),
       meta: { requiresAuth: true, role: 3 }
     },
     {
@@ -105,21 +135,9 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 2, doctorTypes: [2, 3] }
     },
     {
-      path: '/examination-doctor/home',
-      name: 'ExaminationHome',
-      component: () => import('@/pages/examination/ExaminationHome.vue'),
-      meta: { requiresAuth: true, role: 2, doctorType: 2 }
-    },
-    {
       path: '/examination-doctor/ct-inference',
       name: 'ExaminationCTInference',
       component: () => import('@/pages/examination/CTInference.vue'),
-      meta: { requiresAuth: true, role: 2, doctorType: 2 }
-    },
-    {
-      path: '/examination-doctor/application',
-      name: 'ApplicationList',
-      component: () => import('@/pages/examination/application/ApplicationList.vue'),
       meta: { requiresAuth: true, role: 2, doctorType: 2 }
     },
     {
@@ -129,16 +147,22 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 2, doctorType: 2 }
     },
     {
-      path: '/examination-doctor/analysis',
-      name: 'ImageAnalysis',
-      component: () => import('@/pages/examination/analysis/ImageAnalysis.vue'),
-      meta: { requiresAuth: true, role: 2, doctorType: 2 }
-    },
-    {
       path: '/examination-doctor/report',
       name: 'ReportGeneration',
       component: () => import('@/pages/examination/report/ReportGeneration.vue'),
-      meta: { requiresAuth: true, role: 2, doctorTypes: [2, 3] }
+      meta: { requiresAuth: true, role: 2, doctorType: 2 }
+    },
+    {
+      path: '/examination-doctor/workbench',
+      name: 'ExaminationWorkbench',
+      component: () => import('@/pages/examination/workbench/Index.vue'),
+      meta: { requiresAuth: true, role: 2, doctorType: 2 }
+    },
+    {
+      path: '/examination-doctor/queue',
+      name: 'ExaminationQueue',
+      component: () => import('@/pages/examination/queue/Index.vue'),
+      meta: { requiresAuth: true, role: 2, doctorType: 2 }
     },
   ],
 })

@@ -224,7 +224,7 @@
     <el-dialog
       v-model="dialogVisible"
       :title="dialogTitle"
-      width="640px"
+      width="520px"
       destroy-on-close
       :append-to-body="true"
       :modal-append-to-body="true"
@@ -236,116 +236,110 @@
         ref="formRef"
         :model="formData"
         :rules="formRules"
-        label-position="top"
+        label-width="100px"
         class="schedule-form"
       >
-        <div class="schedule-form-panel">
-          <div class="schedule-form-grid">
-            <el-form-item label="医生" prop="doctorId">
-              <el-select
-                v-model="formData.doctorId"
-                placeholder="请选择医生"
-                filterable
-                @change="handleDoctorChange"
-                style="width: 100%"
-                teleported
-              >
-                <el-option
-                  v-for="doctor in doctorList"
-                  :key="doctor.doctorId"
-                  :label="doctor.name"
-                  :value="doctor.doctorId"
-                />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="科室" prop="deptId">
-              <el-select
-                v-model="formData.deptId"
-                placeholder="请选择科室"
-                style="width: 100%"
-                :disabled="!!formData.doctorId"
-                teleported
-              >
-                <el-option
-                  v-for="dept in deptList"
-                  :key="dept.deptId"
-                  :label="dept.deptName"
-                  :value="dept.deptId"
-                />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="日期" prop="workDate">
-              <el-date-picker
-                v-model="formData.workDate"
-                type="date"
-                placeholder="选择日期"
-                value-format="YYYY-MM-DD"
-                style="width: 100%"
-                :disabled-date="disabledPastDate"
-                teleported
-              />
-            </el-form-item>
-            <el-form-item label="诊室" prop="room">
-              <el-input v-model="formData.room" placeholder="请输入诊室，如：门诊楼A101" />
-            </el-form-item>
-            <el-form-item label="开始时间" prop="startTime">
-              <el-time-picker
-                v-model="formData.startTime"
-                placeholder="选择开始时间"
-                value-format="HH:mm:ss"
-                format="HH:mm"
-                style="width: 100%"
-                teleported
-              />
-            </el-form-item>
-            <el-form-item label="结束时间" prop="endTime">
-              <el-time-picker
-                v-model="formData.endTime"
-                placeholder="选择结束时间"
-                value-format="HH:mm:ss"
-                format="HH:mm"
-                style="width: 100%"
-                teleported
-              />
-            </el-form-item>
-            <el-form-item label="最大号源" prop="maxNum">
-              <el-input-number
-                v-model="formData.maxNum"
-                :min="1"
-                :max="50"
-                style="width: 100%"
-                controls-position="right"
-              />
-            </el-form-item>
-            <el-form-item label="剩余号源" prop="remainNum" v-if="isEdit">
-              <el-input-number
-                v-model="formData.remainNum"
-                :min="0"
-                :max="formData.maxNum || 20"
-                style="width: 100%"
-                controls-position="right"
-              />
-            </el-form-item>
-            <el-form-item label="挂号费" prop="price">
-              <el-input-number
-                v-model="formData.price"
-                :min="0"
-                :precision="2"
-                :step="5"
-                style="width: 100%"
-                controls-position="right"
-              />
-            </el-form-item>
-          </div>
-        </div>
+        <el-form-item label="医生" prop="doctorId">
+          <el-select
+            v-model="formData.doctorId"
+            placeholder="请选择医生"
+            filterable
+            @change="handleDoctorChange"
+            style="width: 100%"
+            teleported
+          >
+            <el-option
+              v-for="doctor in doctorList"
+              :key="doctor.doctorId"
+              :label="doctor.name"
+              :value="doctor.doctorId"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="科室" prop="deptId">
+          <el-select
+            v-model="formData.deptId"
+            placeholder="请选择科室"
+            style="width: 100%"
+            :disabled="!!formData.doctorId"
+            teleported
+          >
+            <el-option
+              v-for="dept in deptList"
+              :key="dept.deptId"
+              :label="dept.deptName"
+              :value="dept.deptId"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="日期" prop="workDate">
+          <el-date-picker
+            v-model="formData.workDate"
+            type="date"
+            placeholder="选择日期"
+            value-format="YYYY-MM-DD"
+            style="width: 100%"
+            :disabled-date="disabledPastDate"
+            teleported
+          />
+        </el-form-item>
+        <el-form-item label="开始时间" prop="startTime">
+          <el-time-picker
+            v-model="formData.startTime"
+            placeholder="选择开始时间"
+            value-format="HH:mm:ss"
+            format="HH:mm"
+            style="width: 100%"
+            teleported
+          />
+        </el-form-item>
+        <el-form-item label="结束时间" prop="endTime">
+          <el-time-picker
+            v-model="formData.endTime"
+            placeholder="选择结束时间"
+            value-format="HH:mm:ss"
+            format="HH:mm"
+            style="width: 100%"
+            teleported
+          />
+        </el-form-item>
+        <el-form-item label="诊室" prop="room">
+          <el-input v-model="formData.room" placeholder="请输入诊室，如：门诊楼A101" />
+        </el-form-item>
+        <el-form-item label="最大号源" prop="maxNum">
+          <el-input-number
+            v-model="formData.maxNum"
+            :min="1"
+            :max="50"
+            style="width: 100%"
+            controls-position="right"
+          />
+        </el-form-item>
+        <el-form-item label="剩余号源" prop="remainNum" v-if="isEdit">
+          <el-input-number
+            v-model="formData.remainNum"
+            :min="0"
+            :max="formData.maxNum || 20"
+            style="width: 100%"
+            controls-position="right"
+          />
+        </el-form-item>
+        <el-form-item label="挂号费" prop="price">
+          <el-input-number
+            v-model="formData.price"
+            :min="0"
+            :precision="2"
+            :step="5"
+            style="width: 100%"
+            controls-position="right"
+          />
+        </el-form-item>
       </el-form>
       <template #footer>
-        <div class="schedule-dialog-footer">
-          <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="handleSubmit" :loading="submitting">
-            {{ isEdit ? '更新' : '创建' }}
-          </el-button>
-        </div>
+        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleSubmit" :loading="submitting">
+          {{ isEdit ? '更新' : '创建' }}
+        </el-button>
       </template>
     </el-dialog>
 
@@ -435,250 +429,211 @@
     <!-- ===== AI智能排班弹窗 ===== -->
     <el-dialog
       v-model="aiDialogVisible"
-      class="ai-schedule-dialog"
-      width="960px"
+      title="🤖 AI智能排班"
+      width="720px"
       destroy-on-close
       :append-to-body="true"
       :modal-append-to-body="true"
-      top="4vh"
+      top="5vh"
       @close="resetAiForm"
     >
-      <template #header>
-        <div class="ai-dialog-header">
-          <div class="ai-dialog-icon">
-            <el-icon><MagicStick /></el-icon>
-          </div>
-          <div>
-            <h3>AI智能排班</h3>
-            <p>按医生、日期、时段和诊室生成可预览的排班草稿</p>
-          </div>
-        </div>
-      </template>
-
       <div class="ai-schedule-content">
         <!-- 配置表单 -->
         <el-form
           ref="aiFormRef"
           :model="aiFormData"
           :rules="aiFormRules"
-          label-position="top"
+          label-width="120px"
           class="ai-schedule-form"
         >
-          <div class="ai-form-section">
-            <div class="ai-section-heading">
-              <span>基础范围</span>
-              <small>先确定医生和排班周期</small>
-            </div>
-            <el-row :gutter="16">
-              <el-col :xs="24" :sm="12">
-                <el-form-item label="科室" prop="deptId">
-                  <el-select
-                    v-model="aiFormData.deptId"
-                    placeholder="请选择科室"
-                    clearable
-                    filterable
-                    style="width: 100%"
-                    teleported
-                    @change="handleAiDeptChange"
-                  >
-                    <el-option
-                      v-for="dept in deptList"
-                      :key="dept.deptId"
-                      :label="dept.deptName"
-                      :value="dept.deptId"
-                    />
-                  </el-select>
-                </el-form-item>
-              </el-col>
-              <el-col :xs="24" :sm="12">
-                <el-form-item label="医生" prop="doctorId">
-                  <el-select
-                    v-model="aiFormData.doctorId"
-                    placeholder="请选择医生"
-                    filterable
-                    style="width: 100%"
-                    teleported
-                    @change="(val: string) => { const d = doctorList.find(item => item.doctorId === val); if (d) aiFormData.doctorName = d.name }"
-                  >
-                    <el-option
-                      v-for="doctor in aiFilteredDoctors"
-                      :key="doctor.doctorId"
-                      :label="doctor.name"
-                      :value="doctor.doctorId"
-                    />
-                  </el-select>
-                </el-form-item>
-              </el-col>
-            </el-row>
-
-            <el-row :gutter="16">
-              <el-col :xs="24" :sm="12">
-                <el-form-item label="开始日期" prop="periodStart">
-                  <el-date-picker
-                    v-model="aiFormData.periodStart"
-                    type="date"
-                    placeholder="选择开始日期"
-                    value-format="YYYY-MM-DD"
-                    style="width: 100%"
-                    :disabled-date="disabledPastDate"
-                    teleported
+          <el-row :gutter="20">
+            <el-col :span="12">
+              <el-form-item label="科室" prop="deptId">
+                <el-select
+                  v-model="aiFormData.deptId"
+                  placeholder="请选择科室"
+                  clearable
+                  filterable
+                  style="width: 100%"
+                  teleported
+                  @change="handleAiDeptChange"
+                >
+                  <el-option
+                    v-for="dept in deptList"
+                    :key="dept.deptId"
+                    :label="dept.deptName"
+                    :value="dept.deptId"
                   />
-                </el-form-item>
-              </el-col>
-              <el-col :xs="24" :sm="12">
-                <el-form-item label="结束日期" prop="periodEnd">
-                  <el-date-picker
-                    v-model="aiFormData.periodEnd"
-                    type="date"
-                    placeholder="选择结束日期"
-                    value-format="YYYY-MM-DD"
-                    style="width: 100%"
-                    :disabled-date="(time: Date) => disabledEndDate(time, aiFormData.periodStart)"
-                    teleported
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="医生" prop="doctorId">
+                <el-select
+                  v-model="aiFormData.doctorId"
+                  placeholder="请选择医生"
+                  filterable
+                  style="width: 100%"
+                  teleported
+                  @change="(val: string) => { const d = doctorList.find(item => item.doctorId === val); if (d) aiFormData.doctorName = d.name }"
+                >
+                  <el-option
+                    v-for="doctor in aiFilteredDoctors"
+                    :key="doctor.doctorId"
+                    :label="doctor.name"
+                    :value="doctor.doctorId"
                   />
-                </el-form-item>
-              </el-col>
-            </el-row>
-          </div>
-
-          <div class="ai-form-grid">
-            <div class="ai-form-section">
-              <div class="ai-section-heading">
-                <span>时段与号源</span>
-                <small>最多 5 个候选时段</small>
-              </div>
-              <el-form-item label="时段设置" prop="timeWindows">
-                <div class="time-slots-wrapper">
-                  <div
-                    v-for="(slot, index) in (aiFormData.timeWindows || [])"
-                    :key="index"
-                    class="time-slot-item"
-                  >
-                    <span class="slot-index">{{ index + 1 }}</span>
-                    <el-time-picker
-                      v-model="slot.startTime"
-                      placeholder="开始"
-                      value-format="HH:mm:ss"
-                      format="HH:mm"
-                      size="small"
-                      class="slot-time-picker"
-                      teleported
-                    />
-                    <span class="time-slot-sep">至</span>
-                    <el-time-picker
-                      v-model="slot.endTime"
-                      placeholder="结束"
-                      value-format="HH:mm:ss"
-                      format="HH:mm"
-                      size="small"
-                      class="slot-time-picker"
-                      teleported
-                    />
-                    <el-button
-                      class="slot-delete-btn"
-                      type="danger"
-                      size="small"
-                      link
-                      @click="removeTimeSlot(index)"
-                      :disabled="(aiFormData.timeWindows || []).length <= 1"
-                    >
-                      <el-icon><Delete /></el-icon>
-                    </el-button>
-                  </div>
-                  <el-button size="small" type="primary" plain @click="addTimeSlot">
-                    <el-icon><Plus /></el-icon> 添加时段
-                  </el-button>
-                </div>
+                </el-select>
               </el-form-item>
+            </el-col>
+          </el-row>
 
-              <el-row :gutter="12">
-                <el-col :span="12">
-                  <el-form-item label="每时段号源" prop="defaultMaxNum">
-                    <el-input-number
-                      v-model="aiFormData.defaultMaxNum"
-                      :min="1"
-                      :max="50"
-                      style="width: 100%"
-                      controls-position="right"
-                    />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12">
-                  <el-form-item label="挂号费" prop="defaultPrice">
-                    <el-input-number
-                      v-model="aiFormData.defaultPrice"
-                      :min="0"
-                      :precision="2"
-                      :step="5"
-                      style="width: 100%"
-                      controls-position="right"
-                    />
-                  </el-form-item>
-                </el-col>
-              </el-row>
-            </div>
-
-            <div class="ai-form-section">
-              <div class="ai-section-heading">
-                <span>诊室与要求</span>
-                <small>诊室会按生成结果轮换使用</small>
-              </div>
-              <el-form-item label="诊室列表" prop="rooms">
-                <div class="rooms-wrapper">
-                  <div
-                    v-for="(room, index) in (aiFormData.rooms || [])"
-                    :key="index"
-                    class="room-item"
-                  >
-                    <el-input
-                      v-model="aiFormData.rooms![index]"
-                      placeholder="请输入诊室，如：门诊楼A101"
-                      size="small"
-                    />
-                    <el-button
-                      class="room-delete-btn"
-                      type="danger"
-                      size="small"
-                      link
-                      @click="removeRoom(index)"
-                      :disabled="(aiFormData.rooms || []).length <= 1"
-                    >
-                      <el-icon><Delete /></el-icon>
-                    </el-button>
-                  </div>
-                  <el-button size="small" type="primary" plain @click="addRoom">
-                    <el-icon><Plus /></el-icon> 添加诊室
-                  </el-button>
-                </div>
-              </el-form-item>
-
-              <el-form-item label="额外要求" prop="requirement">
-                <el-input
-                  v-model="aiFormData.requirement"
-                  type="textarea"
-                  :rows="4"
-                  placeholder="请输入额外排班要求，如：优先安排上午门诊"
-                  maxlength="1000"
-                  show-word-limit
+          <el-row :gutter="20">
+            <el-col :span="12">
+              <el-form-item label="开始日期" prop="periodStart">
+                <el-date-picker
+                  v-model="aiFormData.periodStart"
+                  type="date"
+                  placeholder="选择开始日期"
+                  value-format="YYYY-MM-DD"
+                  style="width: 100%"
+                  :disabled-date="disabledPastDate"
+                  teleported
                 />
               </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="结束日期" prop="periodEnd">
+                <el-date-picker
+                  v-model="aiFormData.periodEnd"
+                  type="date"
+                  placeholder="选择结束日期"
+                  value-format="YYYY-MM-DD"
+                  style="width: 100%"
+                  :disabled-date="(time: Date) => disabledEndDate(time, aiFormData.periodStart)"
+                  teleported
+                />
+              </el-form-item>
+            </el-col>
+          </el-row>
+
+          <el-form-item label="时段设置" prop="timeWindows">
+            <div class="time-slots-wrapper">
+              <div
+                v-for="(slot, index) in (aiFormData.timeWindows || [])"
+                :key="index"
+                class="time-slot-item"
+              >
+                <el-time-picker
+                  v-model="slot.startTime"
+                  placeholder="开始"
+                  value-format="HH:mm:ss"
+                  format="HH:mm"
+                  size="small"
+                  style="width: 120px"
+                  teleported
+                />
+                <span class="time-slot-sep">至</span>
+                <el-time-picker
+                  v-model="slot.endTime"
+                  placeholder="结束"
+                  value-format="HH:mm:ss"
+                  format="HH:mm"
+                  size="small"
+                  style="width: 120px"
+                  teleported
+                />
+                <el-button
+                  type="danger"
+                  size="small"
+                  link
+                  @click="removeTimeSlot(index)"
+                  :disabled="(aiFormData.timeWindows || []).length <= 1"
+                >
+                  <el-icon><Delete /></el-icon>
+                </el-button>
+              </div>
+              <el-button size="small" type="primary" plain @click="addTimeSlot">
+                <el-icon><Plus /></el-icon> 添加时段
+              </el-button>
             </div>
-          </div>
+          </el-form-item>
+
+          <el-row :gutter="20">
+            <el-col :span="12">
+              <el-form-item label="每时段号源" prop="defaultMaxNum">
+                <el-input-number
+                  v-model="aiFormData.defaultMaxNum"
+                  :min="1"
+                  :max="50"
+                  style="width: 100%"
+                  controls-position="right"
+                />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="挂号费" prop="defaultPrice">
+                <el-input-number
+                  v-model="aiFormData.defaultPrice"
+                  :min="0"
+                  :precision="2"
+                  :step="5"
+                  style="width: 100%"
+                  controls-position="right"
+                />
+              </el-form-item>
+            </el-col>
+          </el-row>
+
+          <el-form-item label="诊室列表" prop="rooms">
+            <div class="rooms-wrapper">
+              <div
+                v-for="(room, index) in (aiFormData.rooms || [])"
+                :key="index"
+                class="room-item"
+              >
+                <el-input
+                  v-model="aiFormData.rooms![index]"
+                  placeholder="请输入诊室，如：门诊楼A101"
+                  size="small"
+                  style="width: 200px"
+                />
+                <el-button
+                  type="danger"
+                  size="small"
+                  link
+                  @click="removeRoom(index)"
+                  :disabled="(aiFormData.rooms || []).length <= 1"
+                >
+                  <el-icon><Delete /></el-icon>
+                </el-button>
+              </div>
+              <el-button size="small" type="primary" plain @click="addRoom">
+                <el-icon><Plus /></el-icon> 添加诊室
+              </el-button>
+            </div>
+          </el-form-item>
+
+          <el-form-item label="额外要求" prop="requirement">
+            <el-input
+              v-model="aiFormData.requirement"
+              type="textarea"
+              :rows="2"
+              placeholder="请输入额外排班要求，如：优先安排上午门诊"
+              maxlength="1000"
+              show-word-limit
+            />
+          </el-form-item>
         </el-form>
 
         <!-- 预览结果 -->
         <div v-if="aiPreviewResult" class="ai-preview-result">
           <div class="preview-header">
-            <div>
-              <span class="preview-title">生成结果</span>
-              <p>确认无误后可发布为正式排班</p>
-            </div>
-            <div class="preview-tags">
-              <el-tag type="success">共生成 {{ aiPreviewResult.generatedCount || 0 }} 条排班</el-tag>
-              <el-tag v-if="aiPreviewResult.conflicts && aiPreviewResult.conflicts.length > 0" type="warning">
-                {{ aiPreviewResult.conflicts.length }} 个冲突
-              </el-tag>
-            </div>
+            <span class="preview-title">📊 生成结果</span>
+            <el-tag type="success">共生成 {{ aiPreviewResult.generatedCount || 0 }} 条排班</el-tag>
+            <el-tag v-if="aiPreviewResult.conflicts && aiPreviewResult.conflicts.length > 0" type="warning">
+              ⚠️ {{ aiPreviewResult.conflicts.length }} 个冲突
+            </el-tag>
           </div>
 
           <!-- 排班列表 -->
@@ -740,25 +695,23 @@
       </div>
 
       <template #footer>
-        <div class="schedule-dialog-footer ai-dialog-footer">
-          <el-button @click="aiDialogVisible = false">取消</el-button>
-          <el-button
-            type="primary"
-            @click="handleAiPreview"
-            :loading="aiPreviewLoading"
-            :disabled="aiPreviewLoading"
-          >
-            <el-icon><View /></el-icon> 预览
-          </el-button>
-          <el-button
-            type="success"
-            @click="handleAiPublish"
-            :loading="aiPublishLoading"
-            :disabled="!aiPreviewResult || !aiPreviewResult.schedules || aiPreviewResult.schedules.length === 0"
-          >
-            <el-icon><Check /></el-icon> 发布排班
-          </el-button>
-        </div>
+        <el-button @click="aiDialogVisible = false">取消</el-button>
+        <el-button
+          type="primary"
+          @click="handleAiPreview"
+          :loading="aiPreviewLoading"
+          :disabled="aiPreviewLoading"
+        >
+          <el-icon><View /></el-icon> 预览
+        </el-button>
+        <el-button
+          type="success"
+          @click="handleAiPublish"
+          :loading="aiPublishLoading"
+          :disabled="!aiPreviewResult || !aiPreviewResult.schedules || aiPreviewResult.schedules.length === 0"
+        >
+          <el-icon><Check /></el-icon> 发布排班
+        </el-button>
       </template>
     </el-dialog>
   </div>
@@ -1816,7 +1769,7 @@ onMounted(async () => {
   }
 
   .doctor-cell {
-    min-height: 112px;
+    height: 80px;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -1921,37 +1874,32 @@ onMounted(async () => {
 }
 
 .doctor-schedule-cell {
-  height: 112px;
-  min-height: 112px;
-  padding: 8px;
+  height: 80px;
+  padding: 4px;
   border-bottom: 1px solid #f1f5f9;
   position: relative;
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 6px;
-  overflow: hidden;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
 }
 
 .schedule-block {
-  width: 100%;
-  min-height: 46px;
-  flex: 0 0 auto;
-  box-sizing: border-box;
+  flex: 1;
+  min-width: 60px;
   max-width: 100%;
-  border-radius: 8px;
-  padding: 7px 9px;
+  border-radius: 6px;
+  padding: 4px 8px;
   cursor: pointer;
   transition: all 0.2s;
-  background: linear-gradient(135deg, #eef2ff 0%, #f8fbff 100%);
+  background: #eef2ff;
   border-left: 3px solid #4f46e5;
   position: relative;
-  overflow: hidden;
 
   &:hover {
-    transform: translateY(-1px);
+    transform: scale(1.02);
     z-index: 10;
-    box-shadow: 0 8px 18px rgba(67, 90, 111, 0.16);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 
     .schedule-actions {
       opacity: 1;
@@ -1959,18 +1907,18 @@ onMounted(async () => {
   }
 
   &.is-full {
-    background: linear-gradient(135deg, #fef2f2 0%, #fff7f7 100%);
+    background: #fef2f2;
     border-left-color: #ef4444;
   }
 
   &.is-low {
-    background: linear-gradient(135deg, #fffbeb 0%, #fffdf4 100%);
+    background: #fffbeb;
     border-left-color: #f59e0b;
   }
 
   &.is-past {
     opacity: 0.7;
-    background: #f8fafc;
+    background: #f1f5f9;
     border-left-color: #94a3b8;
     cursor: default;
 
@@ -1981,18 +1929,29 @@ onMounted(async () => {
   }
 
   &.is-ai-generated {
-    background: linear-gradient(135deg, #fff7d6 0%, #fffbe9 100%);
+    background: #fef3c7;
     border-left-color: #f59e0b;
+    
+    &::after {
+      content: 'AI';
+      position: absolute;
+      top: -2px;
+      right: -2px;
+      font-size: 8px;
+      font-weight: 700;
+      color: #f59e0b;
+      background: #fff8e7;
+      padding: 0 4px;
+      border-radius: 2px;
+      border: 1px solid #fcd34d;
+    }
   }
 
   .schedule-time {
-    padding-right: 30px;
-    font-size: 12px;
-    font-weight: 700;
+    font-size: 11px;
+    font-weight: 600;
     color: #1e293b;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 
   .schedule-room {
@@ -2003,12 +1962,9 @@ onMounted(async () => {
     gap: 2px;
     margin-top: 1px;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
 
     .el-icon {
       font-size: 11px;
-      flex: 0 0 auto;
     }
   }
 
@@ -2018,44 +1974,30 @@ onMounted(async () => {
 
   .schedule-ai-tag {
     position: absolute;
-    top: 6px;
-    right: 7px;
+    top: 2px;
+    right: 4px;
   }
 
   .schedule-actions {
     position: absolute;
-    right: 8px;
-    bottom: 7px;
+    top: 2px;
+    right: 4px;
     opacity: 0;
     transition: opacity 0.2s;
     display: flex;
-    gap: 6px;
-    background: rgba(255, 255, 255, 0.96);
-    border: 1px solid rgba(148, 163, 184, 0.28);
-    border-radius: 8px;
-    padding: 3px 5px;
-    box-shadow: 0 8px 18px rgba(31, 41, 55, 0.14);
-    backdrop-filter: blur(8px);
+    gap: 2px;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 4px;
+    padding: 0 4px;
 
     .el-button {
-      height: 22px;
-      margin: 0;
-      padding: 0 7px;
-      border-radius: 6px;
-      font-size: 12px;
-      font-weight: 700;
-      background: #eef2ff;
-    }
-
-    .el-button--danger {
-      background: #fef2f2;
+      font-size: 11px;
+      padding: 0 4px;
     }
   }
 
   .schedule-past-tag {
-    position: absolute;
-    right: 7px;
-    bottom: 6px;
+    margin-top: 2px;
   }
 
   &.is-disabled {
@@ -2078,9 +2020,7 @@ onMounted(async () => {
   }
 
   .schedule-disabled-tag {
-    position: absolute;
-    right: 7px;
-    bottom: 6px;
+    margin-top: 2px;
   }
 }
 
@@ -2091,18 +2031,17 @@ onMounted(async () => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: #8ea0b8;
+  color: #94a3b8;
   font-size: 12px;
   cursor: pointer;
-  border: 1px dashed #d8e3ef;
-  border-radius: 8px;
-  background: #fbfdff;
+  border: 2px dashed #e2e8f0;
+  border-radius: 6px;
   transition: all 0.2s;
 
   &:hover {
     border-color: #4f46e5;
     color: #4f46e5;
-    background: #f5f7ff;
+    background: #f8fafc;
   }
 
   .el-icon {
@@ -2159,237 +2098,58 @@ onMounted(async () => {
   font-weight: 600;
 }
 
-.schedule-form {
-  .schedule-form-panel {
-    padding: 18px;
-    border: 1px solid #dfe8f3;
-    border-radius: 12px;
-    background:
-      linear-gradient(135deg, rgba(79, 70, 229, 0.05), transparent 34%),
-      #f8fbff;
-  }
-
-  .schedule-form-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 14px 16px;
-  }
-
-  ::v-deep(.el-form-item) {
-    margin-bottom: 0;
-  }
-
-  ::v-deep(.el-form-item__label) {
-    padding-bottom: 6px;
-    color: #334155;
-    font-size: 13px;
-    font-weight: 700;
-    line-height: 1.2;
-  }
-}
-
-.schedule-dialog-footer {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  width: 100%;
-}
-
 // ============================================================
 // AI排班弹窗样式
 // ============================================================
-.ai-dialog-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-
-  h3 {
-    margin: 0;
-    font-size: 18px;
-    line-height: 1.3;
-    color: #0f172a;
-  }
-
-  p {
-    margin: 2px 0 0;
-    font-size: 12px;
-    color: #64748b;
-  }
-}
-
-.ai-dialog-icon {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #2563eb;
-  background: linear-gradient(135deg, #dbeafe 0%, #eef2ff 100%);
-  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.12);
-
-  .el-icon {
-    font-size: 20px;
-  }
-}
-
 .ai-schedule-content {
-  max-height: calc(92vh - 160px);
-  overflow-y: auto;
-  padding: 2px 4px 14px 0;
-
   .ai-schedule-form {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-
-    ::v-deep(.el-form-item) {
-      margin-bottom: 14px;
-    }
-
-    ::v-deep(.el-form-item__label) {
-      padding-bottom: 6px;
-      color: #334155;
-      font-size: 13px;
-      font-weight: 600;
-      line-height: 1.2;
-    }
-  }
-
-  .ai-form-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
-    gap: 16px;
-  }
-
-  .ai-form-section {
-    padding: 18px;
-    border: 1px solid #dfe8f3;
-    border-radius: 12px;
-    background:
-      linear-gradient(135deg, rgba(37, 99, 235, 0.04), transparent 34%),
-      #ffffff;
-    box-shadow: 0 14px 32px rgba(31, 41, 55, 0.06);
-  }
-
-  .ai-section-heading {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 12px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid #eef2f7;
-
-    span {
-      color: #0f172a;
-      font-size: 15px;
-      font-weight: 700;
-    }
-
-    small {
-      color: #94a3b8;
+    .form-tip {
       font-size: 12px;
-      font-weight: 400;
-      text-align: right;
+      color: #94a3b8;
+      margin-left: 12px;
     }
-  }
 
-  .time-slots-wrapper,
-  .rooms-wrapper {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    width: 100%;
-  }
+    .time-slots-wrapper {
+      .time-slot-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
 
-  .time-slot-item,
-  .room-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-height: 48px;
-    padding: 10px;
-    border: 1px solid #dfe8f3;
-    border-radius: 10px;
-    background: #ffffff;
-    box-shadow: 0 10px 24px rgba(31, 41, 55, 0.05);
-  }
+        .time-slot-sep {
+          color: #94a3b8;
+          font-size: 13px;
+        }
+      }
+    }
 
-  .slot-index {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex: 0 0 auto;
-    color: #2563eb;
-    background: #dbeafe;
-    font-size: 12px;
-    font-weight: 700;
-  }
-
-  .slot-time-picker {
-    width: 132px;
-  }
-
-  .time-slot-sep {
-    color: #64748b;
-    font-size: 13px;
-    flex: 0 0 auto;
-  }
-
-  .slot-delete-btn,
-  .room-delete-btn {
-    flex: 0 0 auto;
-    margin-left: auto;
-  }
-
-  .room-item {
-    background: #ffffff;
-    box-shadow: 0 10px 24px rgba(31, 41, 55, 0.05);
-
-    .el-input {
-      flex: 1;
+    .rooms-wrapper {
+      .room-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
     }
   }
 
   .ai-preview-result {
     margin-top: 16px;
-    padding: 16px;
-    border: 1px solid #bfdbfe;
-    border-radius: 10px;
-    background: #eff6ff;
+    padding-top: 16px;
+    border-top: 2px solid #f1f5f9;
 
     .preview-header {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 16px;
+      gap: 12px;
       margin-bottom: 12px;
       flex-wrap: wrap;
 
       .preview-title {
-        display: block;
-        font-size: 16px;
-        font-weight: 700;
+        font-size: 15px;
+        font-weight: 600;
         color: #0f172a;
       }
-
-      p {
-        margin: 2px 0 0;
-        color: #64748b;
-        font-size: 12px;
-      }
-    }
-
-    .preview-tags {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
     }
 
     .preview-schedules {
@@ -2399,47 +2159,11 @@ onMounted(async () => {
     .preview-conflicts {
       .conflicts-title {
         font-size: 14px;
-        font-weight: 600;
+        font-weight: 500;
         color: #d97706;
         margin-bottom: 8px;
       }
     }
-
-    ::v-deep(.el-table) {
-      border-radius: 8px;
-      overflow: hidden;
-
-      th.el-table__cell {
-        background: #f8fafc;
-        color: #334155;
-        font-weight: 700;
-      }
-    }
-  }
-}
-
-::v-deep(.ai-schedule-dialog) {
-  display: flex;
-  flex-direction: column;
-  max-height: 92vh;
-
-  .el-dialog__header {
-    padding: 20px 26px 14px;
-    margin-right: 0;
-    border-bottom: 1px solid #eef2f7;
-    background: #fbfdff;
-  }
-
-  .el-dialog__body {
-    flex: 1;
-    min-height: 0;
-    padding: 20px 26px;
-  }
-
-  .el-dialog__footer {
-    padding: 14px 26px 20px;
-    border-top: 1px solid #eef2f7;
-    background: #fbfdff;
   }
 }
 
@@ -2472,7 +2196,6 @@ onMounted(async () => {
 
 ::v-deep(.el-dialog) {
   border-radius: 12px;
-  overflow: hidden;
 
   .el-dialog__body {
     padding: 20px 24px;
@@ -2531,7 +2254,7 @@ onMounted(async () => {
   }
 
   .grid-doctor-column .doctor-cell {
-    min-height: 132px;
+    height: 100px;
     flex-direction: column;
     padding: 6px;
 
@@ -2541,8 +2264,7 @@ onMounted(async () => {
   }
 
   .doctor-schedule-cell {
-    height: 132px;
-    min-height: 132px;
+    height: 100px;
   }
 
   .schedule-block {
@@ -2561,38 +2283,17 @@ onMounted(async () => {
   }
 
   .ai-schedule-content {
-    max-height: calc(90vh - 150px);
-
-    .ai-form-grid {
-      grid-template-columns: 1fr;
-    }
-
-    .ai-section-heading {
-      align-items: flex-start;
-      flex-direction: column;
-      gap: 4px;
-
-      small {
-        text-align: left;
+    .ai-schedule-form {
+      .time-slots-wrapper {
+        .time-slot-item {
+          flex-wrap: wrap;
+        }
       }
-    }
-
-    .time-slot-item,
-    .room-item {
-      flex-wrap: wrap;
-    }
-
-    .slot-delete-btn {
-      margin-left: 0;
-    }
-
-    .slot-time-picker {
-      width: calc(50% - 30px);
-      min-width: 110px;
-    }
-
-    .preview-header {
-      align-items: flex-start;
+      .rooms-wrapper {
+        .room-item {
+          flex-wrap: wrap;
+        }
+      }
     }
   }
 }

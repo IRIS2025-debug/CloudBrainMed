@@ -1,6 +1,5 @@
 package com.cloudbrainmed.doctor.config;
 
-import com.cloudbrainmed.common.utils.FileResourceLocationUtil;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
@@ -15,6 +14,6 @@ public class UploadFileConfig implements WebMvcConfigurer {
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
         registry.addResourceHandler("/files/avatar/doctor/**")
-                .addResourceLocations(FileResourceLocationUtil.toDirectoryResourceLocation(avatarUploadDir));
+                .addResourceLocations("file:" + avatarUploadDir + "/");
     }
 }

@@ -5,62 +5,76 @@ import com.cloudbrainmed.doctor.dto.MedicalReportSubmitRequest;
 import com.cloudbrainmed.doctor.entity.MedicalReport;
 import com.cloudbrainmed.doctor.mapper.MedicalOrderMapper;
 import com.cloudbrainmed.doctor.service.DoctorTaskService;
+import com.cloudbrainmed.doctor.service.AgingService;
 import com.cloudbrainmed.doctor.service.OrderItemService;
 import com.cloudbrainmed.doctor.vo.DoctorTaskDetailVo;
+import com.cloudbrainmed.doctor.vo.DoctorTaskVo;
 import com.cloudbrainmed.doctor.vo.MedicalReportVo;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static org.springframework.util.StringUtils.hasText;
 
+/**
+ * 医生任务服务实现
+ * 医生工作台、任务领取、完成任务、提交报告
+ */
 @Slf4j
 @Service
 public class DoctorTaskServiceImpl implements DoctorTaskService {
 
     private final MedicalOrderMapper medicalOrderMapper;
     private final OrderItemService orderItemService;
+    private final AgingService agingService;
 
     public DoctorTaskServiceImpl(
             MedicalOrderMapper medicalOrderMapper,
-            OrderItemService orderItemService) {
+            OrderItemService orderItemService,
+            AgingService agingService) {
         this.medicalOrderMapper = medicalOrderMapper;
         this.orderItemService = orderItemService;
+        this.agingService = agingService;
     }
 
     @Override
-    public DoctorTaskDetailVo getTaskDetail(
-            String orderItemId, String doctorId, Integer doctorType) {
+    public List<DoctorTaskVo> getDoctorWorkbench(String doctorId, Integer doctorType) {
+        String itemCategory = null;
+        if (Integer.valueOf(2).equals(doctorType)) {
+            itemCategory = "EXAM";
+        } else if (Integer.valueOf(3).equals(doctorType)) {
+            itemCategory = "LAB";
+        }
+        return medicalOrderMapper.selectDoctorTasks(doctorId, itemCategory)
+                .stream()
+                .map(this::convertToVo)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public DoctorTaskDetailVo getTaskDetail(String orderItemId, String doctorId) {
         MedicalOrderMapper.DoctorTaskDetailVo detail =
                 medicalOrderMapper.selectTaskDetailById(orderItemId);
         if (detail == null) {
             throw new BusinessException("任务不存在");
         }
-        requireDoctorTypeForItem(detail.getItemCategory(), doctorType);
-        if (detail.getAssignedDoctorId() != null
-                && !doctorId.equals(detail.getAssignedDoctorId())
-                && !"COMPLETED".equals(detail.getStatus())) {
-            throw new BusinessException("该任务不属于当前医生");
-        }
-        DoctorTaskDetailVo vo = convertToDetailVo(detail);
-        if ("COMPLETED".equals(detail.getStatus())) {
-            vo.setReport(medicalOrderMapper.findPublishedReportByOrderItemId(orderItemId));
-        }
-        return vo;
+        return convertToDetailVo(detail);
     }
 
     @Override
     @Transactional
-    public void startTask(String orderItemId, String doctorId, Integer doctorType) {
+    public void startTask(String orderItemId, String doctorId) {
         MedicalOrderMapper.DoctorTaskDetailVo task =
                 medicalOrderMapper.selectTaskDetailById(orderItemId);
         if (task == null) {
             throw new BusinessException("任务不存在");
         }
-        requireDoctorTypeForItem(task.getItemCategory(), doctorType);
 
         String status = task.getStatus();
         if ("COMPLETED".equals(status)) {
@@ -77,6 +91,13 @@ public class DoctorTaskServiceImpl implements DoctorTaskService {
             throw new BusinessException("任务状态异常（" + status + "），无法开始处理");
         }
 
+        if (orderItemService.hasPatientInProgress(task.getPatientId())) {
+            throw new BusinessException("该患者已有检查项目正在处理中，请等待完成后再处理");
+        }
+        if (orderItemService.hasDoctorInProgress(doctorId)) {
+            throw new BusinessException("您已有正在处理的任务，请先完成当前任务");
+        }
+
         boolean claimed = orderItemService.claimTask(orderItemId, doctorId);
         if (!claimed) {
             throw new BusinessException("任务已被其他医生领取");
@@ -86,15 +107,9 @@ public class DoctorTaskServiceImpl implements DoctorTaskService {
 
     @Override
     @Transactional
-    public void completeTask(String orderItemId, String doctorId, Integer doctorType) {
-        MedicalOrderMapper.DoctorTaskDetailVo task =
-                medicalOrderMapper.selectTaskDetailById(orderItemId);
-        if (task == null) {
-            throw new BusinessException("任务不存在");
-        }
-        requireDoctorTypeForItem(task.getItemCategory(), doctorType);
+    public void completeTask(String orderItemId, String doctorId) {
         if (!orderItemService.hasPublishedReport(orderItemId)) {
-            throw new BusinessException("请先提交并发布检查/检验报告");
+            throw new BusinessException("请先提交并发布检查检验报告");
         }
         int updated = medicalOrderMapper.completeTask(orderItemId, doctorId);
         if (updated == 0) {
@@ -105,22 +120,46 @@ public class DoctorTaskServiceImpl implements DoctorTaskService {
 
     @Override
     @Transactional
-    public MedicalReportVo submitReport(
-            MedicalReportSubmitRequest request, String doctorId, Integer doctorType) {
+    public void skipTask(String orderItemId, String doctorId) {
         MedicalOrderMapper.DoctorTaskDetailVo task =
-                medicalOrderMapper.selectTaskDetailById(request.getOrderItemId());
+                medicalOrderMapper.selectTaskDetailById(orderItemId);
         if (task == null) {
             throw new BusinessException("任务不存在");
         }
-        requireDoctorTypeForItem(task.getItemCategory(), doctorType);
         if (!"IN_PROCESS".equals(task.getStatus())) {
-            throw new BusinessException("任务不在处理中");
+            throw new BusinessException("只能跳过处理中的任务");
         }
         if (!doctorId.equals(task.getAssignedDoctorId())) {
             throw new BusinessException("该任务不属于当前医生");
         }
+        if (orderItemService.hasPublishedReport(orderItemId)) {
+            throw new BusinessException("该任务已提交报告，不可跳过");
+        }
+
+        boolean released = orderItemService.releaseTask(orderItemId, doctorId);
+        if (!released) {
+            throw new BusinessException("跳过任务失败，请重试");
+        }
+        log.info("Doctor {} skipped task {} ({}), back to queue",
+                doctorId, orderItemId, task.getItemName());
+    }
+
+    @Override
+    @Transactional
+    public MedicalReportVo submitReport(MedicalReportSubmitRequest request, String doctorId) {
+        MedicalOrderMapper.DoctorTaskDetailVo task =
+                medicalOrderMapper.selectTaskDetailById(request.getOrderItemId());
+        if (task == null) {
+            throw new BusinessException("task not found");
+        }
+        if (!"IN_PROCESS".equals(task.getStatus())) {
+            throw new BusinessException("task is not in process");
+        }
+        if (!doctorId.equals(task.getAssignedDoctorId())) {
+            throw new BusinessException("task does not belong to current doctor");
+        }
         if (!hasText(request.getResultSummary()) && !hasText(request.getConclusion())) {
-            throw new BusinessException("报告结果或诊断意见不能为空");
+            throw new BusinessException("report summary or conclusion is required");
         }
 
         LocalDateTime now = LocalDateTime.now();
@@ -133,7 +172,6 @@ public class DoctorTaskServiceImpl implements DoctorTaskService {
         report.setConclusion(blankToNull(request.getConclusion()));
         report.setAbnormalFlag(normalizeAbnormalFlag(request.getAbnormalFlag()));
         report.setAttachmentUrl(blankToNull(request.getAttachmentUrl()));
-        report.setAiResultJson(blankToNull(request.getAiResultJson()));
         report.setReportDoctorId(doctorId);
         report.setStatus("PUBLISHED");
         report.setPerformedTime(now);
@@ -141,14 +179,50 @@ public class DoctorTaskServiceImpl implements DoctorTaskService {
         report.setCreateTime(now);
         report.setUpdateTime(now);
         if (medicalOrderMapper.insertMedicalReport(report) != 1) {
-            throw new BusinessException("保存报告失败");
+            throw new BusinessException("save report failed");
         }
         medicalOrderMapper.completeTask(task.getOrderItemId(), doctorId);
         return toReportVo(report, task);
     }
 
+    private DoctorTaskVo convertToVo(MedicalOrderMapper.DoctorTaskVo task) {
+        DoctorTaskVo vo = new DoctorTaskVo();
+        vo.setOrderItemId(task.getOrderItemId());
+        vo.setOrderId(task.getOrderId());
+        vo.setItemCode(task.getItemCode());
+        vo.setItemName(task.getItemName());
+        vo.setItemCategory(task.getItemCategory());
+        vo.setUrgencyLevel(task.getUrgencyLevel());
+        vo.setPrice(task.getPrice());
+        vo.setStatus(task.getStatus());
+        vo.setStatusLabel(mapStatusLabel(task.getStatus()));
+        vo.setCreateTime(task.getCreateTime() != null ? task.getCreateTime().toString() : null);
+        vo.setPatientId(task.getPatientId());
+        vo.setRegisterId(task.getRegisterId());
+        vo.setPatientName(task.getPatientName());
+        vo.setGender(task.getGender());
+        vo.setAge(task.getAge());
+
+        // 计算等待分钟数
+        if (task.getCreateTime() != null) {
+            vo.setWaitingMinutes(Duration.between(task.getCreateTime(), LocalDateTime.now()).toMinutes());
+        }
+        // 老化优先级：NORMAL 超过30分钟 → 显示为加急
+        boolean agingActive = agingService.isAgingThresholdReached(task.getCreateTime());
+        if ("NORMAL".equals(task.getUrgencyLevel()) && agingActive) {
+            vo.setUrgencyLabel("加急↑");
+            vo.setAgingPromoted(true);
+        } else {
+            vo.setUrgencyLabel(mapUrgencyLabel(task.getUrgencyLevel()));
+            vo.setAgingPromoted(false);
+        }
+        return vo;
+    }
+
     private DoctorTaskDetailVo convertToDetailVo(MedicalOrderMapper.DoctorTaskDetailVo detail) {
         DoctorTaskDetailVo vo = new DoctorTaskDetailVo();
+
+        vo.setAssignedDoctorName(detail.getAssignedDoctorName());
         vo.setOrderItemId(detail.getOrderItemId());
         vo.setOrderId(detail.getOrderId());
         vo.setItemCode(detail.getItemCode());
@@ -162,12 +236,9 @@ public class DoctorTaskServiceImpl implements DoctorTaskService {
         vo.setCreateTime(detail.getCreateTime());
         vo.setAssignTime(detail.getAssignTime());
         vo.setCompleteTime(detail.getCompleteTime());
-        vo.setAssignedDoctorId(detail.getAssignedDoctorId());
         vo.setPatientId(detail.getPatientId());
         vo.setRegisterId(detail.getRegisterId());
         vo.setRequesterDoctorId(detail.getRequesterDoctorId());
-        vo.setRequesterDoctorName(detail.getRequesterDoctorName());
-        vo.setAssignedDeptName(detail.getAssignedDeptName());
         vo.setPatientName(detail.getPatientName());
         vo.setGender(detail.getGender());
         vo.setAge(detail.getAge());
@@ -189,7 +260,6 @@ public class DoctorTaskServiceImpl implements DoctorTaskService {
         vo.setConclusion(report.getConclusion());
         vo.setAbnormalFlag(report.getAbnormalFlag());
         vo.setAttachmentUrl(report.getAttachmentUrl());
-        vo.setAiResultJson(report.getAiResultJson());
         vo.setReportDoctorId(report.getReportDoctorId());
         vo.setStatus(report.getStatus());
         vo.setPerformedTime(report.getPerformedTime());
@@ -198,43 +268,23 @@ public class DoctorTaskServiceImpl implements DoctorTaskService {
     }
 
     private String mapUrgencyLabel(String level) {
-        if ("EMERGENCY".equals(level)) {
-            return "紧急";
-        }
-        if ("URGENT".equals(level)) {
-            return "加急";
-        }
-        if ("NORMAL".equals(level)) {
-            return "常规";
-        }
-        return level;
-    }
-
-    private void requireDoctorTypeForItem(String itemCategory, Integer doctorType) {
-        boolean allowed = ("EXAM".equals(itemCategory) && Integer.valueOf(2).equals(doctorType))
-                || ("LAB".equals(itemCategory) && Integer.valueOf(3).equals(doctorType));
-        if (!allowed) {
-            throw new BusinessException("无权处理该检查/检验任务");
+        switch (level) {
+            case "EMERGENCY": return "紧急";
+            case "URGENT": return "加急";
+            case "NORMAL": return "常规";
+            default: return level;
         }
     }
 
     private String mapStatusLabel(String status) {
-        if ("WAITING_ASSIGN".equals(status)) {
-            return "待分配";
+        switch (status) {
+            case "WAITING_ASSIGN": return "待分配";
+            case "QUEUED": return "排队中";
+            case "IN_PROCESS": return "处理中";
+            case "COMPLETED": return "已完成";
+            case "CANCELLED": return "已取消";
+            default: return status;
         }
-        if ("QUEUED".equals(status)) {
-            return "排队中";
-        }
-        if ("IN_PROCESS".equals(status)) {
-            return "处理中";
-        }
-        if ("COMPLETED".equals(status)) {
-            return "已完成";
-        }
-        if ("CANCELLED".equals(status)) {
-            return "已取消";
-        }
-        return status;
     }
 
     private String newId(String prefix, int length) {
@@ -242,22 +292,17 @@ public class DoctorTaskServiceImpl implements DoctorTaskService {
     }
 
     private String normalizeAbnormalFlag(String flag) {
-        if (flag == null) {
-            return null;
+        if (flag == null) return null;
+        switch (flag) {
+            case "normal": return "NORMAL";
+            case "abnormal": return "ABNORMAL";
+            default: return flag;
         }
-        if ("normal".equals(flag)) {
-            return "NORMAL";
-        }
-        if ("abnormal".equals(flag)) {
-            return "ABNORMAL";
-        }
-        return flag;
     }
 
-    private static String blankToNull(String value) {
-        if (value == null || value.trim().isEmpty()) {
-            return null;
-        }
-        return value.trim();
+    /** 如果字符串为 null 或空白则返回 null，否则返回 trim 后的值 */
+    private static String blankToNull(String s) {
+        if (s == null || s.trim().isEmpty()) return null;
+        return s.trim();
     }
 }

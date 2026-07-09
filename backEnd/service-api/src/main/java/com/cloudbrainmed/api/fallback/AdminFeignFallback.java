@@ -12,19 +12,17 @@ import java.util.List;
 public class AdminFeignFallback implements AdminFeignClient {
 
     @Override
-    public Result<List<DoctorSchedule>> getDoctorSchedulesForAI(
-            String token, String doctorId, String startDate, String endDate) {
+    public Result<List<DoctorSchedule>> getDoctorSchedulesForAI(String doctorId, String startDate, String endDate) {
         return Result.error("管理员服务不可用，获取医生排班失败");
     }
 
     @Override
-    public Result<List<DoctorSchedule>> batchCreateSchedules(
-            String token, List<ScheduleSaveDto> dtoList) {
+    public Result<List<DoctorSchedule>> batchCreateSchedules(List<ScheduleSaveDto> dtoList) {
         return Result.error("管理员服务不可用，批量创建排班失败");
     }
 
     @Override
-    public Result<Boolean> checkConflict(String token, DoctorSchedule schedule) {
+    public Result<Boolean> checkConflict(DoctorSchedule schedule) {
         return Result.error("管理员服务不可用，检查排班冲突失败");
     }
 }

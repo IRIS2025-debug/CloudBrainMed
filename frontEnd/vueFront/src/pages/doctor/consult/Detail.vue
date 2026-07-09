@@ -26,23 +26,16 @@
 
         <section class="workflow-tabs">
           <button :class="{ active: activeFlowView === 'record' }" @click="activeFlowView = 'record'">病历编辑</button>
-          <button :class="{ active: activeFlowView === 'exam' }" @click="openExamStep">检查/检验项</button>
+          <button :class="{ active: activeFlowView === 'exam' }" @click="openExamStep">AI检查/检验</button>
           <button :class="{ active: activeFlowView === 'reports' }" @click="openReportsStep">
             检查检验报告
             <span v-if="publishedReports.length" class="tab-badge">{{ publishedReports.length }}</span>
           </button>
-          <button :class="{ active: activeFlowView === 'prescription' }" @click="openPrescriptionStep">开具处方</button>
+          <button :class="{ active: activeFlowView === 'prescription' }" @click="openPrescriptionStep">处方/用药AI</button>
         </section>
 
-        <section class="card record-card" v-if="activeFlowView === 'record'">
+        <section class="card" v-if="activeFlowView === 'record'">
           <div class="card-head">病历编辑</div>
-          <div class="record-intro">
-            <div>
-              <strong>结构化问诊记录</strong>
-              <p>按主诉、病史、检查和处理计划分段填写，确认后再推进后续申请与随访流程。</p>
-            </div>
-            <span>临床记录面板</span>
-          </div>
           <div class="record-section-grid">
             <div class="record-section" v-for="section in recordSectionDefs" :key="section.key" :class="{ required: requiredRecordSectionKeys.includes(section.key) }">
               <div class="record-section-head">
@@ -53,76 +46,88 @@
                 v-model="recordSections[section.key]"
                 type="textarea"
                 :rows="section.rows"
-                :disabled="isReadOnly"
+                :disabled="isCompleted"
                 :placeholder="section.placeholder"
                 class="editor"
               />
             </div>
           </div>
           <div class="actions">
-            <el-button @click="handleSaveDraft" :loading="saving" :disabled="isReadOnly" size="large">暂存草稿</el-button>
-            <el-button type="success" @click="handleConfirm" :loading="confirming" :disabled="isReadOnly" size="large">确认病历</el-button>
-            <el-button type="danger" @click="handleComplete" :loading="completing" :disabled="isReadOnly" size="large" plain>完成接诊</el-button>
+            <el-button @click="handleSaveDraft" :loading="saving" :disabled="isCompleted" size="large">暂存草稿</el-button>
+            <el-button type="success" @click="handleConfirm" :loading="confirming" :disabled="isCompleted" size="large">确认病历</el-button>
+            <el-button type="danger" @click="handleComplete" :loading="completing" :disabled="isCompleted" size="large" plain>完成接诊</el-button>
           </div>
         </section>
 
-        <section class="card manual-exam-panel" v-if="activeFlowView === 'exam'">
+        <section class="card ai-exam-card" v-if="activeFlowView === 'exam'">
           <div class="card-head ai-exam-head">
-            <span>检查/检验项</span>
-            <small>医生确认后生成正式申请单</small>
+            <span>AI 推荐检查/检验</span>
+            <small>医生确认后再生成正式申请单</small>
           </div>
-          <el-form label-position="top">
-            <div class="exam-order-toolbar">
-              <el-radio-group v-model="urgencyLevel" :disabled="isReadOnly">
-                <el-radio-button value="NORMAL">常规</el-radio-button>
-                <el-radio-button value="URGENT">加急</el-radio-button>
-                <el-radio-button value="EMERGENCY">紧急</el-radio-button>
-              </el-radio-group>
-              <el-button @click="addExamItem" :disabled="isReadOnly">添加项目</el-button>
-            </div>
-
-            <div class="exam-order-table">
-              <div class="exam-order-head">
-                <span>检查/检验项目</span>
-                <span>类别/紧急程度</span>
-                <span>执行科室</span>
-                <span></span>
-              </div>
-              <div class="exam-order-row" v-for="(item, index) in examItems" :key="item.id">
-                <el-select
-                  v-model="item.itemCode"
-                  filterable
-                  clearable
-                  fit-input-width
-                  popper-class="exam-item-select-popper"
-                  placeholder="选择检查/检验项目"
-                  :disabled="isReadOnly"
-                  @change="handleExamItemCodeChange(item)"
-                >
-                  <el-option
-                    v-for="option in medicalItemOptions"
-                    :key="option.itemCode"
-                    :label="`${option.itemName}（${option.category === 'LAB' ? '检验' : '检查'}）`"
-                    :value="option.itemCode"
-                  />
-                </el-select>
-                <div class="exam-order-meta">
-                  <el-tag size="small" :type="examItemCategory(item) === 'LAB' ? 'success' : 'primary'" round>{{ examItemCategory(item) === 'LAB' ? '检验' : '检查' }}</el-tag>
-                  <el-select v-model="item.urgencyLevel" fit-input-width popper-class="exam-urgency-select-popper" :disabled="isReadOnly">
+          <div v-if="!examRecommendations.length && !examRecommendLoading" class="ai-exam-empty">
+            <p>根据当前病历生成检查/检验建议，确认后直接进入检查/检验医生队列。</p>
+            <el-button type="primary" @click="handleRecommendExamItems" :loading="examRecommendLoading" :disabled="isCompleted">生成 AI 建议</el-button>
+          </div>
+          <p v-if="examRecommendSummary" class="ai-exam-summary">{{ examRecommendSummary }}</p>
+          <div class="ai-exam-list" v-if="examRecommendations.length">
+            <div
+              v-for="(item, index) in examRecommendations"
+              :key="item.id"
+              class="ai-exam-recommendation"
+              :class="{ selected: item.selected }"
+            >
+              <el-checkbox v-model="item.selected" :disabled="isCompleted" />
+              <div class="ai-exam-content">
+                <div class="ai-exam-title-line">
+                  <strong>{{ item.itemName || '待选择项目' }}</strong>
+                  <el-tag size="small" :type="item.category === 'LAB' ? 'success' : 'primary'" round>{{ item.category === 'LAB' ? '检验' : '检查' }}</el-tag>
+                  <el-tag size="small" :type="urgencyTag(item.urgencyLevel)" round>{{ urgencyLabel(item.urgencyLevel) }}</el-tag>
+                  <el-tag v-if="item.needsMapping" size="small" type="warning" round>需改选系统项目</el-tag>
+                  <el-button text type="danger" size="small" :disabled="isCompleted" @click="removeExamRecommendation(index)">删除</el-button>
+                </div>
+                <div class="ai-exam-edit-grid">
+                  <el-select
+                    v-model="item.itemCode"
+                    filterable
+                    clearable
+                    fit-input-width
+                    popper-class="exam-item-select-popper"
+                    placeholder="选择正式检查/检验项目"
+                    :disabled="isCompleted"
+                    @change="handleExamRecommendationCodeChange(item)"
+                  >
+                    <el-option
+                      v-for="option in medicalItemOptions"
+                      :key="option.itemCode"
+                      :label="`${option.itemName}（${option.category === 'LAB' ? '检验' : '检查'}）`"
+                      :value="option.itemCode"
+                    />
+                  </el-select>
+                  <el-select v-model="item.urgencyLevel" fit-input-width popper-class="exam-urgency-select-popper" :disabled="isCompleted">
                     <el-option label="常规" value="NORMAL" />
                     <el-option label="加急" value="URGENT" />
                     <el-option label="紧急" value="EMERGENCY" />
                   </el-select>
                 </div>
-                <el-input v-model="item.dept" disabled placeholder="选择项目后自动带出" />
-                <el-button text type="danger" @click="removeExamItem(index)" :disabled="isReadOnly">删除</el-button>
+                <el-input
+                  v-model="item.reason"
+                  type="textarea"
+                  :rows="2"
+                  resize="none"
+                  :disabled="isCompleted"
+                  placeholder="可补充采用理由或医生调整说明"
+                />
+                <small>{{ item.itemCode || '待选择项目编码' }} · {{ item.dept || '待分配科室' }}</small>
               </div>
             </div>
-
-            <div class="exam-order-actions">
-              <el-button type="primary" @click="submitExamOrder" :loading="examLoading" :disabled="isReadOnly">提交申请</el-button>
-            </div>
-          </el-form>
+          </div>
+          <div class="ai-exam-actions" v-if="examRecommendations.length">
+            <el-button @click="examRecommendations = []">收起</el-button>
+            <el-button :disabled="isCompleted" @click="addExamRecommendation">新增项目</el-button>
+            <el-button type="primary" :loading="examLoading" :disabled="isCompleted || !selectedExamRecommendations.length" @click="submitExamRecommendations">
+              确认并生成检查单
+            </el-button>
+          </div>
           <div v-if="examOrderResult" class="exam-order-result">
             <strong>检查单已生成并进入检查/检验队列</strong>
             <span>状态：{{ examOrderResult.status || 'QUEUED' }} · 项目数：{{ examOrderResult.itemCount || 0 }} · 金额：¥{{ examOrderResult.totalAmount || 0 }}</span>
@@ -134,34 +139,38 @@
           </div>
         </section>
 
-        <section class="card ai-exam-card ai-suggestion-panel" v-if="activeFlowView === 'exam'">
-          <div class="card-head ai-exam-head">
-            <span>AI 建议</span>
-            <small>生成后自动合并到上方列表</small>
-          </div>
-          <div class="ai-exam-empty">
-            <p>根据当前病历生成检查/检验建议，医生仍可在上方继续新增、删除或调整项目。</p>
-            <el-button type="primary" @click="handleRecommendExamItems" :loading="examRecommendLoading" :disabled="isReadOnly">生成 AI 建议</el-button>
-          </div>
-          <p v-if="examRecommendSummary" class="ai-exam-summary">{{ examRecommendSummary }}</p>
-          <div class="ai-exam-list" v-if="examRecommendations.length">
-            <div
-              v-for="item in examRecommendations"
-              :key="item.id"
-              class="ai-exam-recommendation selected"
-            >
-              <div class="ai-exam-content">
-                <div class="ai-exam-title-line">
-                  <strong>{{ item.itemName || '待选择项目' }}</strong>
-                  <el-tag size="small" :type="item.category === 'LAB' ? 'success' : 'primary'" round>{{ item.category === 'LAB' ? '检验' : '检查' }}</el-tag>
-                  <el-tag size="small" :type="urgencyTag(item.urgencyLevel)" round>{{ urgencyLabel(item.urgencyLevel) }}</el-tag>
-                  <el-tag v-if="item.needsMapping" size="small" type="warning" round>需改选系统项目</el-tag>
-                </div>
-                <p v-if="item.reason">{{ item.reason }}</p>
-                <small>{{ item.itemCode || '待选择项目编码' }} · {{ item.dept || '待分配科室' }}</small>
+        <section class="card" v-if="activeFlowView === 'exam' && showExamDialog">
+          <div class="card-head">检查申请单</div>
+          <el-form label-position="top">
+            <div class="exam-order-toolbar">
+              <el-radio-group v-model="urgencyLevel">
+                <el-radio-button value="NORMAL">常规</el-radio-button>
+                <el-radio-button value="URGENT">加急</el-radio-button>
+                <el-radio-button value="EMERGENCY">紧急</el-radio-button>
+              </el-radio-group>
+              <el-button @click="addExamItem" :disabled="isCompleted">添加项目</el-button>
+            </div>
+
+            <div class="exam-order-table">
+              <div class="exam-order-head">
+                <span>检查/检验项目</span>
+                <span>项目编码</span>
+                <span>执行科室</span>
+                <span></span>
+              </div>
+              <div class="exam-order-row" v-for="(item, index) in examItems" :key="item.id">
+                <el-input v-model="item.itemName" placeholder="例如：颅脑CT平扫" />
+                <el-input v-model="item.itemCode" placeholder="AI推荐后自动带入" />
+                <el-input v-model="item.dept" placeholder="例如：影像科" />
+                <el-button text type="danger" @click="removeExamItem(index)" :disabled="isCompleted || examItems.length === 1">删除</el-button>
               </div>
             </div>
-          </div>
+
+            <div class="exam-order-actions">
+              <el-button @click="showExamDialog = false">取消</el-button>
+              <el-button type="primary" @click="submitExamOrder" :loading="examLoading" :disabled="isCompleted">提交申请</el-button>
+            </div>
+          </el-form>
         </section>
 
         <section class="card" v-if="activeFlowView === 'reports'">
@@ -184,7 +193,7 @@
           </div>
           <el-empty v-else description="暂无检查/检验医生回传报告" />
           <div class="report-inline-form">
-            <el-select v-model="reportForm.reportType" class="report-type" :disabled="isReadOnly">
+            <el-select v-model="reportForm.reportType" class="report-type">
               <el-option label="检验报告" value="LAB" />
               <el-option label="检查报告" value="EXAM" />
             </el-select>
@@ -192,12 +201,11 @@
               v-model="reportForm.reportText"
               type="textarea"
               :rows="6"
-              :disabled="isReadOnly"
               placeholder="选择上方已回传报告后会自动填入；也可以补充粘贴外部报告文本"
             />
             <div class="report-inline-actions">
-              <el-button type="primary" :loading="reportLoading" :disabled="isReadOnly" @click="handleReportAnalyze">AI分析报告</el-button>
-              <el-button :disabled="!reportResult || isReadOnly" :loading="savingReportAnalysis" @click="appendReportAnalysisToRecord">写入病历</el-button>
+              <el-button type="primary" :loading="reportLoading" :disabled="isCompleted" @click="handleReportAnalyze">AI分析报告</el-button>
+              <el-button :disabled="!reportResult || isCompleted" :loading="savingReportAnalysis" @click="appendReportAnalysisToRecord">写入病历</el-button>
             </div>
           </div>
           <div v-if="reportResult" class="report-result embedded-report-result">
@@ -246,7 +254,6 @@
                     filterable
                     clearable
                     :loading="medicineLoading"
-                    :disabled="isReadOnly"
                     placeholder="请选择药品"
                     style="width: 100%"
                     @visible-change="loadMedicinesOnOpen"
@@ -267,23 +274,23 @@
                 </el-form-item>
               </el-col>
               <el-col :span="12">
-                <el-form-item label="规格"><el-input v-model="rxForm.spec" :disabled="isReadOnly" placeholder="选择药品后自动带出，可调整" /></el-form-item>
+                <el-form-item label="规格"><el-input v-model="rxForm.spec" placeholder="选择药品后自动带出，可调整" /></el-form-item>
               </el-col>
             </el-row>
             <el-row :gutter="16">
               <el-col :span="12">
-                <el-form-item label="用法用量"><el-input v-model="rxForm.usage" :disabled="isReadOnly" placeholder="例如：口服，每次1粒，每日2次" /></el-form-item>
+                <el-form-item label="用法用量"><el-input v-model="rxForm.usage" placeholder="例如：口服，每次1粒，每日2次" /></el-form-item>
               </el-col>
               <el-col :span="6">
-                <el-form-item label="数量"><el-input-number v-model="rxForm.num" :disabled="isReadOnly" :min="1" style="width:100%" /></el-form-item>
+                <el-form-item label="数量"><el-input-number v-model="rxForm.num" :min="1" style="width:100%" /></el-form-item>
               </el-col>
               <el-col :span="6">
-                <el-form-item label="单价"><el-input-number v-model="rxForm.price" :disabled="isReadOnly" :min="0" :precision="2" style="width:100%" /></el-form-item>
+                <el-form-item label="单价"><el-input-number v-model="rxForm.price" :min="0" :precision="2" style="width:100%" /></el-form-item>
               </el-col>
             </el-row>
             <div class="prescription-actions">
-              <el-button type="primary" @click="submitPrescription" :loading="rxLoading" :disabled="isReadOnly">提交处方</el-button>
-              <el-button @click="sendQuickAction(prescriptionReviewAction)" :loading="aiLoading" :disabled="isReadOnly">AI处方审查</el-button>
+              <el-button type="primary" @click="submitPrescription" :loading="rxLoading" :disabled="isCompleted">提交处方</el-button>
+              <el-button @click="sendQuickAction(prescriptionReviewAction)" :loading="aiLoading" :disabled="isCompleted">AI处方审查</el-button>
             </div>
           </el-form>
         </section>
@@ -324,7 +331,6 @@
                   type="success"
                   plain
                   size="small"
-                  :disabled="isReadOnly"
                   @click="applyAiRecordDraft(draftRecordFromResponse(message.response)!)"
                 >
                   应用到病历
@@ -338,7 +344,7 @@
               v-model="chatInput"
               type="textarea"
               :rows="3"
-              :disabled="isReadOnly || aiLoading"
+              :disabled="isCompleted || aiLoading"
               resize="none"
               placeholder="输入想问 AI 的接诊问题"
               @keydown.ctrl.enter.prevent="sendChatQuestion"
@@ -350,13 +356,13 @@
                   :key="action.actionType"
                   size="small"
                   class="quick-action-chip"
-                  :disabled="isReadOnly || aiLoading"
+                  :disabled="isCompleted || aiLoading"
                   @click="sendQuickAction(action)"
                 >
                   {{ action.label }}
                 </el-button>
                 <el-dropdown v-if="moreAiActions.length" trigger="click" placement="top" @command="handleMoreAction">
-                  <el-button size="small" class="quick-action-chip quick-more" :disabled="isReadOnly || aiLoading">
+                  <el-button size="small" class="quick-action-chip quick-more" :disabled="isCompleted || aiLoading">
                     更多<el-icon class="el-icon--right"><MoreFilled /></el-icon>
                   </el-button>
                   <template #dropdown>
@@ -373,7 +379,7 @@
                 circle
                 class="send-button"
                 :loading="aiLoading"
-                :disabled="isReadOnly || !chatInput.trim()"
+                :disabled="isCompleted || !chatInput.trim()"
                 @click="sendChatQuestion"
               >
                 <el-icon><Promotion /></el-icon>
@@ -404,13 +410,13 @@
               type="textarea"
               :rows="4"
               resize="none"
-              :disabled="isReadOnly || medicineAiLoading"
+              :disabled="isCompleted || medicineAiLoading"
               placeholder="输入用药问题，或直接点击根据病历推荐"
             />
             <div class="medicine-actions">
               <el-button
                 plain
-                :disabled="isReadOnly || medicineAiLoading"
+                :disabled="isCompleted || medicineAiLoading"
                 @click="askMedicineRecommendation"
               >
                 根据病历推荐
@@ -418,7 +424,7 @@
               <el-button
                 type="primary"
                 :loading="medicineAiLoading"
-                :disabled="isReadOnly || !medicineQuestion.trim()"
+                :disabled="isCompleted || !medicineQuestion.trim()"
                 @click="sendMedicineQuestion"
               >
                 咨询用药
@@ -482,9 +488,10 @@ const confirming = ref(false)
 const completing = ref(false)
 const examLoading = ref(false)
 const examRecommendLoading = ref(false)
+const showExamDialog = ref(false)
 const urgencyLevel = ref('NORMAL')
 const activeFlowView = ref<'record' | 'exam' | 'reports' | 'prescription'>('record')
-const examItems = ref<ExamOrderDraftItem[]>([{ id: Date.now(), itemCode: '', itemName: '', dept: '', urgencyLevel: 'NORMAL' }])
+const examItems = ref<ExamOrderDraftItem[]>([{ id: Date.now(), itemCode: '', itemName: '', dept: '' }])
 const examRecommendations = ref<NormalizedExamRecommendation[]>([])
 const examRecommendSummary = ref('')
 const examAiTraceId = ref('')
@@ -555,9 +562,7 @@ const moreAiActions = aiQuickActions.filter(action => !visibleAiActionTypes.incl
   .filter(action => action.actionType !== 'PRESCRIPTION_REVIEW')
 const prescriptionReviewAction = aiQuickActions.find(action => action.actionType === 'PRESCRIPTION_REVIEW')!
 const patientName = computed(() => detail.value.name || detail.value.patientName || '--')
-const isHistoricalReadOnly = computed(() => detail.value.readOnly === true)
-const isCompleted = computed(() => detail.value.consultStatus === 'COMPLETED' || detail.value.readOnly === true)
-const isReadOnly = computed(() => isHistoricalReadOnly.value || isCompleted.value)
+const isCompleted = computed(() => detail.value.consultStatus === 'COMPLETED')
 const recordDesc = computed({
   get: () => serializeRecordDesc(recordSections.value),
   set: (value: string) => {
@@ -577,6 +582,7 @@ const reportRiskTag = computed(() => {
   if (risk === 'MEDIUM') return 'warning'
   return 'success'
 })
+const selectedExamRecommendations = computed(() => examRecommendations.value.filter(item => item.selected))
 
 onMounted(async () => {
   try {
@@ -590,14 +596,6 @@ onMounted(async () => {
     showActionError(e, '加载接诊详情失败')
   }
 })
-
-function showReadOnlyWarning() {
-  if (isHistoricalReadOnly.value) {
-    ElMessage.warning('历史挂号仅支持查看，不能修改')
-    return
-  }
-  ElMessage.warning('接诊已完成，不能继续修改')
-}
 
 async function handleSaveDraft() {
   if (isCompleted.value) {
@@ -637,6 +635,16 @@ function openExamStep() {
   showPrescriptionDialog.value = false
 }
 
+function handleCreateExam() {
+  if (isCompleted.value) {
+    ElMessage.warning('接诊已完成，不能继续开具检查单')
+    return
+  }
+  showExamDialog.value = true
+  showPrescriptionDialog.value = false
+  if (!examItems.value.length) addExamItem()
+}
+
 async function handleRecommendExamItems() {
   if (isCompleted.value) {
     ElMessage.warning('接诊已完成，不能继续推荐检查/检验')
@@ -659,15 +667,14 @@ async function handleRecommendExamItems() {
       structuredParameters: buildStructuredParameters()
     })
     const normalized = normalizeExamRecommendResponse(res.data)
-    examRecommendations.value = [...normalized.items]
+    examRecommendations.value = normalized.items
     examRecommendSummary.value = normalized.summary
     examAiTraceId.value = Array.isArray(res.data) ? '' : (res.data?.traceId || '')
     if (!examRecommendations.value.length) {
       ElMessage.warning('AI 暂未返回可确认的检查/检验项目')
       return
     }
-    mergeExamRecommendationsToOrder(normalized.items)
-    ElMessage.success('AI检查/检验建议已合并到上方列表')
+    ElMessage.success('AI检查/检验建议已生成')
   } catch (e: any) {
     showActionError(e, 'AI检查/检验建议生成失败')
   } finally {
@@ -675,39 +682,90 @@ async function handleRecommendExamItems() {
   }
 }
 
-function mergeExamRecommendationsToOrder(items: NormalizedExamRecommendation[]) {
-  const usableItems = items.filter(item => item.itemCode && !item.needsMapping)
-  if (!usableItems.length) return
-
-  const existingItems = examItems.value.filter(item => item.itemCode || item.itemName.trim())
-  const existingCodes = new Set(existingItems.map(item => item.itemCode).filter(Boolean))
-  const newItems = usableItems
-    .filter(item => !existingCodes.has(item.itemCode))
-    .map(item => ({
-      id: Date.now() + Math.random(),
-      itemCode: item.itemCode || '',
-      itemName: item.itemName || '',
-      dept: item.dept || '',
-      urgencyLevel: item.urgencyLevel || urgencyLevel.value
-    }))
-
+function applyExamRecommendations() {
+  const selectedItems = selectedExamRecommendations.value
+  if (!selectedItems.length) {
+    ElMessage.warning('请先选择推荐项目')
+    return
+  }
+  const existingItems = examItems.value.filter(item => item.itemName.trim())
+  const newItems = selectedItems.map(item => ({
+    id: Date.now() + Math.random(),
+    itemCode: item.itemCode,
+    itemName: item.itemName,
+    dept: item.dept,
+    urgencyLevel: item.urgencyLevel
+  }))
   examItems.value = [...existingItems, ...newItems]
-  if (!examItems.value.length) addExamItem()
+  showExamDialog.value = true
+  showPrescriptionDialog.value = false
+  ElMessage.success('已带入检查申请单，请确认后提交')
 }
 
-function handleExamItemCodeChange(item: ExamOrderDraftItem) {
+function handleExamRecommendationCodeChange(item: NormalizedExamRecommendation) {
   const option = medicalItemOptions.find(option => option.itemCode === item.itemCode)
   if (!option) {
-    item.itemName = ''
-    item.dept = ''
+    item.needsMapping = true
     return
   }
   item.itemName = option.itemName
+  item.category = option.category
   item.dept = option.dept
+  item.needsMapping = false
 }
 
-function examItemCategory(item: ExamOrderDraftItem) {
-  return medicalItemOptions.find(option => option.itemCode === item.itemCode)?.category || 'EXAM'
+function addExamRecommendation() {
+  if (isCompleted.value) return
+  examRecommendations.value.push({
+    id: Date.now() + Math.random(),
+    itemCode: '',
+    itemName: '',
+    category: 'EXAM',
+    dept: '',
+    urgencyLevel: urgencyLevel.value,
+    reason: '',
+    selected: true,
+    needsMapping: true
+  })
+}
+
+function removeExamRecommendation(index: number) {
+  if (isCompleted.value) return
+  examRecommendations.value.splice(index, 1)
+}
+
+async function submitExamRecommendations() {
+  if (isCompleted.value) {
+    ElMessage.warning('接诊已完成，不能继续开具检查单')
+    return
+  }
+  const selectedItems = selectedExamRecommendations.value
+  if (!selectedItems.length) {
+    ElMessage.warning('请先勾选要采用的检查/检验项目')
+    return
+  }
+  if (selectedItems.some(item => !item.itemCode || item.needsMapping)) {
+    ElMessage.warning('请为已勾选项目改选系统支持的检查/检验项目')
+    return
+  }
+  examLoading.value = true
+  try {
+    const res = await confirmMedicalOrder({
+      registerId,
+      clinicalSummary: recordDesc.value || detail.value.chiefComplaint || examRecommendSummary.value || '本次接诊医技申请',
+      urgencyLevel: urgencyLevel.value,
+      items: selectedItems.map(item => ({
+        itemCode: item.itemCode,
+        urgencyLevel: item.urgencyLevel || urgencyLevel.value
+      }))
+    })
+    examOrderResult.value = res.data
+    ElMessage.success('检查申请已生成，并已进入检查/检验队列')
+  } catch (e: any) {
+    showActionError(e, '检查申请提交失败')
+  } finally {
+    examLoading.value = false
+  }
 }
 
 function handleCreatePrescription() {
@@ -717,6 +775,7 @@ function handleCreatePrescription() {
   }
   showPrescriptionDialog.value = true
   activeFlowView.value = 'prescription'
+  showExamDialog.value = false
   loadMedicineOptions()
 }
 
@@ -764,14 +823,11 @@ async function submitPrescription() {
 
 function addExamItem() {
   if (isCompleted.value) return
-  examItems.value.push({ id: Date.now() + Math.random(), itemCode: '', itemName: '', dept: '', urgencyLevel: urgencyLevel.value })
+  examItems.value.push({ id: Date.now() + Math.random(), itemCode: '', itemName: '', dept: '' })
 }
 
 function removeExamItem(index: number) {
-  if (examItems.value.length === 1) {
-    examItems.value = [{ id: Date.now(), itemCode: '', itemName: '', dept: '', urgencyLevel: urgencyLevel.value }]
-    return
-  }
+  if (examItems.value.length === 1) return
   examItems.value.splice(index, 1)
 }
 
@@ -787,13 +843,13 @@ async function submitExamOrder() {
       dept: item.dept.trim(),
       urgencyLevel: item.urgencyLevel || urgencyLevel.value
     }))
-    .filter(item => item.itemCode)
+    .filter(item => item.itemName)
   if (!items.length) {
-    ElMessage.warning('请至少选择一个检查/检验项目')
+    ElMessage.warning('请至少填写一个检查/检验项目')
     return
   }
   if (items.some(item => !item.itemCode)) {
-    ElMessage.warning('正式医技申请需要选择系统支持的检查/检验项目')
+    ElMessage.warning('正式医技申请需要项目编码，请先使用 AI 推荐带入项目')
     return
   }
   examLoading.value = true
@@ -809,7 +865,8 @@ async function submitExamOrder() {
     })
     examOrderResult.value = res.data
     ElMessage.success('检查申请已生成，并已进入检查/检验队列')
-    examItems.value = [{ id: Date.now(), itemCode: '', itemName: '', dept: '', urgencyLevel: urgencyLevel.value }]
+    showExamDialog.value = false
+    examItems.value = [{ id: Date.now(), itemCode: '', itemName: '', dept: '' }]
   } catch (e: any) {
     showActionError(e, '检查申请提交失败')
   } finally {
@@ -1228,12 +1285,7 @@ function serializeRecordDesc(sections: Record<RecordSectionKey, string>) {
 }
 
 function showActionError(error: any, fallbackMessage: string) {
-  const message = error?.response?.data?.msg || error?.message || fallbackMessage
-  if (typeof message === 'string' && message.includes('非就诊当天不可接诊')) {
-    router.push('/doctor/consult')
-    return
-  }
-  ElMessage.error(message)
+  ElMessage.error(error?.message || fallbackMessage)
 }
 
 function buildReportAnalysisRecord() {
@@ -1317,96 +1369,32 @@ function statusLabel(status: string) {
 .info-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .info-item { display: flex; flex-direction: column; gap: 5px; font-size: 14px; color: #334155; min-width: 0; }
 .ii-label { font-size: 12px; color: #64748b; font-weight: 700; }
-.record-card { background: linear-gradient(180deg, #ffffff 0%, #f9fbff 100%); }
-.record-intro {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  margin: -4px 0 16px;
-  padding: 16px 18px;
-  border: 1px solid #dbe7f6;
-  border-radius: 18px;
-  background: linear-gradient(135deg, rgba(239, 246, 255, .92), rgba(248, 250, 252, .96));
-}
-.record-intro strong { display: block; font-size: 15px; font-weight: 800; color: #102033; }
-.record-intro p { margin: 6px 0 0; color: #64748b; font-size: 13px; line-height: 1.7; }
-.record-intro span {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  padding: 7px 12px;
-  border-radius: 999px;
-  background: #fff;
-  border: 1px solid rgba(205, 216, 231, .95);
-  color: #49617e;
-  font-size: 12px;
-  font-weight: 700;
-}
 .record-section-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 16px; }
 .record-section:first-child { grid-column: 1 / -1; }
-.record-section {
-  padding: 16px;
-  border: 1px solid #dfe8f4;
-  border-radius: 20px;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .8);
-}
-.record-section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 10px; color: #102033; font-size: 14px; font-weight: 800; }
-.record-section-head span { display: inline-flex; align-items: center; font-size: 15px; }
+.record-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 8px; color: #102033; font-size: 14px; font-weight: 800; }
 .record-section.required .record-section-head span::after { content: '*'; color: #ef4444; margin-left: 4px; font-weight: 900; }
-.record-section-head small {
-  max-width: 52%;
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: #eef4ff;
-  color: #7086a3;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1.4;
-  text-align: right;
-}
+.record-section-head small { color: #94a3b8; font-size: 12px; font-weight: 600; }
 .editor { width: 100%; }
-.editor :deep(.el-textarea__inner) {
-  min-height: 148px !important;
-  padding: 16px 18px;
-  border-radius: 16px;
-  border-color: #d7e2ef;
-  background: rgba(255, 255, 255, .96);
-  box-shadow: 0 1px 0 rgba(15, 23, 42, .02);
-  line-height: 1.75;
-  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
-}
+.editor :deep(.el-textarea__inner) { border-radius: 13px; border-color: #dbe3ee; box-shadow: 0 1px 0 rgba(15, 23, 42, .02); transition: border-color .18s ease, box-shadow .18s ease; }
 .editor :deep(.el-textarea__inner:focus) { border-color: #4f8df7; box-shadow: 0 0 0 3px rgba(79, 141, 247, .14); }
-.record-section:first-child .editor :deep(.el-textarea__inner) { min-height: 158px !important; }
 .actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding-top: 6px; }
 .actions :deep(.el-button) {
   width: 100%;
   min-width: 0;
-  min-height: 44px;
+  min-height: 52px;
   margin-left: 0 !important;
   padding: 8px 10px;
-  border-radius: 14px;
-  font-size: clamp(12px, .9vw, 14px);
+  border-radius: 15px;
+  font-size: clamp(12px, .92vw, 15px);
   font-weight: 800;
   line-height: 1;
   white-space: nowrap;
   text-align: center;
-  box-shadow: 0 8px 18px rgba(27, 42, 64, .06);
+  box-shadow: 0 10px 22px rgba(27, 42, 64, .08);
 }
 .actions :deep(.el-button > span) { justify-content: center; white-space: nowrap; }
 .actions :deep(.el-button--success) { --el-button-bg-color: #4f9f45; --el-button-border-color: #4f9f45; --el-button-hover-bg-color: #438d3a; --el-button-hover-border-color: #438d3a; }
-.actions :deep(.el-button:hover) { transform: translateY(-1px); }
-.actions :deep(.el-button--danger.is-plain) {
-  background: #fff5f5;
-  border-color: #f6c4c4;
-  color: #de5d72;
-}
-.actions :deep(.el-button--danger.is-plain:hover) {
-  background: #ffecee;
-  border-color: #eea7b2;
-  color: #cf4359;
-}
+.actions :deep(.el-button--warning) { --el-button-bg-color: #d99a34; --el-button-border-color: #d99a34; --el-button-hover-bg-color: #c78824; --el-button-hover-border-color: #c78824; }
 .ai-exam-card { border-color: #cfe0f7; background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%); }
 .ai-exam-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .ai-exam-head small { color: #94a3b8; font-size: 12px; font-weight: 700; }
@@ -1467,11 +1455,6 @@ function statusLabel(status: string) {
 .exam-order-row { display: grid; grid-template-columns: minmax(180px, 1.2fr) minmax(150px, .9fr) minmax(150px, 1fr) 72px; gap: 12px; align-items: center; padding: 12px 14px; }
 .exam-order-head { background: #f8fafc; color: #64748b; font-size: 12px; font-weight: 800; }
 .exam-order-row + .exam-order-row { border-top: 1px solid #edf2f7; }
-.exam-order-row :deep(.el-select__wrapper),
-.exam-order-row :deep(.el-input__wrapper) { min-height: 40px; border-radius: 10px; }
-.exam-order-meta { display: grid; grid-template-columns: auto minmax(90px, 1fr); gap: 8px; align-items: center; min-width: 0; }
-.exam-order-meta :deep(.el-select__wrapper) { min-height: 34px; }
-.ai-suggestion-panel .ai-exam-recommendation { grid-template-columns: 1fr; }
 .exam-order-actions,
 .prescription-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
 .report-card-head { display: flex; align-items: center; justify-content: space-between; }
@@ -1606,12 +1589,6 @@ function statusLabel(status: string) {
   .record-section-grid,
   .ai-exam-list { grid-template-columns: 1fr; }
   .workspace-grid { gap: 16px; }
-  .record-intro { flex-direction: column; }
-  .record-section-head { flex-direction: column; }
-  .record-section-head small { max-width: 100%; text-align: left; }
-  .exam-order-head { display: none; }
-  .exam-order-row { grid-template-columns: 1fr; }
-  .exam-order-row :deep(.el-button) { justify-self: flex-end; }
 }
 @media (max-width: 520px) {
   .actions { grid-template-columns: 1fr; }

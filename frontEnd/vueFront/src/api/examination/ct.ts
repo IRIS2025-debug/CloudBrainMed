@@ -27,25 +27,6 @@ export function analyzeCtReportInput(data: {
   reportType: string
   reportInput: Record<string, any>
 }) {
-  return request.post('/ai-service/report/analyze', data, { timeout: 120000 })
-}
-
-/**
- * 通用检查/检验报告 AI 分析（不限 CT 影像）。
- * 后端接受自由文本(reportText)和/或结构化指标(indicators)，
- * 适用于所有 EXAM/LAB 项目在报告填写阶段做辅助分析。
- */
-export function analyzeReport(data: {
-  registerId: string
-  reportType: string
-  reportText?: string
-  indicators?: Array<{
-    name: string
-    value?: string
-    unit?: string
-    referenceRange?: string
-    abnormalFlag?: string
-  }>
-}) {
-  return request.post('/ai-service/report/analyze', data, { timeout: 120000 })
+  console.log("调用接口")
+  return request.post('/exam-service/report/analyze', data, { timeout: 120000 })
 }

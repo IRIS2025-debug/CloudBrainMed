@@ -6,28 +6,14 @@
         <p class="top-sub">管理患者接诊队列，查看就诊记录</p>
       </div>
       <div class="filter-bar">
-        <el-select
-          v-model="filters.consultStatus"
-          placeholder="接诊状态"
-          clearable
-          @change="fetchList"
-          style="width: 140px"
-        >
+        <el-select v-model="filters.consultStatus" placeholder="接诊状态" clearable @change="fetchList" style="width:140px">
           <el-option label="待接诊" value="PENDING" />
           <el-option label="接诊中" value="IN_PROGRESS" />
           <el-option label="已确认" value="RECORD_CONFIRMED" />
           <el-option label="已完成" value="COMPLETED" />
         </el-select>
-        <el-date-picker
-          v-model="filters.date"
-          type="date"
-          placeholder="就诊日期"
-          @change="fetchList"
-          style="width: 150px"
-        />
-        <el-checkbox v-model="filters.reportReturnedOnly" @change="fetchList">
-          报告已回传
-        </el-checkbox>
+        <el-date-picker v-model="filters.date" type="date" placeholder="就诊日期" @change="fetchList" style="width:150px" />
+        <el-checkbox v-model="filters.reportReturnedOnly" @change="fetchList">报告已回传</el-checkbox>
       </div>
     </header>
 
@@ -53,80 +39,34 @@
         </el-table-column>
         <el-table-column label="报告" width="150">
           <template #default="{ row }">
-            <template v-if="getConsultReportState(row).kind === 'returned'">
-              <el-tag type="success" round>
-                {{ getConsultReportState(row).text }}
-              </el-tag>
-            </template>
-            <template v-else-if="getConsultReportState(row).kind === 'pending'">
-              <el-tag type="warning" round effect="plain">
-                {{ getConsultReportState(row).text }}
-              </el-tag>
-            </template>
-            <span v-else class="muted-text">{{ getConsultReportState(row).text }}</span>
+            <el-tag v-if="row.hasReturnedReport || row.reportCount > 0" type="success" round>
+              已回传 {{ row.reportCount || 1 }}
+            </el-tag>
+            <span v-else class="muted-text">待报告</span>
           </template>
         </el-table-column>
         <el-table-column prop="visitDate" label="就诊日期" width="120" />
-        <el-table-column label="操作" width="250" fixed="right">
+        <el-table-column label="操作" width="120" fixed="right">
           <template #default="{ row }">
-            <div class="action-cell">
-              <el-button
-                v-if="getConsultEntryState(row).disabled"
-                type="primary"
-                class="entry-button"
-                :class="`entry-button-${getConsultEntryState(row).tone}`"
-                disabled
-              >
-                {{ getConsultEntryState(row).text }}
-              </el-button>
-              <el-button
-                v-else
-                type="primary"
-                class="entry-button"
-                :class="`entry-button-${getConsultEntryState(row).tone}`"
-                @click="$router.push(`/doctor/consult/${row.registerId}`)"
-              >
-                {{ getConsultEntryState(row).text }}
-              </el-button>
-              <div v-if="getConsultEntryState(row).reasonVisible" class="action-reason">
-                {{ getConsultEntryState(row).reason }}
-              </div>
-            </div>
+            <el-button type="primary" link @click="$router.push(`/doctor/consult/${row.registerId}`)">接诊</el-button>
           </template>
         </el-table-column>
       </el-table>
       <div class="table-footer">
         <span class="tf-total">共 {{ list.length }} 条</span>
-        <el-pagination
-          v-model:current-page="page"
-          :page-size="10"
-          :total="total"
-          layout="prev, pager, next"
-          @current-change="fetchList"
-          size="small"
-        />
+        <el-pagination v-model:current-page="page" :page-size="10" :total="total" layout="prev, pager, next" @current-change="fetchList" size="small" />
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ref, reactive } from 'vue'
 import { getConsultList } from '@/api/doctor/consult'
-import { getConsultEntryState } from './entryState'
-import { getConsultReportState } from './reportState'
+import { ElMessage } from 'element-plus'
+const list = ref<any[]>([]); const loading = ref(false); const page = ref(1); const total = ref(0)
+const filters = reactive({ consultStatus: '', date: '', reportReturnedOnly: false })
 
-const list = ref<any[]>([])
-const loading = ref(false)
-const page = ref(1)
-const total = ref(0)
-
-const filters = reactive({
-  consultStatus: '',
-  date: '',
-  reportReturnedOnly: false,
-})
 
 async function fetchList() {
   loading.value = true
@@ -136,7 +76,7 @@ async function fetchList() {
       date: formatDate(filters.date),
       reportReturnedOnly: filters.reportReturnedOnly,
       page: page.value,
-      limit: 10,
+      limit: 10
     })
     const data = res.data
     list.value = Array.isArray(data) ? data : (data?.list || [])
@@ -145,19 +85,11 @@ async function fetchList() {
     list.value = []
     total.value = 0
     ElMessage.error('接诊列表加载失败，请稍后重试')
-  } finally {
-    loading.value = false
-  }
+  } finally { loading.value = false }
 }
-
-function statusLabel(status: string) {
-  const mapping: Record<string, string> = {
-    PENDING: '待接诊',
-    IN_PROGRESS: '接诊中',
-    RECORD_CONFIRMED: '已确认',
-    COMPLETED: '已完成',
-  }
-  return mapping[status] || status
+function statusLabel(s: string) {
+  const m: Record<string, string> = { PENDING: '待接诊', IN_PROGRESS: '接诊中', RECORD_CONFIRMED: '已确认', COMPLETED: '已完成' }
+  return m[s] || s
 }
 
 function formatDate(value: string | Date) {
@@ -169,7 +101,6 @@ function formatDate(value: string | Date) {
   }
   return value
 }
-
 fetchList()
 </script>
 
@@ -184,7 +115,7 @@ fetchList()
 .card { background: #fff; border: 1px solid #e3eaf3; border-radius: 18px; box-shadow: 0 18px 42px rgba(28, 44, 68, .08); overflow: hidden; }
 
 .consult-table :deep(th) { background: #f8fafc; color: #64748b; font-weight: 700; font-size: 13px; border-bottom: none; }
-.consult-table :deep(td) { font-size: 14px; padding: 18px 0; vertical-align: top; }
+.consult-table :deep(td) { font-size: 14px; padding: 18px 0; }
 .consult-table :deep(.el-table__row) { transition: background-color .18s ease; }
 .consult-table :deep(.el-table__row:hover) { background: #f7faff; }
 
@@ -198,62 +129,18 @@ fetchList()
 .st-IN_PROGRESS { background: #dbeafe; color: #1d4ed8; }
 .st-RECORD_CONFIRMED { background: #d1fae5; color: #065f46; }
 .st-COMPLETED { background: #f1f5f9; color: #64748b; }
-
-.action-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
-.action-reason {
-  max-width: 210px;
-  color: #64748b;
-  font-size: 12px;
-  line-height: 1.45;
-}
-
-.consult-table :deep(.entry-button) {
+.consult-table :deep(.el-button.is-link) {
   min-width: 72px;
   height: 34px;
   padding: 0 16px;
   border-radius: 999px;
-  font-weight: 800;
-  border: 0;
-}
-.consult-table :deep(.entry-button-primary) {
   background: #315fbb;
   color: #fff;
+  font-weight: 800;
   box-shadow: 0 8px 18px rgba(49, 95, 187, .18);
 }
-.consult-table :deep(.entry-button-primary:hover),
-.consult-table :deep(.entry-button-primary:focus) {
-  background: #3f87dc;
-  color: #fff;
-}
-.consult-table :deep(.entry-button-muted),
-.consult-table :deep(.entry-button-muted:hover),
-.consult-table :deep(.entry-button-muted:focus),
-.consult-table :deep(.entry-button.is-disabled.entry-button-muted),
-.consult-table :deep(.entry-button.is-disabled.entry-button-muted:hover),
-.consult-table :deep(.entry-button.is-disabled.entry-button-muted:focus) {
-  background: #e2e8f0;
-  color: #64748b;
-  box-shadow: none;
-  opacity: 1;
-}
-.consult-table :deep(.entry-button-warning),
-.consult-table :deep(.entry-button-warning:hover),
-.consult-table :deep(.entry-button-warning:focus),
-.consult-table :deep(.entry-button.is-disabled.entry-button-warning),
-.consult-table :deep(.entry-button.is-disabled.entry-button-warning:hover),
-.consult-table :deep(.entry-button.is-disabled.entry-button-warning:focus) {
-  background: #fde68a;
-  color: #92400e;
-  box-shadow: none;
-  opacity: 1;
-}
-.consult-table :deep(.entry-button-success),
-.consult-table :deep(.entry-button-success:hover),
-.consult-table :deep(.entry-button-success:focus) {
-  background: #d9fbe7;
-  color: #177245;
-  box-shadow: 0 8px 18px rgba(23, 114, 69, .12);
-}
+.consult-table :deep(.el-button.is-link:hover),
+.consult-table :deep(.el-button.is-link:focus) { background: #3f87dc; color: #fff; }
 
 .table-footer { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-top: 1px solid #f1f5f9; }
 .tf-total { font-size: 13px; color: #94a3b8; }

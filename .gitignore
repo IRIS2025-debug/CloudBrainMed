@@ -42,7 +42,6 @@ sentinel-dashboard-*.jar
 # 日志
 *.log
 logs/
-run-logs/
 
 # ===================== 前端/移动端（Vue/React 通用） =====================
 node_modules/

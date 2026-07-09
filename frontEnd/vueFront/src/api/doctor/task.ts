@@ -1,5 +1,13 @@
 import request from '../request'
 
+export function getWorkbench() {
+  return request.get('/doctor-service/task/workbench')
+}
+
+export function getQueue() {
+  return request.get('/doctor-service/task/queue')
+}
+
 export function getTaskDetail(orderItemId: string) {
   return request.get('/doctor-service/task/detail', { params: { orderItemId } })
 }
@@ -12,13 +20,16 @@ export function completeTask(orderItemId: string) {
   return request.post('/doctor-service/task/complete', { orderItemId })
 }
 
+export function skipTask(orderItemId: string) {
+  return request.post('/doctor-service/task/skip', { orderItemId })
+}
+
 export function submitTaskReport(data: {
   orderItemId: string
   resultSummary?: string
   conclusion?: string
   abnormalFlag?: string
   attachmentUrl?: string
-  aiResultJson?: string
 }) {
   return request.post('/doctor-service/task/report', data)
 }

@@ -1,20 +1,20 @@
 <template>
   <div class="page">
+    <!-- 页面头部 -->
     <header class="page-top">
       <div class="page-top-left">
         <div class="page-icon">
-          <el-icon :size="20"><UserFilled /></el-icon>
+          <el-icon :size="22"><UserFilled /></el-icon>
         </div>
         <div>
           <h2>账号权限管理</h2>
-          <p class="top-sub">管理医生账号信息、启停状态与基础资料。</p>
+          <p class="top-sub">管理平台所有医生的账号信息与权限</p>
         </div>
       </div>
-
       <div class="header-actions">
         <el-input
           v-model="searchKeyword"
-          placeholder="搜索姓名 / 手机号"
+          placeholder="搜索医生姓名 / 手机号…"
           clearable
           :prefix-icon="Search"
           class="search-input"
@@ -27,88 +27,83 @@
       </div>
     </header>
 
+    <!-- 统计卡片 -->
     <div class="stat-row">
       <div class="stat-card stat-total">
         <div class="stat-icon-box">
-          <el-icon :size="20"><User /></el-icon>
+          <el-icon :size="22"><User /></el-icon>
         </div>
         <div class="stat-info">
           <div class="stat-num">{{ doctors.length }}</div>
           <div class="stat-label">医生总数</div>
         </div>
+        <div class="stat-trend">
+          <span class="trend-dot"></span>
+        </div>
       </div>
       <div class="stat-card stat-active">
         <div class="stat-icon-box">
-          <el-icon :size="20"><CircleCheckFilled /></el-icon>
+          <el-icon :size="22"><CircleCheckFilled /></el-icon>
         </div>
         <div class="stat-info">
-          <div class="stat-num">{{ doctors.filter((d) => d.status === 1).length }}</div>
+          <div class="stat-num">{{ doctors.filter(d => d.status === 1).length }}</div>
           <div class="stat-label">已启用</div>
         </div>
       </div>
       <div class="stat-card stat-inactive">
         <div class="stat-icon-box">
-          <el-icon :size="20"><CircleCloseFilled /></el-icon>
+          <el-icon :size="22"><CircleCloseFilled /></el-icon>
         </div>
         <div class="stat-info">
-          <div class="stat-num">{{ doctors.filter((d) => d.status === 0).length }}</div>
+          <div class="stat-num">{{ doctors.filter(d => d.status === 0).length }}</div>
           <div class="stat-label">已停用</div>
         </div>
       </div>
     </div>
 
+    <!-- 医生表格 -->
     <div class="card">
       <div class="card-head">
         <span>医生列表</span>
         <span class="card-head-count">共 {{ filteredDoctors.length }} 条</span>
       </div>
-
       <el-table
         :data="filteredDoctors"
         stripe
-        class="doctor-table"
+        style="width: 100%"
         v-loading="loading"
         element-loading-text="加载中..."
+        class="doctor-table"
         empty-text="暂无医生数据"
       >
-        <el-table-column type="index" label="#" width="52" align="center" />
-        <el-table-column prop="name" label="姓名" min-width="96" />
-        <el-table-column label="性别" width="72" align="center">
+        <el-table-column type="index" label="#" width="44" align="center" />
+        <el-table-column prop="name" label="姓名" min-width="90" />
+        <el-table-column label="性别" width="60" align="center">
           <template #default="{ row }">
-            <span class="gender-tag" :class="row.gender === 1 ? 'male' : row.gender === 2 ? 'female' : 'unknown'">
-              {{ row.gender === 1 ? '男' : row.gender === 2 ? '女' : '未知' }}
-            </span>
+            <span class="gender-tag" :class="row.gender === 1 ? 'male' : row.gender === 2 ? 'female' : ''">{{ row.gender === 1 ? '男' : row.gender === 2 ? '女' : '—' }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="phone" label="手机号" width="124" />
-        <el-table-column prop="email" label="邮箱" min-width="180" show-overflow-tooltip />
-        <el-table-column prop="position" label="职称" width="104" show-overflow-tooltip />
-        <el-table-column prop="deptName" label="科室" width="96" show-overflow-tooltip />
-        <el-table-column label="状态" width="92" align="center">
+        <el-table-column prop="phone" label="手机号" width="120" />
+        <el-table-column prop="email" label="邮箱" min-width="130" show-overflow-tooltip />
+        <el-table-column prop="position" label="职称" width="90" />
+        <el-table-column prop="deptName" label="科室" width="90" />
+        <el-table-column label="状态" width="70" align="center">
           <template #default="{ row }">
             <span class="status-badge" :class="row.status === 1 ? 'active' : 'inactive'">
-              <span class="status-dot"></span>
-              <span class="status-text">{{ row.status === 1 ? '启用' : '停用' }}</span>
+              <span class="status-dot"></span>{{ row.status === 1 ? '启用' : '停用' }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="创建时间" width="146">
+        <el-table-column label="创建时间" min-width="150">
           <template #default="{ row }">
-            <span class="time-text">{{ row.createTime || '-' }}</span>
+            <span class="time-text">{{ row.createTime }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="188" align="center">
+        <el-table-column label="操作" width="180">
           <template #default="{ row }">
             <div class="action-btns">
               <el-button text type="primary" size="small" @click="openEditDialog(row)">编辑</el-button>
-              <el-button
-                text
-                :type="row.status === 1 ? 'warning' : 'success'"
-                size="small"
-                @click="toggleStatus(row)"
-              >
-                {{ row.status === 1 ? '停用' : '启用' }}
-              </el-button>
+              <el-button text :type="row.status === 1 ? 'warning' : 'success'" size="small" @click="toggleStatus(row)">{{ row.status === 1 ? '停用' : '启用' }}</el-button>
               <el-popconfirm title="确定删除该医生？此操作不可恢复。" @confirm="handleDelete(row.doctorId)">
                 <template #reference>
                   <el-button text type="danger" size="small">删除</el-button>
@@ -120,6 +115,7 @@
       </el-table>
     </div>
 
+    <!-- 新增/编辑对话框 -->
     <el-dialog
       v-model="dialogVisible"
       :title="isEdit ? '编辑医生信息' : '新增医生账号'"
@@ -130,9 +126,8 @@
     >
       <div class="dialog-tip">
         <el-icon :size="16"><InfoFilled /></el-icon>
-        <span>{{ isEdit ? '修改后点击保存即可生效。' : '创建后默认密码为 123456，医生可登录后自行修改。' }}</span>
+        <span>{{ isEdit ? '修改医生信息后，点击确认保存更改。' : '创建医生账号后，默认密码为123456，医生可自行修改。' }}</span>
       </div>
-
       <el-form :model="form" label-position="top" ref="formRef" :rules="rules" class="dialog-form">
         <el-row :gutter="24">
           <el-col :span="12">
@@ -159,7 +154,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="职称" prop="position">
+            <el-form-item label="职称 / 职位" prop="position">
               <el-select v-model="form.position" placeholder="请选择职称" style="width: 100%">
                 <el-option label="主任医师" value="主任医师" />
                 <el-option label="副主任医师" value="副主任医师" />
@@ -172,13 +167,18 @@
           <el-col :span="12">
             <el-form-item label="所属科室" prop="departmentId">
               <el-select v-model="form.departmentId" placeholder="请选择科室" style="width: 100%">
-                <el-option v-for="dept in deptList" :key="dept.deptId" :label="dept.deptName" :value="dept.deptId" />
+                <el-option
+                  v-for="d in deptList"
+                  :key="d.deptId"
+                  :label="d.deptName"
+                  :value="d.deptId"
+                />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="24">
             <el-form-item label="擅长领域">
-              <el-input v-model="form.goodAt" placeholder="例如：脑科常见病、慢病管理" />
+              <el-input v-model="form.goodAt" placeholder="如：心血管疾病、内分泌代谢等" />
             </el-form-item>
           </el-col>
           <el-col :span="24">
@@ -188,7 +188,6 @@
           </el-col>
         </el-row>
       </el-form>
-
       <template #footer>
         <div class="dialog-footer">
           <el-button @click="dialogVisible = false" size="large">取消</el-button>
@@ -202,18 +201,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
-  CircleCheckFilled,
-  CircleCloseFilled,
-  InfoFilled,
-  Plus,
-  Search,
-  User,
-  UserFilled,
+  UserFilled, Plus, User, CircleCheckFilled, CircleCloseFilled,
+  InfoFilled, Search
 } from '@element-plus/icons-vue'
-import { addDoctor, deleteDoctor, getDoctorList, updateDoctor } from '@/api/admin/doctor'
+import { getDoctorList, addDoctor, updateDoctor, deleteDoctor } from '@/api/admin/doctor'
 import { getDeptList } from '@/api/admin/dept'
 
 interface DoctorItem {
@@ -268,9 +262,11 @@ const rules = {
 }
 
 const filteredDoctors = computed(() => {
-  const keyword = searchKeyword.value.trim().toLowerCase()
-  if (!keyword) return doctors.value
-  return doctors.value.filter((doctor) => doctor.name.toLowerCase().includes(keyword) || doctor.phone.includes(keyword))
+  const kw = searchKeyword.value.trim().toLowerCase()
+  if (!kw) return doctors.value
+  return doctors.value.filter(
+    d => d.name.toLowerCase().includes(kw) || d.phone.includes(kw)
+  )
 })
 
 onMounted(async () => {
@@ -282,21 +278,23 @@ async function fetchDoctors() {
   try {
     const res = await getDoctorList()
     doctors.value = res.data || []
-  } finally {
-    loading.value = false
-  }
+  } catch { /* 拦截器已处理 */ }
+  finally { loading.value = false }
 }
 
 async function fetchDepts() {
-  const res = await getDeptList()
-  deptList.value = res.data || []
+  try {
+    const res = await getDeptList()
+    deptList.value = res.data || []
+  } catch { /* 忽略 */ }
 }
 
 function handleSearch() {
-  // computed list reacts automatically
+  // computed 自动响应
 }
 
-function resetForm() {
+function openAddDialog() {
+  isEdit.value = false
   form.doctorId = ''
   form.name = ''
   form.gender = null
@@ -306,11 +304,6 @@ function resetForm() {
   form.goodAt = ''
   form.introduction = ''
   form.departmentId = ''
-}
-
-function openAddDialog() {
-  isEdit.value = false
-  resetForm()
   formRef.value?.clearValidate()
   dialogVisible.value = true
 }
@@ -333,93 +326,97 @@ function openEditDialog(row: DoctorItem) {
 async function handleSubmit() {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
-
   submitting.value = true
   try {
     if (isEdit.value) {
       await updateDoctor({ ...form, status: 1, gender: form.gender ?? 0 })
-      ElMessage.success('医生信息已更新')
+      ElMessage.success({ message: '医生信息已更新', icon: '✅' })
     } else {
       await addDoctor({ ...form, gender: form.gender ?? 0 })
-      ElMessage.success('医生账号已创建')
+      ElMessage.success({ message: '医生账号已创建（默认密码: 123456）', icon: '✅' })
     }
     dialogVisible.value = false
     await fetchDoctors()
-  } finally {
-    submitting.value = false
-  }
+  } catch { /* 拦截器已处理 */ }
+  finally { submitting.value = false }
 }
 
 async function handleDelete(doctorId: string) {
-  await deleteDoctor(doctorId)
-  ElMessage.success('医生已删除')
-  await fetchDoctors()
+  try {
+    await deleteDoctor(doctorId)
+    ElMessage.success({ message: '医生已删除', icon: '🗑️' })
+    await fetchDoctors()
+  } catch { /* 拦截器已处理 */ }
 }
 
 async function toggleStatus(row: DoctorItem) {
   const newStatus = row.status === 1 ? 0 : 1
-  await updateDoctor({
-    doctorId: row.doctorId,
-    name: row.name,
-    gender: row.gender,
-    phone: row.phone,
-    email: row.email,
-    position: row.position,
-    goodAt: row.goodAt,
-    introduction: row.introduction,
-    departmentId: row.departmentId,
-    status: newStatus,
-  })
-  ElMessage.success(newStatus === 1 ? '医生账号已启用' : '医生账号已停用')
-  await fetchDoctors()
+  try {
+    await updateDoctor({
+      doctorId: row.doctorId,
+      name: row.name,
+      gender: row.gender,
+      phone: row.phone,
+      email: row.email,
+      position: row.position,
+      goodAt: row.goodAt,
+      introduction: row.introduction,
+      departmentId: row.departmentId,
+      status: newStatus,
+    })
+    ElMessage.success({ message: newStatus === 1 ? '医生账号已启用' : '医生账号已停用', icon: '✅' })
+    await fetchDoctors()
+  } catch { /* 拦截器已处理 */ }
 }
 </script>
 
 <style scoped>
+/* ========== 页面布局 ========== */
 .page {
-  padding: 28px 32px 36px;
+  padding: 28px 36px;
+  animation: fadeIn 0.3s ease;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
+/* ========== 页面头部 ========== */
 .page-top {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 18px;
-  margin-bottom: 24px;
+  margin-bottom: 28px;
   flex-wrap: wrap;
+  gap: 16px;
 }
-
 .page-top-left {
   display: flex;
   align-items: center;
   gap: 14px;
 }
-
 .page-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, #315fbb, #4f8df7);
-  color: #fff;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 12px 24px rgba(49, 95, 187, 0.22);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
   flex-shrink: 0;
 }
-
 .page-top h2 {
-  margin: 0;
-  color: #16304d;
-  font-size: 24px;
-  font-weight: 800;
-  letter-spacing: -0.03em;
+  font-size: 22px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.3px;
 }
-
 .top-sub {
-  margin: 6px 0 0;
-  color: #73859b;
   font-size: 13px;
+  color: #94a3b8;
+  margin-top: 3px;
 }
 
 .header-actions {
@@ -427,255 +424,273 @@ async function toggleStatus(row: DoctorItem) {
   align-items: center;
   gap: 12px;
 }
-
 .search-input {
-  width: 260px;
+  width: 240px;
 }
-
 .search-input :deep(.el-input__wrapper) {
-  border-radius: 14px;
-  box-shadow: 0 0 0 1px #dce6f2 inset;
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  transition: box-shadow 0.2s;
 }
-
+.search-input :deep(.el-input__wrapper:hover),
 .search-input :deep(.el-input__wrapper.is-focus) {
-  box-shadow: 0 0 0 3px rgba(49, 95, 187, 0.12), 0 0 0 1px #315fbb inset;
+  box-shadow: 0 0 0 2px rgba(59,130,246,0.15);
 }
 
+/* ========== 统计卡片 ========== */
 .stat-row {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 16px;
-  margin-bottom: 22px;
+  margin-bottom: 24px;
 }
-
-.stat-card,
-.card {
-  border-radius: 22px;
-  border: 1px solid rgba(219, 228, 240, 0.95);
-  background: #fff;
-  box-shadow: 0 16px 36px rgba(31, 41, 55, 0.06);
-}
-
 .stat-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 22px 24px;
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 20px 22px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03);
+  transition: transform 0.2s, box-shadow 0.2s;
+  position: relative;
+  overflow: hidden;
 }
-
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.06);
+}
 .stat-icon-box {
-  width: 50px;
-  height: 50px;
-  border-radius: 16px;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
   flex-shrink: 0;
 }
-
 .stat-total .stat-icon-box {
-  background: linear-gradient(135deg, #315fbb, #4f8df7);
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(59,130,246,0.25);
 }
-
 .stat-active .stat-icon-box {
-  background: linear-gradient(135deg, #16a34a, #4ade80);
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(34,197,94,0.25);
 }
-
 .stat-inactive .stat-icon-box {
-  background: linear-gradient(135deg, #d97706, #f59e0b);
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(245,158,11,0.25);
 }
-
+.stat-info {
+  flex: 1;
+}
 .stat-num {
-  color: #16304d;
   font-size: 26px;
   font-weight: 800;
-  line-height: 1.1;
+  color: #0f172a;
+  line-height: 1.2;
+  letter-spacing: -0.5px;
 }
-
 .stat-label {
-  margin-top: 6px;
-  color: #6b7f98;
   font-size: 13px;
-  font-weight: 700;
+  color: #94a3b8;
+  margin-top: 3px;
 }
+.stat-trend {
+  position: absolute;
+  right: 16px;
+  top: 16px;
+}
+.trend-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.stat-total .trend-dot { background: #3b82f6; }
 
+/* ========== 表格卡片 ========== */
 .card {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03);
   overflow: hidden;
 }
-
 .card-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 18px 22px 0;
-  color: #16304d;
-  font-size: 16px;
-  font-weight: 800;
+  padding: 18px 24px 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1e293b;
 }
-
 .card-head-count {
-  height: 28px;
-  padding: 0 12px;
-  border-radius: 999px;
-  background: #f3f7fc;
-  color: #8aa0bb;
   font-size: 12px;
-  font-weight: 700;
-  display: inline-flex;
-  align-items: center;
+  font-weight: 400;
+  color: #94a3b8;
+  background: #f1f5f9;
+  padding: 2px 10px;
+  border-radius: 10px;
 }
 
+/* ========== 表格样式 ========== */
 .doctor-table :deep(.el-table__header th) {
-  background: #f7faff;
+  background: #f8fafc;
   color: #64748b;
-  font-size: 13px;
-  font-weight: 700;
-  border-bottom: 1px solid #e6edf5;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.3px;
+  padding: 12px 8px;
+  border-bottom: 1px solid #e2e8f0;
 }
-
 .doctor-table :deep(.el-table__body td) {
-  padding: 16px 8px;
+  padding: 14px 8px;
   font-size: 13px;
   color: #334155;
 }
-
-.doctor-table :deep(.el-table__row:hover) {
-  background: #fbfdff !important;
+.doctor-table :deep(.el-table__row) {
+  transition: background 0.15s;
 }
-
-.gender-tag,
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  white-space: nowrap;
-  font-size: 12px;
-  font-weight: 700;
+.doctor-table :deep(.el-table__row:hover) {
+  background: #f8fafc !important;
+}
+.doctor-table :deep(.el-table__row--striped) {
+  background: #fafbfc;
+}
+.doctor-table :deep(.el-table__empty-text) {
+  color: #94a3b8;
+  font-size: 14px;
+  padding: 40px 0;
+}
+.doctor-table :deep(.el-loading-mask) {
+  border-radius: 0 0 14px 14px;
 }
 
 .gender-tag {
-  min-width: 44px;
-  height: 28px;
-  padding: 0 10px;
-  border-radius: 999px;
-}
-
-.gender-tag.male {
-  color: #2563eb;
-  background: #dbeafe;
-}
-
-.gender-tag.female {
-  color: #db2777;
-  background: #fce7f3;
-}
-
-.gender-tag.unknown {
-  color: #64748b;
-  background: #e2e8f0;
-}
-
-.status-badge {
-  min-width: 58px;
-  height: 28px;
-  padding: 0 10px;
-  border-radius: 999px;
-}
-
-.status-badge.active {
-  color: #16a34a;
-  background: #dcfce7;
-}
-
-.status-badge.inactive {
-  color: #d97706;
-  background: #fef3c7;
-}
-
-.status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.status-badge.active .status-dot {
-  background: #22c55e;
-}
-
-.status-badge.inactive .status-dot {
-  background: #f59e0b;
-}
-
-.status-text {
-  white-space: nowrap;
-}
-
-.time-text {
-  color: #7f93ab;
-  font-size: 12px;
-}
-
-.action-btns {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  white-space: nowrap;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 600;
+}
+.gender-tag.male {
+  background: #dbeafe;
+  color: #2563eb;
+}
+.gender-tag.female {
+  background: #fce7f3;
+  color: #db2777;
 }
 
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 12px;
+}
+.status-badge.active {
+  background: #dcfce7;
+  color: #16a34a;
+}
+.status-badge.inactive {
+  background: #fef3c7;
+  color: #d97706;
+}
+.status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+.status-badge.active .status-dot {
+  background: #22c55e;
+  box-shadow: 0 0 4px rgba(34,197,94,0.4);
+}
+.status-badge.inactive .status-dot {
+  background: #f59e0b;
+  box-shadow: 0 0 4px rgba(245,158,11,0.4);
+}
+
+.time-text {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.action-btns {
+  display: flex;
+  gap: 4px;
+}
+.action-btns .el-button {
+  font-size: 12px;
+  padding: 4px 6px;
+}
+
+/* ========== 对话框样式 ========== */
 .form-dialog :deep(.el-dialog__header) {
   padding: 24px 28px 0;
+  font-size: 17px;
+  font-weight: 700;
 }
-
 .form-dialog :deep(.el-dialog__body) {
   padding: 16px 28px 8px;
 }
-
 .form-dialog :deep(.el-dialog__footer) {
   padding: 8px 28px 24px;
+  border-top: none;
 }
 
 .dialog-tip {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 20px;
-  padding: 10px 14px;
-  border: 1px solid #d8e5f4;
-  border-radius: 12px;
-  background: #f5f9ff;
-  color: #5c718e;
   font-size: 13px;
-  line-height: 1.6;
+  color: #64748b;
+  background: #f0f9ff;
+  border: 1px solid #b8d4fe;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 20px;
+  line-height: 1.5;
 }
-
 .dialog-tip .el-icon {
-  color: #315fbb;
+  color: #3b82f6;
   flex-shrink: 0;
+}
+.dialog-tip :deep(b) {
+  color: #1e293b;
+  font-weight: 700;
 }
 
 .dialog-form :deep(.el-form-item) {
   margin-bottom: 18px;
 }
-
 .dialog-form :deep(.el-form-item__label) {
-  color: #536781;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
+  color: #475569;
+  padding-bottom: 4px;
 }
-
 .dialog-form :deep(.el-input__wrapper),
-.dialog-form :deep(.el-textarea__inner) {
-  border-radius: 12px;
-  box-shadow: 0 0 0 1px #dce6f2 inset;
+.dialog-form :deep(.el-select__wrapper) {
+  border-radius: 8px;
+  transition: box-shadow 0.2s;
 }
-
+.dialog-form :deep(.el-input__wrapper:hover),
+.dialog-form :deep(.el-select__wrapper:hover) {
+  box-shadow: 0 0 0 1px rgba(59,130,246,0.3);
+}
 .dialog-form :deep(.el-input__wrapper.is-focus),
-.dialog-form :deep(.el-textarea__inner:focus) {
-  box-shadow: 0 0 0 3px rgba(49, 95, 187, 0.12), 0 0 0 1px #315fbb inset;
+.dialog-form :deep(.el-select__wrapper.is-focus) {
+  box-shadow: 0 0 0 2px rgba(59,130,246,0.15);
 }
 
 .dialog-footer {
@@ -683,31 +698,17 @@ async function toggleStatus(row: DoctorItem) {
   justify-content: flex-end;
   gap: 10px;
 }
-
-@media (max-width: 980px) {
-  .stat-row {
-    grid-template-columns: 1fr;
-  }
+.dialog-footer .el-button {
+  min-width: 100px;
+  border-radius: 8px;
 }
 
-@media (max-width: 768px) {
-  .page {
-    padding: 18px 16px 24px;
-  }
-
-  .page-top {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .header-actions {
-    width: 100%;
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .search-input {
-    width: 100%;
-  }
+/* ========== 响应式适配 ========== */
+@media (max-width: 900px) {
+  .page { padding: 20px; }
+  .page-top { flex-direction: column; }
+  .header-actions { width: 100%; }
+  .search-input { flex: 1; }
+  .stat-row { grid-template-columns: 1fr; }
 }
 </style>

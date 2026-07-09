@@ -18,7 +18,6 @@ public class MedicalReport {
     private String conclusion;
     private String abnormalFlag;
     private String attachmentUrl;
-    private String aiResultJson;
     private String reportDoctorId;
     private String status;
     private LocalDateTime performedTime;
@@ -43,8 +42,6 @@ public class MedicalReport {
     public void setAbnormalFlag(String abnormalFlag) { this.abnormalFlag = abnormalFlag; }
     public String getAttachmentUrl() { return attachmentUrl; }
     public void setAttachmentUrl(String attachmentUrl) { this.attachmentUrl = attachmentUrl; }
-    public String getAiResultJson() { return aiResultJson; }
-    public void setAiResultJson(String aiResultJson) { this.aiResultJson = aiResultJson; }
     public String getReportDoctorId() { return reportDoctorId; }
     public void setReportDoctorId(String reportDoctorId) { this.reportDoctorId = reportDoctorId; }
     public String getStatus() { return status; }

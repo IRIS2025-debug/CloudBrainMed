@@ -1,9 +1,9 @@
 package com.cloudbrainmed.admin.controller;
 
 import com.cloudbrainmed.admin.service.DoctorManageService;
-import com.cloudbrainmed.admin.support.AdminAuthHelper;
 import com.cloudbrainmed.admin.vo.DoctorManageVo;
 import com.cloudbrainmed.common.result.Result;
+import com.cloudbrainmed.common.utils.DoctorJwtUtil;
 import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,16 +17,11 @@ public class UserManageController {
     @Resource
     private DoctorManageService doctorManageService;
 
-    @Resource
-    private AdminAuthHelper adminAuthHelper;
-
     /**
      * 获取医生列表
      */
     @GetMapping("/list")
-    public Result<List<DoctorManageVo>> list(
-            @RequestHeader(value = "token", required = false) String token) {
-        adminAuthHelper.requireAdmin(token);
+    public Result<List<DoctorManageVo>> list() {
         return Result.ok(doctorManageService.listAll());
     }
 
@@ -34,10 +29,7 @@ public class UserManageController {
      * 根据ID获取医生详情
      */
     @GetMapping("/detail/{doctorId}")
-    public Result<DoctorManageVo> detail(
-            @RequestHeader(value = "token", required = false) String token,
-            @PathVariable String doctorId) {
-        adminAuthHelper.requireAdmin(token);
+    public Result<DoctorManageVo> detail(@PathVariable String doctorId) {
         return Result.ok(doctorManageService.getById(doctorId));
     }
 
@@ -45,10 +37,7 @@ public class UserManageController {
      * 新增医生
      */
     @PostMapping("/add")
-    public Result<?> add(
-            @RequestHeader(value = "token", required = false) String token,
-            @RequestBody Map<String, Object> body) {
-        adminAuthHelper.requireAdmin(token);
+    public Result<?> add(@RequestBody Map<String, Object> body) {
         doctorManageService.addDoctor(
                 (String) body.get("name"),
                 body.get("gender") != null ? Integer.valueOf(body.get("gender").toString()) : null,
@@ -66,10 +55,7 @@ public class UserManageController {
      * 修改医生
      */
     @PutMapping("/update")
-    public Result<?> update(
-            @RequestHeader(value = "token", required = false) String token,
-            @RequestBody Map<String, Object> body) {
-        adminAuthHelper.requireAdmin(token);
+    public Result<?> update(@RequestBody Map<String, Object> body) {
         doctorManageService.updateDoctor(
                 (String) body.get("doctorId"),
                 (String) body.get("name"),
@@ -89,10 +75,7 @@ public class UserManageController {
      * 删除医生（软删除）
      */
     @DeleteMapping("/delete/{doctorId}")
-    public Result<?> delete(
-            @RequestHeader(value = "token", required = false) String token,
-            @PathVariable String doctorId) {
-        adminAuthHelper.requireAdmin(token);
+    public Result<?> delete(@PathVariable String doctorId) {
         doctorManageService.deleteDoctor(doctorId);
         return Result.ok();
     }

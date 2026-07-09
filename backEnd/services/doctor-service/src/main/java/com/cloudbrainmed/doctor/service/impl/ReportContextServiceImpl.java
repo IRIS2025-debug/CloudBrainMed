@@ -18,8 +18,13 @@ public class ReportContextServiceImpl implements ReportContextService {
 
     @Override
     public ReportContextDto getContext(String registerId, String doctorId) {
-        ConsultRecord detail = ConsultAccessGuard.requireActionAccess(
-                consultMapper, registerId, doctorId);
+        ConsultRecord detail = consultMapper.findDetail(registerId);
+        if (detail == null) {
+            throw new BusinessException("就诊记录不存在");
+        }
+        if (doctorId == null || !doctorId.equals(detail.getDoctorId())) {
+            throw new BusinessException("无权访问该患者的接诊信息");
+        }
         if ("COMPLETED".equals(detail.getConsultStatus())) {
             throw new BusinessException("接诊已完成，不能再次发起AI分析");
         }
