@@ -34,7 +34,7 @@ public class PatientProfileServiceImpl implements PatientProfileService {
     private final PatientMapper patientMapper;
     private final AuthFeignClient authFeignClient;
 
-    @Value("${upload.avatar.patient-dir:${user.dir}/uploads/avatar/patient}")
+    @Value("${upload.avatar.patient-dir:${user.dir}/upload/avatar}")
     private String avatarUploadDir;
 
     public PatientProfileServiceImpl(PatientMapper patientMapper, AuthFeignClient authFeignClient) {
@@ -73,7 +73,7 @@ public class PatientProfileServiceImpl implements PatientProfileService {
         validateAvatar(fileBytes, originalFilename);
 
         String ext = originalFilename.substring(originalFilename.lastIndexOf(".")).toLowerCase(Locale.ROOT);
-        String filename = patientId + "_" + UUID.randomUUID().toString().replace("-", "") + ext;
+        String filename = patientId + ext;
         try {
             Path dir = Paths.get(avatarUploadDir);
             Files.createDirectories(dir);
@@ -81,7 +81,7 @@ public class PatientProfileServiceImpl implements PatientProfileService {
         } catch (IOException e) {
             throw new BusinessException("\u5934\u50cf\u4e0a\u4f20\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5");
         }
-        String avatarUrl = "/files/avatar/patient/" + filename;
+        String avatarUrl = "/avatar/" + filename;
         patientMapper.updateAvatar(patientId, avatarUrl);
         return avatarUrl;
     }

@@ -4,6 +4,7 @@ import promptAction from '@ohos.promptAction';
 import router from '@ohos.router';
 import picker from '@ohos.file.picker';
 import fs from '@ohos.file.fs';
+import util from '@ohos.util';
 import { BusinessError } from '@ohos.base';
 import { APIConfig } from '../common/APIConfig';
 import { PatientManager } from '../common/PatientManager';
@@ -84,7 +85,7 @@ export struct PersonalCenter {
   @State showPasswordDialog: boolean = false;
   @State oldPassword: string = '';
   @State newPassword: string = '';
-
+  @State confirmPassword: string = '';
 
   @State showVerifyCodeHint: boolean = false;
   @State displayedVerifyCode: string = '';
@@ -156,7 +157,8 @@ export struct PersonalCenter {
     const avatar = raw['avatar'] as string;
     let avatarUrl = raw['avatarUrl'] as string || '';
     if (!avatarUrl && avatar) {
-      avatarUrl = avatar.startsWith('http') ? avatar : `${APIConfig.BASE_URL}:8004${avatar}`;
+      const resolvedAvatar: string = avatar.startsWith('http') ? avatar : `${APIConfig.BASE_URL}:8004${avatar}`;
+      avatarUrl = `${resolvedAvatar}${resolvedAvatar.includes('?') ? '&' : '?'}t=${Date.now()}`;
     }
     const birthday = (raw['birthday'] as string) || '';
     const profile: PatientProfile = {
@@ -274,6 +276,22 @@ export struct PersonalCenter {
         patientId: this.patientId
       }
     });
+  }
+
+  private openPhoneDialog(): void {
+    this.oldPhone = this.profileData.phone;
+    this.newPhone = '';
+    this.smsCode = '';
+    this.showVerifyCodeHint = false;
+    this.displayedVerifyCode = '';
+    this.showPhoneDialog = true;
+  }
+
+  private openPasswordDialog(): void {
+    this.oldPassword = '';
+    this.newPassword = '';
+    this.confirmPassword = '';
+    this.showPasswordDialog = true;
   }
 
   // ==================== 修改手机号 ====================
@@ -398,12 +416,16 @@ export struct PersonalCenter {
   // ==================== 修改密码 ====================
 
   async changePassword() {
-    if (!this.oldPassword || !this.newPassword) {
+    if (!this.oldPassword || !this.newPassword || !this.confirmPassword) {
       promptAction.showToast({ message: '请填写完整信息' });
       return;
     }
     if (this.newPassword.length < 6) {
       promptAction.showToast({ message: '新密码长度不能少于6位' });
+      return;
+    }
+    if (this.newPassword !== this.confirmPassword) {
+      promptAction.showToast({ message: '两次输入的新密码不一致' });
       return;
     }
 
@@ -415,7 +437,9 @@ export struct PersonalCenter {
         {
           method: http.RequestMethod.POST,
           header: { 'Content-Type': 'application/json', 'token': token },
-          extraData: { oldPassword: this.oldPassword, newPassword: this.newPassword }
+          extraData: { oldPassword: this.oldPassword, newPassword: this.newPassword },
+          connectTimeout: 10000,
+          readTimeout: 10000
         }
       );
 
@@ -424,11 +448,16 @@ export struct PersonalCenter {
         if (result['code'] === 200) {
           promptAction.showToast({ message: '密码修改成功，请重新登录' });
           this.showPasswordDialog = false;
+          this.oldPassword = '';
+          this.newPassword = '';
+          this.confirmPassword = '';
           await PatientManager.clearSession(getContext(this));
           router.replaceUrl({ url: 'pages/login/LoginPage' });
         } else {
           promptAction.showToast({ message: (result['msg'] as string) || '修改失败' });
         }
+      } else {
+        promptAction.showToast({ message: '网络异常，请重试' });
       }
       httpRequest.destroy();
     } catch (error) {
@@ -593,6 +622,8 @@ export struct PersonalCenter {
         .width(16)
         .height(16)
         .fillColor('#CCCCCC')
+        .hitTestBehavior(HitTestMode.Transparent)
+        .onClick(() => { item.action(); })
     }
     .width('100%')
     .height(72)
@@ -601,6 +632,7 @@ export struct PersonalCenter {
       width: { bottom: isLast ? 0 : 0.5 },
       color: '#F0F0F0'
     })
+    .hitTestBehavior(HitTestMode.Transparent)
     .onClick(() => { item.action(); })
   }
 
@@ -623,10 +655,7 @@ export struct PersonalCenter {
       icon: '📱',
       desc: '更换绑定的手机号码',
       action: () => {
-        this.oldPhone = this.profileData.phone;
-        this.newPhone = '';
-        this.smsCode = '';
-        this.showPhoneDialog = true;
+        this.openPhoneDialog();
       }
     },
     {
@@ -634,9 +663,7 @@ export struct PersonalCenter {
       icon: '🔒',
       desc: '修改账户登录密码',
       action: () => {
-        this.oldPassword = '';
-        this.newPassword = '';
-        this.showPasswordDialog = true;
+        this.openPasswordDialog();
       }
     },
     {
@@ -678,44 +705,109 @@ export struct PersonalCenter {
 
   // ==================== 上传头像 ====================
 
+  private async pickAvatarImage(): Promise<string> {
+    const photoPicker = new picker.PhotoViewPicker();
+    const photoResult = await photoPicker.select({
+      MIMEType: picker.PhotoViewMIMETypes.IMAGE_TYPE,
+      maxSelectNumber: 1
+    });
+    if (!photoResult || !photoResult.photoUris || photoResult.photoUris.length === 0) {
+      throw new Error('用户取消选择');
+    }
+    return photoResult.photoUris[0];
+  }
+
+  private buildMultipartBody(boundary: string, fileName: string, fileBytes: ArrayBuffer): ArrayBuffer {
+    const encoder: util.TextEncoder = new util.TextEncoder();
+    const crlf: string = '\r\n';
+    const contentType: string = fileName.endsWith('.png') ? 'image/png' : (fileName.endsWith('.webp') ? 'image/webp' : 'image/jpeg');
+    const head: string = `--${boundary}${crlf}` +
+      `Content-Disposition: form-data; name="file"; filename="${fileName}"${crlf}` +
+      `Content-Type: ${contentType}${crlf}${crlf}`;
+    const tail: string = `${crlf}--${boundary}--${crlf}`;
+    const headBytes: Uint8Array = encoder.encode(head);
+    const tailBytes: Uint8Array = encoder.encode(tail);
+    const fileBytesView: Uint8Array = new Uint8Array(fileBytes);
+    const bodyBytes: Uint8Array = new Uint8Array(headBytes.length + fileBytesView.length + tailBytes.length);
+    bodyBytes.set(headBytes, 0);
+    bodyBytes.set(fileBytesView, headBytes.length);
+    bodyBytes.set(tailBytes, headBytes.length + fileBytesView.length);
+    return bodyBytes.buffer;
+  }
+
   async uploadAvatar() {
     try {
-      const photoPicker = new picker.PhotoViewPicker();
-      const photoResult = await photoPicker.select({
-        MIMEType: picker.PhotoViewMIMETypes.IMAGE_TYPE,
-        maxSelectNumber: 1
+      promptAction.showDialog({
+        title: '更换头像',
+        message: '是否更换头像？',
+        buttons: [
+          { text: '取消', color: '#666666' },
+          { text: '确认', color: '#007AFF' }
+        ]
+      }).then(async (value) => {
+        if (value.index !== 1) return;
+        try {
+          const uri = await this.pickAvatarImage();
+          const file = fs.openSync(uri, fs.OpenMode.READ_ONLY);
+          const stat = fs.statSync(file.fd);
+          if (stat.size <= 0) {
+            fs.closeSync(file);
+            promptAction.showToast({ message: '图片为空' });
+            return;
+          }
+          const buffer = new ArrayBuffer(stat.size);
+          fs.readSync(file.fd, buffer);
+          fs.closeSync(file);
+
+          const boundary = `----CloudBrainMed${Date.now()}`;
+          const fileName = uri.includes('.png') ? 'avatar.png' : (uri.includes('.webp') ? 'avatar.webp' : 'avatar.jpg');
+          const body = this.buildMultipartBody(boundary, fileName, buffer);
+          const httpRequest = http.createHttp();
+          const response = await httpRequest.request(
+            this.baseUrl + `/profile/avatar/upload`,
+            {
+              method: http.RequestMethod.POST,
+              header: {
+                'Content-Type': `multipart/form-data; boundary=${boundary}`,
+                'Accept': 'application/json',
+                'token': this.getToken()
+              },
+              extraData: body,
+              connectTimeout: 15000,
+              readTimeout: 15000
+            }
+          );
+
+          if (response.responseCode === 200) {
+            const result: Record<string, Object> = JSON.parse(response.result as string);
+            if (result['code'] === 200 && result['data']) {
+              const data = result['data'] as Record<string, Object>;
+              const avatar = (data['avatar'] as string) || (data['avatarUrl'] as string) || '';
+              if (avatar) {
+                const resolvedAvatar: string = avatar.startsWith('http') ? avatar : `${APIConfig.BASE_URL}:8004${avatar}`;
+                this.profileData.avatarUrl = `${resolvedAvatar}${resolvedAvatar.includes('?') ? '&' : '?'}t=${Date.now()}`;
+                this.syncLocalPatientInfo();
+                this.loadProfileData();
+                promptAction.showToast({ message: '头像上传成功' });
+              } else {
+                promptAction.showToast({ message: '上传成功但未返回头像地址' });
+              }
+            } else {
+              promptAction.showToast({ message: (result['msg'] as string) || '头像上传失败' });
+            }
+          } else {
+            promptAction.showToast({ message: `上传失败 (${response.responseCode})` });
+          }
+          httpRequest.destroy();
+        } catch (innerError) {
+          const msg = String(innerError);
+          if (!msg.includes('用户取消选择')) {
+            promptAction.showToast({ message: '上传头像失败，请重试' });
+          }
+        }
       });
-      if (photoResult.photoUris.length === 0) return;
-
-      const uri = photoResult.photoUris[0];
-      const file = fs.openSync(uri, fs.OpenMode.READ_ONLY);
-      const stat = fs.statSync(file.fd);
-      const buffer = new ArrayBuffer(stat.size);
-      fs.readSync(file.fd, buffer);
-      fs.closeSync(file);
-
-      const token = this.getToken();
-      const httpRequest = http.createHttp();
-      const response = await httpRequest.request(
-        this.baseUrl + `/profile/avatar-upload`,
-        {
-          method: http.RequestMethod.POST,
-          header: { 'Content-Type': 'multipart/form-data', 'token': token },
-          extraData: buffer
-        }
-      );
-
-      if (response.responseCode === 200) {
-        const result: Record<string, Object> = JSON.parse(response.result as string);
-        if (result['code'] === 200) {
-          const data = result['data'] as Record<string, Object>;
-          this.profileData.avatarUrl = data['avatarUrl'] as string;
-          promptAction.showToast({ message: '头像上传成功' });
-        }
-      }
-      httpRequest.destroy();
     } catch (error) {
-      promptAction.showToast({ message: '上传头像失败' });
+      promptAction.showToast({ message: '上传头像失败，请重试' });
     }
   }
 
@@ -862,6 +954,16 @@ export struct PersonalCenter {
             .type(InputType.Password)
             .onChange((value: string) => { this.newPassword = value; })
         }
+        .width('100%').margin({ bottom: 12 })
+
+        Row() {
+          Text('确认密码').fontSize(14).fontColor('#8C8C8C').width(80)
+          TextInput({ text: this.confirmPassword, placeholder: '请再次输入新密码' })
+            .layoutWeight(1).height(40).fontSize(14)
+            .backgroundColor('#F5F6FA').borderRadius(4)
+            .type(InputType.Password)
+            .onChange((value: string) => { this.confirmPassword = value; })
+        }
         .width('100%').margin({ bottom: 20 })
 
         Row() {
@@ -869,7 +971,12 @@ export struct PersonalCenter {
             .layoutWeight(1).height(40).fontSize(15)
             .backgroundColor('#F5F6FA').fontColor('#666666')
             .borderRadius(4)
-            .onClick(() => { this.showPasswordDialog = false; })
+            .onClick(() => {
+              this.showPasswordDialog = false;
+              this.oldPassword = '';
+              this.newPassword = '';
+              this.confirmPassword = '';
+            })
 
           Button('确认修改')
             .layoutWeight(1).height(40).fontSize(15)
@@ -896,7 +1003,7 @@ export struct PersonalCenter {
   // ==================== 主构建 ====================
 
   build() {
-    Column() {
+    Stack() {
       if (this.isLoading) {
         Column() {
           LoadingProgress().width(40).height(40).color('#007AFF')
@@ -917,17 +1024,10 @@ export struct PersonalCenter {
         .justifyContent(FlexAlign.Center)
         .backgroundColor('#F5F6FA')
       } else {
-        // 直接用 Column，不用 Scroll，用 Flex 布局实现内容顶对齐
         Column() {
-          // 用户信息卡片 - 直接放在最顶部
           this.UserInfoCard()
-
-          // 功能列表
           this.FunctionListSection()
-
-          // 退出登录按钮 - 放到底部
           this.LogoutSection()
-
         }
         .width('100%')
         .height('100%')
