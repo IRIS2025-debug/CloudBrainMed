@@ -8,12 +8,12 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 public class UploadFileConfig implements WebMvcConfigurer {
 
-    @Value("${upload.avatar.patient-dir:${user.dir}/uploads/avatar/patient}")
+    @Value("${upload.avatar.patient-dir:${user.dir}/upload/avatar}")
     private String avatarUploadDir;
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        registry.addResourceHandler("/files/avatar/patient/**")
+        registry.addResourceHandler("/avatar/**")
                 .addResourceLocations("file:" + avatarUploadDir + "/");
     }
 }
