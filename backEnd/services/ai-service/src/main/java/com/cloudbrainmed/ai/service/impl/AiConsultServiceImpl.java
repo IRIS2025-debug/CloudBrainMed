@@ -34,7 +34,6 @@ import java.util.stream.Collectors;
 
 /**
  * AI智能问诊服务
- * 已彻底移除所有会话短期记忆，每次接口请求独立分析，仅读取本次主诉文本
  * 支持多症状返回多个细分科室，自动匹配院内大类科室
  */
 @Service
@@ -276,19 +275,6 @@ public class AiConsultServiceImpl implements AiConsultService {
                 .emergency(aiResult.getEmergency())
                 .build();
     }
-
-    // 兼容无sessionId旧接口
-    @Override
-    public AiRecommendResponseVo recommendDoctor(ConsultRecommendDto consultRecommendDto) {
-        String tempSession = UUID.randomUUID().toString().substring(0, 16);
-        return recommendDoctor(tempSession, consultRecommendDto);
-    }
-
-    @Override
-    public List<String> getAllDepartments() {
-        return getAllDepartmentNamesFromDB();
-    }
-
     // ==================== AI单次问诊调用（空历史，无记忆） ====================
     private AiDepartmentRecommendationDto analyzeSingleDept(String chiefComplaint, String deptList, String systemPrompt) {
         try {

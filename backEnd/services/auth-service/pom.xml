@@ -125,4 +125,16 @@
         </dependency>
     </dependencies>
 
+    <build>
+        <plugins>
+            <!-- 重打包为可执行 jar 时使用 exec 分类器，保留普通 jar 作为可被依赖的主构件 -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <classifier>exec</classifier>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 </project>
