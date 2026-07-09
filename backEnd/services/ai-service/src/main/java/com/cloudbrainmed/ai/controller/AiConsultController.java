@@ -36,13 +36,4 @@ public class AiConsultController {
         aiConsultService.clearSessionMemory(sessionId);
         return "会话" + sessionId + "临时记忆已清空";
     }
-
-//    /**
-//     * 兼容旧接口，无记忆单轮问诊
-//     */
-//    @PostMapping("/recommend/single")
-//    public AiRecommendResponseVo getSingleRecommend(@RequestBody ConsultRecommendDto dto) {
-//        log.info("单轮无记忆AI问诊，主诉：{}", dto.getChiefComplaint());
-//        return aiConsultService.recommendDoctor(dto);
-//    }
 }

@@ -1,9 +1,11 @@
 com\cloudbrainmed\patient\service\MedicalRecordService.class
 com\cloudbrainmed\patient\controller\MedicalRecordController.class
+com\cloudbrainmed\patient\entity\RegisterReport.class
 com\cloudbrainmed\patient\service\MedicalOrderService.class
 com\cloudbrainmed\patient\mapper\MedicalRecordMapper.class
 com\cloudbrainmed\patient\mapper\PrescriptionMapper.class
 com\cloudbrainmed\patient\vo\RegisterPrescriptionGroupVo.class
+com\cloudbrainmed\patient\vo\VisitDetail.class
 com\cloudbrainmed\patient\dto\ChangePasswordDto.class
 com\cloudbrainmed\patient\service\impl\PrescriptionServiceImpl.class
 com\cloudbrainmed\patient\entity\MedicalReportIndicator.class
@@ -16,6 +18,7 @@ com\cloudbrainmed\patient\controller\PrescriptionController.class
 com\cloudbrainmed\patient\vo\MedicalOrderGroupVo.class
 com\cloudbrainmed\patient\entity\MedicalReport.class
 com\cloudbrainmed\patient\mapper\DoctorMapper.class
+com\cloudbrainmed\patient\mapper\RegisterReportMapper.class
 com\cloudbrainmed\patient\mapper\MedicalOrderMapper.class
 com\cloudbrainmed\patient\PatientServiceApplication.class
 com\cloudbrainmed\patient\service\PatientService.class
