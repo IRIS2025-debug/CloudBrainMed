@@ -21,6 +21,7 @@ interface MedicalOrderItem {
   conclusion?: string;
   abnormalFlag?: string;
   reportTime?: string;
+  followUpAdvice?: string;
 }
 
 interface MedicalOrderGroup {

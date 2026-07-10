@@ -104,6 +104,11 @@ public class ReportDetailVo {
     private LocalDateTime reportTime;
 
     /**
+     * 随访建议
+     */
+    private String followUpAdvice;
+
+    /**
      * 检验指标列表（仅检验项目有）
      */
     private List<IndicatorVo> indicators;
@@ -259,6 +264,14 @@ public class ReportDetailVo {
 
     public void setReportTime(LocalDateTime reportTime) {
         this.reportTime = reportTime;
+    }
+
+    public String getFollowUpAdvice() {
+        return followUpAdvice;
+    }
+
+    public void setFollowUpAdvice(String followUpAdvice) {
+        this.followUpAdvice = followUpAdvice;
     }
 
     public List<IndicatorVo> getIndicators() {

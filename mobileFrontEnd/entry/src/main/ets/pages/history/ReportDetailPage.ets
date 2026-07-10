@@ -37,6 +37,7 @@ interface ReportDetail {
   status: string;
   performedTime: string;
   reportTime: string;
+  followUpAdvice?: string;
   indicators: Indicator[];
 }
 
@@ -305,7 +306,6 @@ export struct ReportDetailPage {
       } else if (this.errorMessage) {
         this.ErrorState()
       } else if (this.reportDetail) {
-        // 直接使用 this.reportDetail，不需要 const 赋值
         Scroll() {
           Column() {
             // PDF风格报告
@@ -406,7 +406,6 @@ export struct ReportDetailPage {
                 .color('#E5E5E5')
                 .margin({ top: 8, bottom: 12 })
 
-              // 结果摘要
               if (this.reportDetail.resultSummary) {
                 Column() {
                   Text('📝 结果摘要')
@@ -429,7 +428,6 @@ export struct ReportDetailPage {
                 .margin({ bottom: 12 })
               }
 
-              // 报告结论
               if (this.reportDetail.conclusion) {
                 Column() {
                   Text('📋 报告结论')
@@ -452,7 +450,28 @@ export struct ReportDetailPage {
                 .margin({ bottom: 12 })
               }
 
-              // 检验指标表格
+              if (this.reportDetail.followUpAdvice) {
+                Column() {
+                  Text('💊 随访建议')
+                    .fontSize(14)
+                    .fontWeight(FontWeight.Medium)
+                    .fontColor('#1A1A1A')
+                    .margin({ bottom: 6 })
+                    .alignSelf(ItemAlign.Start)
+
+                  Text(this.reportDetail.followUpAdvice)
+                    .fontSize(13)
+                    .fontColor('#333333')
+                    .lineHeight(22)
+                    .padding(12)
+                    .backgroundColor('#FFF8E6')
+                    .borderRadius(8)
+                    .width('100%')
+                }
+                .width('100%')
+                .margin({ bottom: 12 })
+              }
+
               if (this.reportDetail.itemCategory === 'LAB' && this.reportDetail.indicators && this.reportDetail.indicators.length > 0) {
                 Column() {
                   Text('🔬 检验指标')
@@ -462,7 +481,6 @@ export struct ReportDetailPage {
                     .margin({ bottom: 8 })
                     .alignSelf(ItemAlign.Start)
 
-                  // 表头
                   Row() {
                     Text('项目')
                       .fontSize(12)

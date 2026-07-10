@@ -91,6 +91,22 @@ export struct OrderSuccessPage {
     const status = params?.['status'] || '';
     this.isPendingConfirm = status === 'pending_confirm';
 
+    const doctorName = params?.['doctorName'] || '';
+    const department = params?.['department'] || '';
+    const room = params?.['room'] || '';
+
+    if (doctorName) {
+      this.pendingDoctorName = doctorName;
+      console.info('从参数中恢复医生姓名：', doctorName);
+    }
+    if (department) {
+      this.pendingDepartment = department;
+    }
+    if (room) {
+      this.pendingRoom = room;
+    }
+
+
     if (this.isPendingConfirm) {
       this.pendingRegisterData = {
         patientId: params?.['patientId'] || '',
@@ -355,6 +371,9 @@ export struct OrderSuccessPage {
               description: '挂号费 - ' + (this.pendingDepartment || ''),
               patientId: patientInfo.patientId,
               patientName: patientInfo.name,
+              doctorName: this.pendingDoctorName,
+              department: this.pendingDepartment,
+              room: this.pendingRoom,
               returnUrl: 'pages/register/OrderSuccessPage'
             }
           }).then(() => {
@@ -497,6 +516,9 @@ export struct OrderSuccessPage {
             description: '挂号费 - ' + this.orderInfo.department,
             patientId: patientInfo.patientId,
             patientName: patientInfo.name,
+            doctorName: this.pendingDoctorName,
+            department: this.pendingDepartment,
+            room: this.pendingRoom,
             returnUrl: 'pages/register/OrderSuccessPage'
           }
         }).then(() => {

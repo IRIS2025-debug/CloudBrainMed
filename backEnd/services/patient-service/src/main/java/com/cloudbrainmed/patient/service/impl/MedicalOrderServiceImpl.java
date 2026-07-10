@@ -211,6 +211,7 @@ public class MedicalOrderServiceImpl implements MedicalOrderService {
                     vo.setConclusion(report.getConclusion());
                     vo.setAbnormalFlag(ABNORMAL_TEXT.getOrDefault(report.getAbnormalFlag(), report.getAbnormalFlag()));
                     vo.setReportTime(report.getReportTime());
+                    vo.setFollowUpAdvice(report.getFollowUpAdvice());
                 }
 
                 if (item.getPrice() != null) {
@@ -311,6 +312,7 @@ public class MedicalOrderServiceImpl implements MedicalOrderService {
             BeanUtils.copyProperties(report, detail);
             detail.setAbnormalFlag(ABNORMAL_TEXT.getOrDefault(report.getAbnormalFlag(), report.getAbnormalFlag()));
             detail.setStatus(STATUS_TEXT.getOrDefault(report.getStatus(), report.getStatus()));
+            detail.setFollowUpAdvice(report.getFollowUpAdvice());
 
             // 如果是检验项目，查询指标
             if ("LAB".equals(orderItem.getItemCategory())) {

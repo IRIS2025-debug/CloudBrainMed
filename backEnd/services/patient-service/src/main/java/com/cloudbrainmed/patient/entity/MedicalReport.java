@@ -24,6 +24,7 @@ public class MedicalReport {
     private LocalDateTime reportTime;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
+    private String followUpAdvice;
 
     // Getters and Setters
     public String getReportId() { return reportId; }
@@ -54,4 +55,6 @@ public class MedicalReport {
     public void setCreateTime(LocalDateTime createTime) { this.createTime = createTime; }
     public LocalDateTime getUpdateTime() { return updateTime; }
     public void setUpdateTime(LocalDateTime updateTime) { this.updateTime = updateTime; }
+    public String getFollowUpAdvice() { return followUpAdvice; }
+    public void setFollowUpAdvice(String followUpAdvice) { this.followUpAdvice = followUpAdvice; }
 }

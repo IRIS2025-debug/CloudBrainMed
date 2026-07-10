@@ -62,6 +62,9 @@ export struct PayPage {
   @State payResult: PayResultVo | null = null;
   @State payStatus: string = 'WAITING';
   @State errorMessage: string = '';
+  @State doctorName: string = '';
+  @State department: string = '';
+  @State room: string = '';
   @State returnUrl: string = 'pages/register/OrderSuccessPage';
 
   private baseUrl: string = APIConfig.PAYMENT_SERVICE_URL;
@@ -77,6 +80,9 @@ export struct PayPage {
     this.description = params?.['description'] || '';
     this.patientId = params?.['patientId'] || '';
     this.patientName = params?.['patientName'] || '';
+    this.doctorName = params?.['doctorName'] || '';
+    this.department = params?.['department'] || '';
+    this.room = params?.['room'] || '';
     this.returnUrl = params?.['returnUrl'] || 'pages/register/OrderSuccessPage';
 
     console.info('PayPage 解析后：', {
@@ -87,6 +93,9 @@ export struct PayPage {
       description: this.description,
       patientId: this.patientId,
       patientName: this.patientName,
+      doctorName: this.doctorName,
+      department: this.department,
+      room: this.room,
       returnUrl: this.returnUrl
     });
 
@@ -239,7 +248,10 @@ export struct PayPage {
                 url: this.returnUrl,
                 params: {
                   refresh: 'true',
-                  registerId: this.businessId
+                  registerId: this.businessId,
+                  doctorName: this.doctorName,  // 添加这个参数
+                  department: this.department,   // 如果有的话也传递
+                  room: this.room
                 }
               }).then(() => {
                 console.info('返回订单详情页成功');
@@ -551,7 +563,11 @@ export struct PayPage {
                     url: this.returnUrl,
                     params: {
                       refresh: 'true',
-                      registerId: this.businessId
+                      registerId: this.businessId,
+                      doctorName: this.doctorName,  // 添加这个参数
+                      department: this.department,   // 如果有的话也传递
+                      room: this.room
+
                     }
                   }).catch(() => {
                     router.back();

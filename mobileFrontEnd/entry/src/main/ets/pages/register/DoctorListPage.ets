@@ -130,6 +130,7 @@ export struct DoctorListPage {
         .scrollBar(BarState.Off)
         .layoutWeight(1)
         .backgroundColor('#F5F6FA')
+        .align(Alignment.TopStart)
       }
     }
     .width('100%')

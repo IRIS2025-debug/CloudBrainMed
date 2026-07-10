@@ -1,7 +1,7 @@
 package com.cloudbrainmed.patient.controller;
 
 import com.cloudbrainmed.common.utils.JwtUtil;
-import com.cloudbrainmed.patient.service.MedicalRecordService;
+import com.cloudbrainmed.patient.service.RegisterReportService;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -11,13 +11,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-class MedicalRecordControllerTest {
+class RegisterReportControllerTest {
 
     @Test
     void myListUsesPatientIdFromTokenInsteadOfQueryParam() {
-        MedicalRecordService medicalRecordService = mock(MedicalRecordService.class);
+        RegisterReportService medicalRecordService = mock(RegisterReportService.class);
         JwtUtil jwtUtil = mock(JwtUtil.class);
-        MedicalRecordController controller = new MedicalRecordController(
+        RegisterReportController controller = new RegisterReportController(
                 medicalRecordService, jwtUtil);
         when(jwtUtil.getPatientIdFromToken("token-p001")).thenReturn("P001");
         when(medicalRecordService.getByPatientId("P001")).thenReturn(List.of());
@@ -29,8 +29,8 @@ class MedicalRecordControllerTest {
 
     @Test
     void myListRejectsMissingToken() {
-        MedicalRecordController controller = new MedicalRecordController(
-                mock(MedicalRecordService.class), mock(JwtUtil.class));
+        RegisterReportController controller = new RegisterReportController(
+                mock(RegisterReportService.class), mock(JwtUtil.class));
 
         assertThatThrownBy(() -> controller.listByPatientId(null, "P004"))
                 .isInstanceOf(RuntimeException.class)
@@ -38,9 +38,9 @@ class MedicalRecordControllerTest {
     }
     @Test
     void listByRegisterIdUsesPatientIdFromToken() {
-        MedicalRecordService medicalRecordService = mock(MedicalRecordService.class);
+        RegisterReportService medicalRecordService = mock(RegisterReportService.class);
         JwtUtil jwtUtil = mock(JwtUtil.class);
-        MedicalRecordController controller = new MedicalRecordController(
+        RegisterReportController controller = new RegisterReportController(
                 medicalRecordService, jwtUtil);
         when(jwtUtil.getPatientIdFromToken("token-p001")).thenReturn("P001");
         when(medicalRecordService.getByRegisterId("R001", "P001")).thenReturn(List.of());

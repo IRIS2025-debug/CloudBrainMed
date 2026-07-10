@@ -1,5 +1,4 @@
 FROM eclipse-temurin:17-jre-alpine
 VOLUME /tmp
-ARG JAR_FILE=target/*-exec.jar
-COPY ${JAR_FILE} app.jar
+COPY target/payment-service-0.0.1-SNAPSHOT-exec.jar app.jar
 ENTRYPOINT ["java","-jar","app.jar"]

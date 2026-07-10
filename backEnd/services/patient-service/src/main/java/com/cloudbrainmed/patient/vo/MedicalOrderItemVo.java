@@ -77,6 +77,11 @@ public class MedicalOrderItemVo {
      */
     private LocalDateTime reportTime;
 
+    /**
+     * 随访建议
+     */
+    private String followUpAdvice;
+
     // Getters and Setters
     public String getOrderItemId() {
         return orderItemId;
@@ -188,5 +193,13 @@ public class MedicalOrderItemVo {
 
     public void setReportTime(LocalDateTime reportTime) {
         this.reportTime = reportTime;
+    }
+
+    public String getFollowUpAdvice() {
+        return followUpAdvice;
+    }
+
+    public void setFollowUpAdvice(String followUpAdvice) {
+        this.followUpAdvice = followUpAdvice;
     }
 }

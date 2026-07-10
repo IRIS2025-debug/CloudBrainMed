@@ -2,7 +2,7 @@ package com.cloudbrainmed.patient.controller;
 
 import com.cloudbrainmed.common.result.Result;
 import com.cloudbrainmed.common.utils.JwtUtil;
-import com.cloudbrainmed.patient.service.MedicalRecordService;
+import com.cloudbrainmed.patient.service.RegisterReportService;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -10,12 +10,12 @@ import org.springframework.web.bind.annotation.*;
  */
 @RestController
 @RequestMapping("/patient-service/medical")
-public class MedicalRecordController {
+public class RegisterReportController {
 
-    private final MedicalRecordService medicalRecordService;
+    private final RegisterReportService medicalRecordService;
     private final JwtUtil jwtUtil;
 
-    public MedicalRecordController(MedicalRecordService medicalRecordService, JwtUtil jwtUtil) {
+    public RegisterReportController(RegisterReportService medicalRecordService, JwtUtil jwtUtil) {
         this.medicalRecordService = medicalRecordService;
         this.jwtUtil = jwtUtil;
     }
