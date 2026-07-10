@@ -197,6 +197,7 @@ public class DoctorTaskServiceImpl implements DoctorTaskService {
         vo.setStatus(task.getStatus());
         vo.setStatusLabel(mapStatusLabel(task.getStatus()));
         vo.setCreateTime(task.getCreateTime() != null ? task.getCreateTime().toString() : null);
+        vo.setAssignTime(task.getAssignTime() != null ? task.getAssignTime().toString() : null);
         vo.setPatientId(task.getPatientId());
         vo.setRegisterId(task.getRegisterId());
         vo.setPatientName(task.getPatientName());

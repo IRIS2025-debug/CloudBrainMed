@@ -68,6 +68,7 @@
                 生成检验报告
               </el-button>
               <el-button
+                v-if="task.itemCategory !== 'LAB'"
                 type="primary"
                 size="large"
                 :icon="CircleCheck"
@@ -188,13 +189,52 @@
         <p>任务不存在或已删除</p>
       </div>
     </div>
+
+    <el-dialog v-model="reportDialogVisible" title="填写检验报告" width="min(620px, 92vw)" destroy-on-close>
+      <el-form label-position="top">
+        <el-form-item label="检验结果摘要" required>
+          <el-input
+            v-model="reportForm.resultSummary"
+            type="textarea"
+            :rows="4"
+            maxlength="10000"
+            show-word-limit
+            placeholder="填写检验数据、主要发现或结果摘要"
+          />
+        </el-form-item>
+        <el-form-item label="检验结论" required>
+          <el-input
+            v-model="reportForm.conclusion"
+            type="textarea"
+            :rows="3"
+            maxlength="10000"
+            show-word-limit
+            placeholder="填写检验结论"
+          />
+        </el-form-item>
+        <el-form-item label="异常标记">
+          <el-select v-model="reportForm.abnormalFlag" style="width: 100%">
+            <el-option label="正常" value="NORMAL" />
+            <el-option label="异常" value="ABNORMAL" />
+            <el-option label="危急值" value="CRITICAL" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="报告附件地址">
+          <el-input v-model="reportForm.attachmentUrl" maxlength="255" placeholder="可选" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="reportDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="reportSubmitting" @click="handleSubmitReport">提交并完成任务</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getTaskDetail, startTask, completeTask } from '@/api/doctor/task'
+import { getTaskDetail, startTask, completeTask, submitTaskReport } from '@/api/doctor/task'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   ArrowLeft, Clock, Loading, CircleCheckFilled, InfoFilled,
@@ -207,6 +247,14 @@ const router = useRouter()
 const task = ref<any>(null)
 const loading = ref(false)
 const orderItemId = route.params.id as string
+const reportDialogVisible = ref(false)
+const reportSubmitting = ref(false)
+const reportForm = ref({
+  resultSummary: '',
+  conclusion: '',
+  abnormalFlag: 'NORMAL',
+  attachmentUrl: ''
+})
 
 onMounted(() => fetchDetail())
 
@@ -267,7 +315,31 @@ async function handleComplete() {
 }
 
 async function handleGenerateReport() {
-  ElMessage.info('生成检验报告功能开发中，请稍后...')
+  reportDialogVisible.value = true
+}
+
+async function handleSubmitReport() {
+  if (!reportForm.value.resultSummary.trim() || !reportForm.value.conclusion.trim()) {
+    ElMessage.warning('请填写检验结果摘要和检验结论')
+    return
+  }
+  reportSubmitting.value = true
+  try {
+    await submitTaskReport({
+      orderItemId,
+      resultSummary: reportForm.value.resultSummary.trim(),
+      conclusion: reportForm.value.conclusion.trim(),
+      abnormalFlag: reportForm.value.abnormalFlag,
+      attachmentUrl: reportForm.value.attachmentUrl.trim() || undefined
+    })
+    ElMessage.success('检验报告已发布，任务已完成')
+    reportDialogVisible.value = false
+    await fetchDetail()
+  } catch (error: any) {
+    ElMessage.error(error?.response?.data?.msg || '提交检验报告失败')
+  } finally {
+    reportSubmitting.value = false
+  }
 }
 </script>
 

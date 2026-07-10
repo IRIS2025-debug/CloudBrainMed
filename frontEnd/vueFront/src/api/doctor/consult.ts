@@ -20,6 +20,17 @@ export function createExamOrder(data: { registerId: string; checkItemList: strin
   return request.post('/doctor-service/consult/create-exam-order', data)
 }
 
+export interface MedicalOrderConfirmResult {
+  orderId: string
+  sourceType: 'AI_ASSISTED' | 'MANUAL'
+  itemCount: number
+  totalAmount: number
+  status: 'WAITING_ASSIGN' | 'QUEUED'
+  payStatus: 'WAITING' | 'PAID'
+  queueReady: boolean
+  paymentMessage?: string | null
+}
+
 export function confirmMedicalOrder(data: {
   registerId: string
   aiTraceId?: string
@@ -27,7 +38,7 @@ export function confirmMedicalOrder(data: {
   urgencyLevel: string
   items: Array<{ itemCode: string; urgencyLevel?: string }>
 }) {
-  return request.post('/doctor-service/consult/medical-order/confirm', data)
+  return request.post<MedicalOrderConfirmResult>('/doctor-service/consult/medical-order/confirm', data)
 }
 
 export function getConsultReports(registerId: string) {

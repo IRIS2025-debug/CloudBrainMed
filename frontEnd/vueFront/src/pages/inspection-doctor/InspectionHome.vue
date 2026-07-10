@@ -49,7 +49,7 @@
 </template>
 
 <script setup lang="ts">
-import { ArrowRight, Check, CollectionTag, DataAnalysis, List } from '@element-plus/icons-vue'
+import { ArrowRight, Check, CollectionTag, DataAnalysis, List, Monitor } from '@element-plus/icons-vue'
 
 const stats = [
   { label: '待处理申请', value: '--', icon: List, color: '#2563eb' },
@@ -60,11 +60,25 @@ const stats = [
 
 const modules = [
   {
-    path: '/inspection-doctor/order-list',
-    title: '查看检验申请',
-    desc: '查看所有检验类（LAB）医技申请单及详情',
-    icon: List,
+    path: '/inspection-doctor/workbench',
+    title: '检验工作台',
+    desc: '处理后端已自动分配的检验任务',
+    icon: Monitor,
     color: '#2563eb',
+  },
+  {
+    path: '/inspection-doctor/queue',
+    title: '检验队列',
+    desc: '查看当前技能范围内尚未分配的检验项目',
+    icon: List,
+    color: '#0f766e',
+  },
+  {
+    path: '/inspection-doctor/report',
+    title: '生成检验报告',
+    desc: '为当前处理中任务填写并回传检验报告',
+    icon: CollectionTag,
+    color: '#b45309',
   },
 ]
 

@@ -47,7 +47,7 @@ class MedicalOrderServiceImplTest {
         paymentFeignClient = mock(PaymentFeignClient.class);
         service = new MedicalOrderServiceImpl(
                 consultMapper, medicalItemMapper, medicalOrderMapper,
-                paymentFeignClient, new ObjectMapper(), false);
+                paymentFeignClient, new ObjectMapper());
     }
 
     @Test
@@ -60,25 +60,25 @@ class MedicalOrderServiceImplTest {
 
         MedicalItem item = new MedicalItem();
         item.setItemId("ITEM001");
-        item.setItemCode("CRANIAL_CT_PLAIN");
+        item.setItemCode("NEURO_CT_001");
         item.setItemName("颅脑CT平扫");
         item.setItemCategory("EXAM");
         item.setDeptId("DEPT001");
         item.setPrice(new BigDecimal("280.00"));
         item.setStatus(1);
-        when(medicalItemMapper.selectEnabledByCode("CRANIAL_CT_PLAIN"))
+        when(medicalItemMapper.selectEnabledByCode("NEURO_CT_001"))
                 .thenReturn(item);
         when(medicalOrderMapper.findAiRecommendationInput("AI123", "P001"))
                 .thenReturn("{\"registerId\":\"REG001\"}");
         when(medicalOrderMapper.findAiRecommendationOutput("AI123", "P001"))
-                .thenReturn("{\"recommendations\":[{\"itemCode\":\"CRANIAL_CT_PLAIN\"}]}");
+                .thenReturn("{\"recommendations\":[{\"itemCode\":\"NEURO_CT_001\"}]}");
         when(medicalOrderMapper.keepConsultInProgress("REG001", "D001"))
                 .thenReturn(1);
         when(paymentFeignClient.createPayOrder(any(UnifiedPayDto.class)))
                 .thenReturn(Result.ok(new PayResultVo()));
 
         MedicalOrderConfirmRequest request = request(
-                List.of(itemRequest("CRANIAL_CT_PLAIN", "URGENT")));
+                List.of(itemRequest("NEURO_CT_001", "URGENT")));
         request.setAiTraceId("AI123");
         MedicalOrderConfirmResponse response =
                 service.confirm(request, "D001");
@@ -116,19 +116,19 @@ class MedicalOrderServiceImplTest {
 
         MedicalItem item = new MedicalItem();
         item.setItemId("ITEM001");
-        item.setItemCode("CRANIAL_CT_PLAIN");
+        item.setItemCode("NEURO_CT_001");
         item.setItemName("Cranial CT");
         item.setItemCategory("EXAM");
         item.setDeptId("DEPT001");
         item.setPrice(new BigDecimal("280.00"));
-        when(medicalItemMapper.selectEnabledByCode("CRANIAL_CT_PLAIN"))
+        when(medicalItemMapper.selectEnabledByCode("NEURO_CT_001"))
                 .thenReturn(item);
         when(medicalOrderMapper.keepConsultInProgress("REG001", "D001"))
                 .thenReturn(1);
         when(paymentFeignClient.createPayOrder(any(UnifiedPayDto.class)))
                 .thenReturn(Result.ok(new PayResultVo()));
 
-        service.confirm(request(List.of(itemRequest("CRANIAL_CT_PLAIN", null))), "D001");
+        service.confirm(request(List.of(itemRequest("NEURO_CT_001", null))), "D001");
 
         ArgumentCaptor<MedicalOrder> orderCaptor =
                 ArgumentCaptor.forClass(MedicalOrder.class);
@@ -146,10 +146,7 @@ class MedicalOrderServiceImplTest {
     }
 
     @Test
-    void confirmQueuesOrderEvenWhenPaymentServiceFailsForDevIntegration() {
-        service = new MedicalOrderServiceImpl(
-                consultMapper, medicalItemMapper, medicalOrderMapper,
-                paymentFeignClient, new ObjectMapper(), true);
+    void confirmLeavesMedicalOrderWaitingForPatientPayment() {
         ConsultRecord consult = new ConsultRecord();
         consult.setRegisterId("REG001");
         consult.setPatientId("P001");
@@ -159,36 +156,32 @@ class MedicalOrderServiceImplTest {
 
         MedicalItem item = new MedicalItem();
         item.setItemId("ITEM001");
-        item.setItemCode("CRANIAL_CT_PLAIN");
+        item.setItemCode("NEURO_CT_001");
         item.setItemName("Cranial CT");
         item.setItemCategory("EXAM");
         item.setDeptId("DEPT001");
         item.setPrice(new BigDecimal("280.00"));
-        when(medicalItemMapper.selectEnabledByCode("CRANIAL_CT_PLAIN"))
+        when(medicalItemMapper.selectEnabledByCode("NEURO_CT_001"))
                 .thenReturn(item);
         when(medicalOrderMapper.keepConsultInProgress("REG001", "D001"))
                 .thenReturn(1);
         when(paymentFeignClient.createPayOrder(any(UnifiedPayDto.class)))
-                .thenThrow(new RuntimeException("payment timeout"));
+                .thenReturn(Result.ok(new PayResultVo()));
 
         MedicalOrderConfirmResponse response =
-                service.confirm(request(List.of(itemRequest("CRANIAL_CT_PLAIN", null))), "D001");
+                service.confirm(request(List.of(itemRequest("NEURO_CT_001", null))), "D001");
 
-        ArgumentCaptor<MedicalOrder> orderCaptor =
-                ArgumentCaptor.forClass(MedicalOrder.class);
-        verify(medicalOrderMapper).insertOrder(orderCaptor.capture());
-        String orderId = orderCaptor.getValue().getOrderId();
-        verify(medicalOrderMapper).updatePayStatus(orderId);
-        verify(medicalOrderMapper).enqueueOrder(orderId);
-        verify(medicalOrderMapper).enqueueOrderItems(orderId);
-        assertThat(response.getStatus()).isEqualTo("QUEUED");
-        assertThat(response.getPayStatus()).isEqualTo("PAID");
-        assertThat(response.isQueueReady()).isTrue();
-        assertThat(response.getPaymentMessage()).contains("payment");
+        verify(medicalOrderMapper, never()).updatePayStatus(any());
+        verify(medicalOrderMapper, never()).enqueueOrder(any());
+        verify(medicalOrderMapper, never()).enqueueOrderItems(any());
+        assertThat(response.getStatus()).isEqualTo("WAITING_ASSIGN");
+        assertThat(response.getPayStatus()).isEqualTo("WAITING");
+        assertThat(response.isQueueReady()).isFalse();
+        assertThat(response.getPaymentMessage()).isNull();
     }
 
     @Test
-    void confirmDoesNotQueueWhenPaymentServiceFailsOutsideDevIntegration() {
+    void confirmDoesNotQueueWhenPaymentServiceFails() {
         ConsultRecord consult = new ConsultRecord();
         consult.setRegisterId("REG001");
         consult.setPatientId("P001");
@@ -198,12 +191,12 @@ class MedicalOrderServiceImplTest {
 
         MedicalItem item = new MedicalItem();
         item.setItemId("ITEM001");
-        item.setItemCode("CRANIAL_CT_PLAIN");
+        item.setItemCode("NEURO_CT_001");
         item.setItemName("Cranial CT");
         item.setItemCategory("EXAM");
         item.setDeptId("DEPT001");
         item.setPrice(new BigDecimal("280.00"));
-        when(medicalItemMapper.selectEnabledByCode("CRANIAL_CT_PLAIN"))
+        when(medicalItemMapper.selectEnabledByCode("NEURO_CT_001"))
                 .thenReturn(item);
         when(medicalOrderMapper.keepConsultInProgress("REG001", "D001"))
                 .thenReturn(1);
@@ -211,7 +204,7 @@ class MedicalOrderServiceImplTest {
                 .thenThrow(new RuntimeException("payment timeout"));
 
         assertThatThrownBy(() ->
-                service.confirm(request(List.of(itemRequest("CRANIAL_CT_PLAIN", null))), "D001"))
+                service.confirm(request(List.of(itemRequest("NEURO_CT_001", null))), "D001"))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("payment timeout");
 
@@ -229,7 +222,7 @@ class MedicalOrderServiceImplTest {
 
         assertThatThrownBy(() -> service.confirm(
                 request(List.of(itemRequest(
-                        "CRANIAL_CT_PLAIN", null))), "D001"))
+                        "NEURO_CT_001", null))), "D001"))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("无权");
         verify(medicalOrderMapper, never())
@@ -245,15 +238,15 @@ class MedicalOrderServiceImplTest {
         when(consultMapper.findDetail("REG001")).thenReturn(consult);
 
         MedicalItem item = new MedicalItem();
-        item.setItemCode("CRANIAL_CT_PLAIN");
+        item.setItemCode("NEURO_CT_001");
         item.setItemCategory("EXAM");
-        when(medicalItemMapper.selectEnabledByCode("CRANIAL_CT_PLAIN"))
+        when(medicalItemMapper.selectEnabledByCode("NEURO_CT_001"))
                 .thenReturn(item);
 
         assertThatThrownBy(() -> service.confirm(
                 request(List.of(
-                        itemRequest("CRANIAL_CT_PLAIN", null),
-                        itemRequest("CRANIAL_CT_PLAIN", null))),
+                        itemRequest("NEURO_CT_001", null),
+                        itemRequest("NEURO_CT_001", null))),
                 "D001"))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("不能重复");
@@ -270,13 +263,13 @@ class MedicalOrderServiceImplTest {
         when(consultMapper.findDetail("REG001")).thenReturn(consult);
 
         MedicalItem item = new MedicalItem();
-        item.setItemCode("CRANIAL_CT_PLAIN");
+        item.setItemCode("NEURO_CT_001");
         item.setItemCategory("EXAM");
-        when(medicalItemMapper.selectEnabledByCode("CRANIAL_CT_PLAIN"))
+        when(medicalItemMapper.selectEnabledByCode("NEURO_CT_001"))
                 .thenReturn(item);
 
         MedicalOrderConfirmRequest request = request(
-                List.of(itemRequest("CRANIAL_CT_PLAIN", null)));
+                List.of(itemRequest("NEURO_CT_001", null)));
         request.setAiTraceId("AI_UNKNOWN");
 
         assertThatThrownBy(() -> service.confirm(request, "D001"))

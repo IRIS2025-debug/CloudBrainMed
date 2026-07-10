@@ -130,9 +130,26 @@ const router = createRouter({
     },
     {
       path: '/inspection-doctor/order-list',
-      name: 'inspectionOrderList',
-      component: () => import('@/pages/inspection-doctor/InspectionOrderList.vue'),
-      meta: { requiresAuth: true, role: 2, doctorTypes: [2, 3] }
+      redirect: '/inspection-doctor/queue',
+      meta: { requiresAuth: true, role: 2, doctorType: 3 }
+    },
+    {
+      path: '/inspection-doctor/workbench',
+      name: 'InspectionWorkbench',
+      component: () => import('@/pages/inspection-doctor/InspectionWorkbench.vue'),
+      meta: { requiresAuth: true, role: 2, doctorType: 3 }
+    },
+    {
+      path: '/inspection-doctor/queue',
+      name: 'InspectionQueue',
+      component: () => import('@/pages/inspection-doctor/InspectionQueue.vue'),
+      meta: { requiresAuth: true, role: 2, doctorType: 3 }
+    },
+    {
+      path: '/inspection-doctor/report',
+      name: 'InspectionReport',
+      component: () => import('@/pages/inspection-doctor/InspectionReport.vue'),
+      meta: { requiresAuth: true, role: 2, doctorType: 3 }
     },
     {
       path: '/examination-doctor/ct-inference',

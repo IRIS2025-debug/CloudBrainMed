@@ -120,6 +120,11 @@ export default defineConfig({
       '/inspection-doctor': {
         target: 'http://localhost:8003',
         changeOrigin: true,
+        bypass(req) {
+          if (req.headers.accept?.includes('text/html')) {
+            return '/index.html'
+          }
+        },
       },
       '/patient-service': {
         target: 'http://localhost:8004',
