@@ -103,17 +103,16 @@ const doctorMenus = [
   { path: '/examination-doctor/queue', title: '检查队列', icon: 'List', group: '检查医生' },
   { path: '/examination-doctor/ct-inference', title: 'CT 模型推理', icon: 'Camera', group: '检查医生' },
   { path: '/examination-doctor/report', title: '生成检查报告', icon: 'CollectionTag', group: '检查医生' },
+  // ====== 检验医生（type=3）======
+  { path: '/inspection-doctor/workbench', title: '检验医生工作台', icon: 'Monitor', group: '检验医生' },
+  { path: '/inspection-doctor/queue', title: '检验队列', icon: 'List', group: '检验医生' },
+  { path: '/inspection-doctor/report', title: '生成检验报告', icon: 'CollectionTag', group: '检验医生' },
   { path: '/doctor/home', title: '首页概览', icon: 'HomeFilled', group: '医生端' },
   { path: '/doctor/profile', title: '医生个人信息', icon: 'UserFilled', group: '医生端' },
   { path: '/doctor/consult', title: '接诊工作台', icon: 'List', group: '医生端' },
   { path: '/doctor/ai-exam-generate', title: 'AI检查检验项目生成', icon: 'DataAnalysis', group: '医生端' },
   { path: '/doctor/ai-medicine', title: 'AI 药物推荐', icon: 'DataAnalysis', group: '医生端' },
   { path: '/doctor/schedule', title: '值班查询', icon: 'List', group: '医生端' },
-  { path: '/doctor/workbench', title: '检查检验工作台', icon: 'Monitor', group: '医生端' },
-  { path: '/doctor/queue', title: '检查检验队列', icon: 'List', group: '医生端' },
-  // ====== 检验医生（type=3）======
-  { path: '/inspection-doctor/home', title: '检验工作台', icon: 'HomeFilled', group: '检验医生' },
-  { path: '/inspection-doctor/order-list', title: '查看检查/检验申请', icon: 'List', group: '检验医生' },
 ]
 
 const adminMenus = [
@@ -186,10 +185,7 @@ const menuItems = computed(() => {
       if (item.group === '检验医生') return dt === 3
 
       // AI药物推荐已内置到接诊详情页处方区域，保留路由兼容但不作为接诊菜单入口
-      if (item.path === '/doctor/ai-medicine') return dt !== 1 && dt === 3
-
-      // 检查检验工作台、队列：仅检验医生(3)可见
-      if (item.path === '/doctor/workbench' || item.path === '/doctor/queue') return dt === 3
+      if (item.path === '/doctor/ai-medicine') return false
 
       // 首页概览，仅看诊医生（1）可见与检验医生（3）可见
       if (item.path === '/') return dt === 1 || dt === 3
@@ -198,15 +194,6 @@ const menuItems = computed(() => {
     }).map(item => {
       // 将首页概览路径替换为对应医生类型的首页
       if (item.path === '/') return { ...item, path: homePath }
-      // 根据医生类型改标题：检查医生→检查工作台，检验医生→检验工作台
-      if (item.path === '/doctor/workbench') {
-        if (dt === 3) return { ...item, title: '检验工作台' }
-      }
-      // 根据医生类型改标题：检查医生→检查队列，检验医生→检验队列
-      if (item.path === '/doctor/queue') {
-        if (dt === 2) return { ...item, title: '检查队列' }
-        if (dt === 3) return { ...item, title: '检验队列' }
-      }
       return item
     })
   }
@@ -303,4 +290,16 @@ body { font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', sans-serif; backg
 .logout-btn:hover { color: #ef4444; background: rgba(239,68,68,.12); }
 
 .main { flex: 1; overflow-y: auto; overflow-x: hidden; background: var(--bg); }
+
+@media (max-width: 760px) {
+  .sidebar { width: 68px; min-width: 68px; }
+  .brand { padding: 18px 20px; }
+  .brand-text,
+  .nav-group-label,
+  .nav-item span,
+  .sidebar-footer { display: none; }
+  .nav { padding: 12px 8px; }
+  .nav-item { justify-content: center; padding: 10px; }
+  .main { min-width: 0; }
+}
 </style>

@@ -4,6 +4,7 @@ import com.cloudbrainmed.doctor.entity.DoctorSkill;
 import com.cloudbrainmed.doctor.mapper.DoctorSkillMapper;
 import com.cloudbrainmed.doctor.mapper.MedicalOrderMapper;
 import com.cloudbrainmed.doctor.dto.MedicalReportSubmitRequest;
+import com.cloudbrainmed.doctor.entity.MedicalReport;
 import com.cloudbrainmed.doctor.service.AgingService;
 import com.cloudbrainmed.doctor.service.DoctorTaskService;
 import com.cloudbrainmed.doctor.service.OrderItemService;
@@ -12,7 +13,9 @@ import com.cloudbrainmed.doctor.service.SchedulerService;
 import com.cloudbrainmed.doctor.vo.MedicalReportVo;
 import com.cloudbrainmed.doctor.vo.DoctorTaskVo;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -28,8 +31,18 @@ class TaskSchedulerServiceImplTest {
     private TaskSchedulerServiceImpl createService(
             MedicalOrderMapper medicalOrderMapper,
             QueueService queueService) {
+        return createService(
+                medicalOrderMapper,
+                queueService,
+                mock(DoctorTaskService.class));
+    }
+
+    private TaskSchedulerServiceImpl createService(
+            MedicalOrderMapper medicalOrderMapper,
+            QueueService queueService,
+            DoctorTaskService doctorTaskService) {
         return new TaskSchedulerServiceImpl(
-                mock(DoctorTaskService.class),
+                doctorTaskService,
                 queueService,
                 mock(OrderItemService.class),
                 mock(SchedulerService.class),
@@ -71,6 +84,42 @@ class TaskSchedulerServiceImplTest {
     }
 
     @Test
+    void getWorkbenchReturnsLabTasksForLaboratoryDoctor() {
+        MedicalOrderMapper medicalOrderMapper = mock(MedicalOrderMapper.class);
+        QueueService queueService = mock(QueueService.class);
+        AgingService agingService = mock(AgingService.class);
+        MedicalOrderMapper.DoctorTaskVo task = new MedicalOrderMapper.DoctorTaskVo();
+        task.setOrderItemId("MOI_LAB_001");
+        task.setItemCode("LAB_BLOOD_001");
+        task.setItemName("血常规");
+        task.setItemCategory("LAB");
+        task.setUrgencyLevel("NORMAL");
+        task.setStatus("IN_PROCESS");
+        task.setCreateTime(LocalDateTime.of(2026, 7, 10, 9, 0));
+        task.setAssignTime(LocalDateTime.of(2026, 7, 10, 9, 5));
+        when(medicalOrderMapper.selectDoctorTasks("D003", "LAB"))
+                .thenReturn(List.of(task));
+        when(agingService.isAgingThresholdReached(task.getCreateTime()))
+                .thenReturn(false);
+        DoctorTaskService doctorTaskService = new DoctorTaskServiceImpl(
+                medicalOrderMapper,
+                mock(OrderItemService.class),
+                agingService);
+        TaskSchedulerServiceImpl service = createService(
+                medicalOrderMapper,
+                queueService,
+                doctorTaskService);
+
+        List<DoctorTaskVo> tasks = service.getDoctorWorkbench("D003", 3);
+
+        assertThat(tasks).hasSize(1);
+        assertThat(tasks.get(0).getItemCategory()).isEqualTo("LAB");
+        assertThat(tasks.get(0).getStatus()).isEqualTo("IN_PROCESS");
+        assertThat(tasks.get(0).getAssignTime()).isEqualTo("2026-07-10T09:05");
+        verify(medicalOrderMapper).selectDoctorTasks("D003", "LAB");
+    }
+
+    @Test
     void enqueueByPaymentMarksOrderPaidAndQueuesMainOrderAndItems() {
         MedicalOrderMapper medicalOrderMapper = mock(MedicalOrderMapper.class);
         QueueService queueService = mock(QueueService.class);
@@ -106,29 +155,39 @@ class TaskSchedulerServiceImplTest {
     void submitReportPublishesMedicalReportAndCompletesTask() {
         MedicalOrderMapper medicalOrderMapper = mock(MedicalOrderMapper.class);
         QueueService queueService = mock(QueueService.class);
-        TaskSchedulerServiceImpl service = createService(medicalOrderMapper, queueService);
+        DoctorTaskService doctorTaskService = new DoctorTaskServiceImpl(
+                medicalOrderMapper,
+                mock(OrderItemService.class),
+                mock(AgingService.class));
+        TaskSchedulerServiceImpl service = createService(
+                medicalOrderMapper,
+                queueService,
+                doctorTaskService);
         MedicalOrderMapper.DoctorTaskDetailVo task =
                 new MedicalOrderMapper.DoctorTaskDetailVo();
         task.setOrderItemId("MOI001");
         task.setPatientId("P001");
         task.setRegisterId("REG001");
-        task.setItemCategory("EXAM");
-        task.setAssignedDoctorId("D002");
+        task.setItemCategory("LAB");
+        task.setAssignedDoctorId("D003");
         task.setStatus("IN_PROCESS");
         when(medicalOrderMapper.selectTaskDetailById("MOI001")).thenReturn(task);
         when(medicalOrderMapper.insertMedicalReport(any())).thenReturn(1);
-        when(medicalOrderMapper.completeTask("MOI001", "D002")).thenReturn(1);
+        when(medicalOrderMapper.completeTask("MOI001", "D003")).thenReturn(1);
 
         MedicalReportSubmitRequest request = new MedicalReportSubmitRequest();
         request.setOrderItemId("MOI001");
-        request.setResultSummary("No acute intracranial abnormality.");
-        request.setConclusion("Normal cranial CT.");
+        request.setResultSummary("白细胞计数在参考范围内。");
+        request.setConclusion("血常规未见明显异常。");
         request.setAbnormalFlag("NORMAL");
 
-        MedicalReportVo report = service.submitReport(request, "D002");
+        MedicalReportVo report = service.submitReport(request, "D003");
 
-        verify(medicalOrderMapper).insertMedicalReport(any());
-        verify(medicalOrderMapper).completeTask("MOI001", "D002");
+        ArgumentCaptor<MedicalReport> reportCaptor = ArgumentCaptor.forClass(MedicalReport.class);
+        verify(medicalOrderMapper).insertMedicalReport(reportCaptor.capture());
+        verify(medicalOrderMapper).completeTask("MOI001", "D003");
+        assertThat(reportCaptor.getValue().getItemCategory()).isEqualTo("LAB");
+        assertThat(reportCaptor.getValue().getStatus()).isEqualTo("PUBLISHED");
         assertThat(report.getOrderItemId()).isEqualTo("MOI001");
         assertThat(report.getStatus()).isEqualTo("PUBLISHED");
     }
@@ -137,9 +196,16 @@ class TaskSchedulerServiceImplTest {
     void completeTaskRequiresPublishedReport() {
         MedicalOrderMapper medicalOrderMapper = mock(MedicalOrderMapper.class);
         QueueService queueService = mock(QueueService.class);
-        TaskSchedulerServiceImpl service = createService(medicalOrderMapper, queueService);
-        when(medicalOrderMapper.countPublishedReportsByOrderItemId("MOI001"))
-                .thenReturn(0L);
+        OrderItemService orderItemService = mock(OrderItemService.class);
+        when(orderItemService.hasPublishedReport("MOI001")).thenReturn(false);
+        DoctorTaskService doctorTaskService = new DoctorTaskServiceImpl(
+                medicalOrderMapper,
+                orderItemService,
+                mock(AgingService.class));
+        TaskSchedulerServiceImpl service = createService(
+                medicalOrderMapper,
+                queueService,
+                doctorTaskService);
 
         assertThatThrownBy(() -> service.completeTask("MOI001", "D002"))
                 .hasMessageContaining("请先提交并发布检查检验报告");
