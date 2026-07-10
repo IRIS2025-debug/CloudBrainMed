@@ -1,5 +1,7 @@
 package com.cloudbrainmed.ai.service.impl;
 
+import com.cloudbrainmed.admin.dto.ScheduleBatchCreateResponse;
+import com.cloudbrainmed.admin.dto.ScheduleConflictResult;
 import com.cloudbrainmed.admin.dto.ScheduleSaveDto;
 import com.cloudbrainmed.admin.entity.DoctorSchedule;
 import com.cloudbrainmed.ai.dto.AiScheduleConflictCheckRequest;
@@ -61,11 +63,13 @@ public class AiScheduleServiceImpl implements AiScheduleService {
         List<String> warnings = new ArrayList<>();
         List<DoctorSchedule> existingSchedules =
                 fetchExistingSchedules(request, warnings);
+        List<DoctorSchedule> roomUsages =
+                fetchRoomUsages(request, warnings);
 
         AiScheduleGenerateResponse response;
         try {
             String reply = chatClient.prompt(new Prompt(buildMessages(
-                    request, existingSchedules))).call().content();
+                    request, existingSchedules, roomUsages))).call().content();
             response = parseReply(reply);
             response.setFallback(false);
             response.setStatus("SUCCESS");
@@ -100,6 +104,7 @@ public class AiScheduleServiceImpl implements AiScheduleService {
     public AiSchedulePublishResponse publish(
             AiSchedulePublishRequest request, String adminId) {
         AiSchedulePublishResponse response = new AiSchedulePublishResponse();
+        response.setTraceId(request.getTraceId());
         List<AiScheduleItem> items = new ArrayList<>(
                 nullToEmpty(request.getItems()));
         response.setSubmittedCount(items.size());
@@ -116,7 +121,7 @@ public class AiScheduleServiceImpl implements AiScheduleService {
             return response;
         }
 
-        Result<List<DoctorSchedule>> result =
+        Result<ScheduleBatchCreateResponse> result =
                 adminFeignClient.batchCreateSchedules(publishable);
         if (!ResultCode.SUCCESS.equals(result.getCode())) {
             response.setStatus("FAILED");
@@ -125,12 +130,20 @@ public class AiScheduleServiceImpl implements AiScheduleService {
             return response;
         }
 
-        List<DoctorSchedule> created = result.getData() == null
-                ? List.of() : result.getData();
+        ScheduleBatchCreateResponse batchResponse = result.getData();
+        List<DoctorSchedule> created = batchResponse == null
+                ? List.of() : nullToEmpty(batchResponse.getCreatedSchedules());
         response.setCreatedSchedules(created);
         response.setCreatedCount(created.size());
-        response.setStatus(created.size() == publishable.size()
-                ? "SUCCESS" : "PARTIAL_SUCCESS");
+        if (batchResponse != null) {
+            response.setFailedItems(new ArrayList<>(
+                    nullToEmpty(batchResponse.getFailedItems())));
+            response.getWarnings().addAll(nullToEmpty(batchResponse.getWarnings()));
+        }
+        response.setStatus(created.isEmpty()
+                ? "FAILED"
+                : created.size() == publishable.size()
+                        ? "SUCCESS" : "PARTIAL_SUCCESS");
         if (created.size() < publishable.size()) {
             response.getWarnings().add(
                     "Some schedules were not created by admin-service validation.");
@@ -140,12 +153,15 @@ public class AiScheduleServiceImpl implements AiScheduleService {
 
     private List<Message> buildMessages(
             AiScheduleGenerateRequest request,
-            List<DoctorSchedule> existingSchedules) {
+            List<DoctorSchedule> existingSchedules,
+            List<DoctorSchedule> roomUsages) {
         String systemPrompt = """
             You are an AI scheduling assistant for a hospital administrator.
             Generate a doctor schedule draft that can be reviewed before publishing.
             Use only the provided doctor, department, date range, time windows,
             rooms, default quota and price. Do not invent doctors or departments.
+            Avoid roomUsages when assigning rooms; those rooms are already occupied
+            by existing published schedules.
             Return valid JSON only, without markdown.
             Required JSON shape:
             {
@@ -178,6 +194,7 @@ public class AiScheduleServiceImpl implements AiScheduleService {
             timeWindows: %s
             unavailableDates: %s
             existingSchedules: %s
+            roomUsages: %s
             """.formatted(
                 request.getDoctorId(),
                 request.getDoctorName(),
@@ -190,7 +207,8 @@ public class AiScheduleServiceImpl implements AiScheduleService {
                 toJson(request.getRooms()),
                 toJson(effectiveWindows(request)),
                 toJson(request.getUnavailableDates()),
-                toJson(existingSchedules));
+                toJson(existingSchedules),
+                toJson(roomUsages));
         return List.of(new SystemMessage(systemPrompt), new UserMessage(userPrompt));
     }
 
@@ -412,27 +430,59 @@ public class AiScheduleServiceImpl implements AiScheduleService {
         return List.of();
     }
 
+    private List<DoctorSchedule> fetchRoomUsages(
+            AiScheduleGenerateRequest request,
+            List<String> warnings) {
+        List<String> rooms = nullToEmpty(request.getRooms()).stream()
+                .filter(StringUtils::hasText)
+                .toList();
+        if (rooms.isEmpty()) {
+            return List.of();
+        }
+        try {
+            Result<List<DoctorSchedule>> result =
+                    adminFeignClient.getRoomUsageForAI(
+                            rooms,
+                            request.getPeriodStart().toString(),
+                            request.getPeriodEnd().toString());
+            if (ResultCode.SUCCESS.equals(result.getCode())) {
+                return result.getData() == null ? List.of() : result.getData();
+            }
+            warnings.add("Failed to read room usages: "
+                    + valueOrDefault(result.getMsg(), "admin-service error"));
+        } catch (Exception exception) {
+            warnings.add("Failed to read room usages: "
+                    + exception.getClass().getSimpleName());
+        }
+        return List.of();
+    }
+
     private void markConflicts(
             List<AiScheduleItem> items,
             List<String> warnings) {
         for (AiScheduleItem item : nullToEmpty(items)) {
             try {
-                Result<Boolean> result =
+                Result<ScheduleConflictResult> result =
                         adminFeignClient.checkConflict(toDoctorSchedule(item));
                 if (ResultCode.SUCCESS.equals(result.getCode())) {
-                    boolean conflict = Boolean.TRUE.equals(result.getData());
+                    ScheduleConflictResult conflictResult = result.getData();
+                    boolean conflict = conflictResult != null
+                            && conflictResult.isConflict();
                     item.setConflict(conflict);
-                    item.setConflictReason(conflict
-                            ? "Doctor already has a schedule in this time range."
-                            : null);
+                    item.setConflictType(conflict && conflictResult != null
+                            ? conflictResult.getConflictType() : null);
+                    item.setConflictReason(conflict && conflictResult != null
+                            ? conflictResult.getConflictReason() : null);
                 } else {
                     item.setConflict(true);
+                    item.setConflictType("CHECK_FAILED");
                     item.setConflictReason("Conflict check failed.");
                     warnings.add("Conflict check failed: " + valueOrDefault(
                             result.getMsg(), "admin-service error"));
                 }
             } catch (Exception exception) {
                 item.setConflict(true);
+                item.setConflictType("CHECK_EXCEPTION");
                 item.setConflictReason("Conflict check exception.");
                 warnings.add("Conflict check exception: "
                         + exception.getClass().getSimpleName());

@@ -1,5 +1,7 @@
 package com.cloudbrainmed.admin.controller;
 
+import com.cloudbrainmed.admin.dto.ScheduleBatchCreateResponse;
+import com.cloudbrainmed.admin.dto.ScheduleConflictResult;
 import com.cloudbrainmed.admin.dto.ScheduleQueryDto;
 import com.cloudbrainmed.admin.dto.ScheduleSaveDto;
 import com.cloudbrainmed.admin.dto.ScheduleUpdateDto;
@@ -106,11 +108,25 @@ public class ScheduleManageController {
     }
 
     /**
+     * 获取诊室占用（供AI智能排班调用）
+     */
+    @GetMapping("/ai/room-usage")
+    public Result<List<DoctorSchedule>> getRoomUsageForAI(
+            @RequestParam List<String> rooms,
+            @RequestParam String startDate,
+            @RequestParam String endDate) {
+
+        LocalDate start = LocalDate.parse(startDate);
+        LocalDate end = LocalDate.parse(endDate);
+        return Result.success(scheduleService.getRoomUsagesForAI(rooms, start, end));
+    }
+
+    /**
      * 批量创建排班（供AI生成后调用）
      * 前端如果有批量导入需求也可以使用
      */
     @PostMapping("/ai/batch-create")
-    public Result<List<DoctorSchedule>> batchCreate(@RequestBody List<ScheduleSaveDto> dtoList) {
+    public Result<ScheduleBatchCreateResponse> batchCreate(@RequestBody List<ScheduleSaveDto> dtoList) {
         return Result.success(scheduleService.batchCreateSchedules(dtoList));
     }
 
@@ -118,8 +134,8 @@ public class ScheduleManageController {
      * 检查排班冲突（供AI调用）
      */
     @PostMapping("/ai/check-conflict")
-    public Result<Boolean> checkConflict(@RequestBody DoctorSchedule schedule) {
-        return Result.success(scheduleService.checkScheduleConflict(schedule));
+    public Result<ScheduleConflictResult> checkConflict(@RequestBody DoctorSchedule schedule) {
+        return Result.success(scheduleService.checkScheduleConflictDetail(schedule));
     }
 
     /**

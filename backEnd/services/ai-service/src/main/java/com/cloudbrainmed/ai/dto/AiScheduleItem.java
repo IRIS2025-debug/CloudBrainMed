@@ -50,6 +50,9 @@ public class AiScheduleItem {
 
     private boolean conflict;
 
+    @Size(max = 64)
+    private String conflictType;
+
     @Size(max = 200)
     private String conflictReason;
 }

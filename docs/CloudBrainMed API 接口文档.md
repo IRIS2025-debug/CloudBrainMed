@@ -4199,6 +4199,7 @@ GET /inspection-doctor/order/MO202606160001
 |price|Decimal|挂号费，必填，不能小于0|
 |room|String|诊室，最多64字符|
 |conflict|Boolean|是否存在排班冲突|
+|conflictType|String|冲突类型；常见值 `DOCTOR_TIME` 医生时间冲突、`ROOM_TIME` 诊室占用冲突、`BATCH_DOCTOR_TIME` 本批次医生冲突、`BATCH_ROOM_TIME` 本批次诊室冲突、`CHECK_FAILED`/`CHECK_EXCEPTION` 冲突检查失败|
 |conflictReason|String|冲突原因，最多200字符|
 
 
@@ -4252,7 +4253,26 @@ GET /inspection-doctor/order/MO202606160001
 |submittedCount|Integer|提交的排班项数量|
 |createdCount|Integer|实际创建成功数量|
 |createdSchedules|DoctorSchedule\[\]|admin\-service 返回的已创建排班|
+|failedItems|SchedulePublishFailure\[\]|未创建的排班项及失败原因；例如医生已停职、医生时间冲突、诊室占用冲突或本批次内部冲突|
 |warnings|String\[\]|发布失败、部分成功或冲突提示|
+
+
+
+##### `SchedulePublishFailure`
+
+
+
+|字段|类型|说明|
+|---|---|---|
+|index|Integer|失败项在发布请求 `items` 数组中的下标，从0开始|
+|doctorId|String|医生ID|
+|doctorName|String|医生姓名|
+|workDate|Date|出诊日期|
+|startTime|Time|出诊开始时间|
+|endTime|Time|出诊结束时间|
+|room|String|诊室|
+|reason|String|失败原因|
+|conflictType|String|冲突类型或失败类型；常见值同 `AiScheduleItem.conflictType`|
 
 
 
@@ -4741,7 +4761,8 @@ GET /inspection-doctor/order/MO202606160001
 |maxNum|Integer|是|本排班最大号源数；发布后通常会作为初始可预约号源数量|
 |price|Decimal|是|本排班挂号费|
 |room|String|否|出诊诊室|
-|conflict|Boolean|否|冲突标记；`true` 表示该医生在同日期、同时间段已有冲突排班或冲突检查失败|
+|conflict|Boolean|否|冲突标记；`true` 表示该医生或诊室在同日期、同时间段已有冲突排班，或冲突检查失败|
+|conflictType|String|否|冲突类型；常见值 `DOCTOR_TIME` 医生时间冲突、`ROOM_TIME` 诊室占用冲突、`BATCH_DOCTOR_TIME` 本批次医生冲突、`BATCH_ROOM_TIME` 本批次诊室冲突、`CHECK_FAILED`/`CHECK_EXCEPTION` 冲突检查失败|
 |conflictReason|String|否|冲突原因；无冲突时通常为 `null` 或空字符串|
 
 
@@ -4774,7 +4795,26 @@ GET /inspection-doctor/order/MO202606160001
 |submittedCount|Integer|本次提交的排班项数量，包含冲突项和非冲突项|
 |createdCount|Integer|实际成功创建的排班数量|
 |createdSchedules|DoctorSchedule\[\]|admin\-service 返回的已创建排班记录列表|
+|failedItems|SchedulePublishFailure\[\]|admin\-service 批量创建时未创建的排班项及失败原因；包含医生已停职、医生时间冲突、诊室占用冲突、本批次内部冲突等|
 |warnings|String\[\]|发布警告或失败原因，例如存在冲突项被过滤、没有可发布排班、部分排班未创建等|
+
+
+
+**SchedulePublishFailure 字段说明**
+
+
+
+|参数名|类型|说明|
+|---|---|---|
+|index|Integer|失败项在发布请求 `items` 数组中的下标，从0开始|
+|doctorId|String|医生ID|
+|doctorName|String|医生姓名|
+|workDate|Date|出诊日期|
+|startTime|Time|出诊开始时间|
+|endTime|Time|出诊结束时间|
+|room|String|诊室|
+|reason|String|失败原因|
+|conflictType|String|冲突类型或失败类型；常见值同 `AiScheduleItem.conflictType`|
 
 
 
@@ -4917,6 +4957,7 @@ GET /inspection-doctor/order/MO202606160001
         "price": 30,
         "room": "101",
         "conflict": false,
+        "conflictType": null,
         "conflictReason": null
       }
     ],
@@ -4936,7 +4977,7 @@ GET /inspection-doctor/order/MO202606160001
 
 
 
-**业务规则：** 先校验管理员身份；再读取 admin\-service 中该医生在请求周期内的已有排班。AI生成结果会被规范化：医生、科室信息以请求参数为准；无效日期、不可排班日期、无效时间段会被过滤；最多保留100条排班项；最后调用 admin\-service 冲突检查并标记 `conflict/conflictReason`。模型失败时使用配置的时间窗口生成规则降级草稿。
+**业务规则：** 先校验管理员身份；再读取 admin\-service 中该医生在请求周期内的已有排班，并读取请求 `rooms` 在同周期内的已发布诊室占用作为模型生成上下文。AI生成结果会被规范化：医生、科室信息以请求参数为准；无效日期、不可排班日期、无效时间段会被过滤；最多保留100条排班项；最后调用 admin\-service 结构化冲突检查并标记 `conflict/conflictType/conflictReason`。冲突检查同时覆盖医生同日时间重叠和诊室同日时间重叠；例如其他医生已占用同一诊室时会返回 `ROOM_TIME`。模型失败时使用配置的时间窗口生成规则降级草稿。
 
 
 
@@ -4970,7 +5011,7 @@ GET /inspection-doctor/order/MO202606160001
 |参数名|类型|说明|
 |---|---|---|
 |data|AiScheduleGenerateResponse|带冲突标记的排班项列表；字段含义见上方 `AiScheduleGenerateResponse 字段说明`|
-|data\.items|AiScheduleItem\[\]|冲突检查后的排班项；重点查看每项的 `conflict` 和 `conflictReason`|
+|data\.items|AiScheduleItem\[\]|冲突检查后的排班项；重点查看每项的 `conflict`、`conflictType` 和 `conflictReason`|
 
 
 
@@ -5023,7 +5064,8 @@ GET /inspection-doctor/order/MO202606160001
         "price": 30,
         "room": "101",
         "conflict": true,
-        "conflictReason": "Doctor already has a schedule in this time range."
+        "conflictType": "ROOM_TIME",
+        "conflictReason": "诊室 101 在该时段已被 王医生 占用"
       }
     ],
     "warnings": [],
@@ -5039,7 +5081,7 @@ GET /inspection-doctor/order/MO202606160001
 
 
 
-**业务规则：** 仅做冲突检查，不创建排班。每个排班项会通过 admin\-service 校验是否与已有排班冲突；校验失败或异常时按冲突处理，并在 `warnings` 中记录原因。
+**业务规则：** 仅做冲突检查，不创建排班。每个排班项会通过 admin\-service 校验是否与已有已发布且启用的排班冲突；校验维度包括同一医生同日期时间重叠、同一诊室同日期时间重叠。校验失败或异常时按冲突处理，并在 `warnings` 中记录原因。
 
 
 
@@ -5131,6 +5173,7 @@ GET /inspection-doctor/order/MO202606160001
         "room": "101"
       }
     ],
+    "failedItems": [],
     "warnings": []
   }
 }
@@ -5142,7 +5185,7 @@ GET /inspection-doctor/order/MO202606160001
 
 
 
-**业务规则：** 发布前会再次执行冲突检查；存在冲突的排班项会被过滤，不会提交给 admin\-service。无可发布排班时返回 `status=FAILED`。可发布排班通过 admin\-service 批量创建，全部成功返回 `SUCCESS`，部分创建返回 `PARTIAL_SUCCESS`。
+**业务规则：** 发布前会再次执行结构化冲突检查；存在医生时间冲突、诊室时间冲突或检查失败的排班项会被过滤，不会提交给 admin\-service。无可发布排班时返回 `status=FAILED`。可发布排班通过 admin\-service 批量创建；admin\-service 落库前仍会再次校验医生时间冲突、诊室时间冲突，并检查本批次内部的医生/诊室时间重叠。全部成功返回 `SUCCESS`，部分创建返回 `PARTIAL_SUCCESS`，失败项通过 `failedItems` 返回原因。
 
 
 

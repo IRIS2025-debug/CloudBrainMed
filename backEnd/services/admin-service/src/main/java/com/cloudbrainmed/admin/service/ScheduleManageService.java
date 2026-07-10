@@ -1,6 +1,8 @@
 package com.cloudbrainmed.admin.service;
 
 import com.cloudbrainmed.admin.dto.ScheduleQueryDto;
+import com.cloudbrainmed.admin.dto.ScheduleBatchCreateResponse;
+import com.cloudbrainmed.admin.dto.ScheduleConflictResult;
 import com.cloudbrainmed.admin.dto.ScheduleSaveDto;
 import com.cloudbrainmed.admin.dto.ScheduleUpdateDto;
 import com.cloudbrainmed.admin.entity.DoctorSchedule;
@@ -55,7 +57,7 @@ public interface ScheduleManageService {
     /**
      * 批量生成排班（AI调用）
      */
-    List<DoctorSchedule> batchCreateSchedules(List<ScheduleSaveDto> dtoList);
+    ScheduleBatchCreateResponse batchCreateSchedules(List<ScheduleSaveDto> dtoList);
 
     /**
      * 获取医生排班（供AI服务调用）
@@ -63,7 +65,17 @@ public interface ScheduleManageService {
     List<DoctorSchedule> getDoctorSchedulesForAI(String doctorId, LocalDate startDate, LocalDate endDate);
 
     /**
+     * 获取诊室占用（供AI服务生成排班草稿时避开已占用诊室）
+     */
+    List<DoctorSchedule> getRoomUsagesForAI(List<String> rooms, LocalDate startDate, LocalDate endDate);
+
+    /**
      * 检查排班冲突
      */
     boolean checkScheduleConflict(DoctorSchedule schedule);
+
+    /**
+     * 检查排班冲突并返回冲突类型和原因
+     */
+    ScheduleConflictResult checkScheduleConflictDetail(DoctorSchedule schedule);
 }

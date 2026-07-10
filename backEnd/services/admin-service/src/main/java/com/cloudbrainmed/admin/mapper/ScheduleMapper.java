@@ -37,16 +37,65 @@ public interface ScheduleMapper extends BaseMapper<DoctorSchedule> {
             "WHERE schedule_id = #{scheduleId}")
     int updateStatus(@Param("scheduleId") String scheduleId, @Param("status") Integer status);
 
-    @Select("SELECT COUNT(*) FROM doctor_schedule WHERE doctor_id = #{doctorId} " +
-            "AND work_date = #{workDate} " +
-            "AND ((start_time < #{endTime} AND end_time > #{startTime})) " +
-            "AND schedule_id != #{scheduleId} " +
-            "AND schedule_status = 'PUBLISHED'")
+    @Select("""
+            <script>
+            SELECT COUNT(*) FROM doctor_schedule
+            WHERE doctor_id = #{doctorId}
+            AND work_date = #{workDate}
+            AND start_time &lt; #{endTime} AND end_time &gt; #{startTime}
+            <if test="scheduleId != null and scheduleId != ''">
+                AND schedule_id != #{scheduleId}
+            </if>
+            AND status = 1
+            AND schedule_status = 'PUBLISHED'
+            </script>
+            """)
     int checkConflict(@Param("doctorId") String doctorId,
                       @Param("workDate") LocalDate workDate,
                       @Param("startTime") LocalTime startTime,
                       @Param("endTime") LocalTime endTime,
                       @Param("scheduleId") String scheduleId);
+
+    @Select("""
+            <script>
+            SELECT * FROM doctor_schedule
+            WHERE doctor_id = #{doctorId}
+            AND work_date = #{workDate}
+            AND start_time &lt; #{endTime} AND end_time &gt; #{startTime}
+            <if test="scheduleId != null and scheduleId != ''">
+                AND schedule_id != #{scheduleId}
+            </if>
+            AND status = 1
+            AND schedule_status = 'PUBLISHED'
+            ORDER BY start_time ASC LIMIT 1
+            </script>
+            """)
+    DoctorSchedule findDoctorTimeConflict(@Param("doctorId") String doctorId,
+                                           @Param("workDate") LocalDate workDate,
+                                           @Param("startTime") LocalTime startTime,
+                                           @Param("endTime") LocalTime endTime,
+                                           @Param("scheduleId") String scheduleId);
+
+    @Select("""
+            <script>
+            SELECT * FROM doctor_schedule
+            WHERE room = #{room}
+            AND work_date = #{workDate}
+            AND start_time &lt; #{endTime} AND end_time &gt; #{startTime}
+            <if test="scheduleId != null and scheduleId != ''">
+                AND schedule_id != #{scheduleId}
+            </if>
+            AND status = 1
+            AND schedule_status = 'PUBLISHED'
+            AND room IS NOT NULL AND room != ''
+            ORDER BY start_time ASC LIMIT 1
+            </script>
+            """)
+    DoctorSchedule findRoomTimeConflict(@Param("room") String room,
+                                         @Param("workDate") LocalDate workDate,
+                                         @Param("startTime") LocalTime startTime,
+                                         @Param("endTime") LocalTime endTime,
+                                         @Param("scheduleId") String scheduleId);
 
     @Update("UPDATE doctor_schedule SET status = 1, update_time = NOW() " +
             "WHERE schedule_id = #{scheduleId}")

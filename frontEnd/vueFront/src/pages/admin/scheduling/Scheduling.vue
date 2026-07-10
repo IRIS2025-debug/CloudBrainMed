@@ -898,7 +898,13 @@ function getConflictTagType(type: string): string {
   const map: Record<string, string> = {
     'TIME_CONFLICT': 'danger',
     'SAME_DOCTOR': 'warning',
-    'SAME_ROOM': 'info'
+    'SAME_ROOM': 'info',
+    'DOCTOR_TIME': 'danger',
+    'ROOM_TIME': 'warning',
+    'BATCH_DOCTOR_TIME': 'danger',
+    'BATCH_ROOM_TIME': 'warning',
+    'CHECK_FAILED': 'danger',
+    'CHECK_EXCEPTION': 'danger'
   }
   return map[type] || 'warning'
 }
@@ -1447,6 +1453,7 @@ async function handleAiPreview() {
         room: item.room || '未指定',
         // 保留冲突信息
         conflict: item.conflict || false,
+        conflictType: item.conflictType || null,
         conflictReason: item.conflictReason || null
       }))
       
@@ -1459,7 +1466,7 @@ async function handleAiPreview() {
           workDate: item.workDate,
           startTime: item.startTime,
           endTime: item.endTime,
-          conflictType: 'SCHEDULE_CONFLICT',
+          conflictType: item.conflictType || 'SCHEDULE_CONFLICT',
           conflictDetail: item.conflictReason || '排班冲突'
         }))
       
@@ -1579,14 +1586,18 @@ async function handleAiPublish() {
     console.log('响应数据:', response.data)
     console.log('=================================')
     
-    if (response.data && response.data.publishedCount > 0) {
-      ElMessage.success(`✅ 成功发布 ${response.data.publishedCount} 条排班`)
+    if (response.data && response.data.createdCount > 0) {
+      ElMessage.success(`✅ 成功发布 ${response.data.createdCount} 条排班`)
     }
-    if (response.data && response.data.failedIds && response.data.failedIds.length > 0) {
-      ElMessage.warning(`⚠️ 有 ${response.data.failedIds.length} 条排班发布失败`)
-      if (response.data.failedItems) {
-        console.error('发布失败的项:', response.data.failedItems)
-      }
+    if (response.data && response.data.failedItems && response.data.failedItems.length > 0) {
+      ElMessage.warning(`⚠️ 有 ${response.data.failedItems.length} 条排班发布失败`)
+      console.error('发布失败的项:', response.data.failedItems)
+    }
+    if (response.data && response.data.warnings && response.data.warnings.length > 0) {
+      console.warn('发布警告:', response.data.warnings)
+    }
+    if (response.data && response.data.status === 'FAILED') {
+      ElMessage.error(response.data.warnings?.[0] || '没有排班被发布')
     }
     aiDialogVisible.value = false
     // 刷新排班列表
