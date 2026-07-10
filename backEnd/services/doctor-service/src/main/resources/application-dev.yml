@@ -36,8 +36,3 @@ spring:
 logging:
   level:
     com.yourcompany: DEBUG
-
-cloudbrainmed:
-  doctor:
-    medical-order:
-      dev-auto-queue-after-confirm: true

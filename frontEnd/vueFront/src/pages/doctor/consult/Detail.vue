@@ -129,8 +129,8 @@
             </el-button>
           </div>
           <div v-if="examOrderResult" class="exam-order-result">
-            <strong>检查单已生成并进入检查/检验队列</strong>
-            <span>状态：{{ examOrderResult.status || 'QUEUED' }} · 项目数：{{ examOrderResult.itemCount || 0 }} · 金额：¥{{ examOrderResult.totalAmount || 0 }}</span>
+            <strong>{{ examOrderResult.queueReady ? '检查/检验申请已进入队列' : '检查/检验申请已生成，等待患者缴费' }}</strong>
+            <span>状态：{{ examOrderResult.status || 'WAITING_ASSIGN' }} · 项目数：{{ examOrderResult.itemCount || 0 }} · 金额：¥{{ examOrderResult.totalAmount || 0 }}</span>
             <small v-if="examOrderResult.paymentMessage">{{ examOrderResult.paymentMessage }}</small>
             <div class="exam-order-result-actions">
               <el-button @click="router.push('/doctor/consult')">返回接诊工作台</el-button>
@@ -442,7 +442,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, MagicStick, MoreFilled, Promotion } from '@element-plus/icons-vue'
-import { getConsultDetail, saveDraft, confirmRecord, confirmMedicalOrder, getConsultReports, completeConsult, createPrescription } from '@/api/doctor/consult'
+import { getConsultDetail, saveDraft, confirmRecord, confirmMedicalOrder, getConsultReports, completeConsult, createPrescription, type MedicalOrderConfirmResult } from '@/api/doctor/consult'
 import { assistantChat, analyzeReport, recommendExamItems, type AiAssistantActionType, type AiAssistantChatResponse, type ReportAnalysisResponse } from '@/api/doctor/ai'
 import { getMedicineList } from '@/api/doctor/medicine'
 import type { Medicine } from '@/types/admin/adminMedicine'
@@ -495,7 +495,7 @@ const examItems = ref<ExamOrderDraftItem[]>([{ id: Date.now(), itemCode: '', ite
 const examRecommendations = ref<NormalizedExamRecommendation[]>([])
 const examRecommendSummary = ref('')
 const examAiTraceId = ref('')
-const examOrderResult = ref<any>(null)
+const examOrderResult = ref<MedicalOrderConfirmResult | null>(null)
 const aiPanelMode = ref<'reception' | 'medicine'>('reception')
 const aiLoading = ref(false)
 const chatInput = ref('')
@@ -759,8 +759,13 @@ async function submitExamRecommendations() {
         urgencyLevel: item.urgencyLevel || urgencyLevel.value
       }))
     })
-    examOrderResult.value = res.data
-    ElMessage.success('检查申请已生成，并已进入检查/检验队列')
+    const result = res.data
+    examOrderResult.value = result
+    ElMessage.success(
+      result.queueReady
+        ? '检查/检验申请已进入队列'
+        : '检查/检验申请已生成，请患者缴费，支付成功后自动进入队列'
+    )
   } catch (e: any) {
     showActionError(e, '检查申请提交失败')
   } finally {
@@ -863,8 +868,13 @@ async function submitExamOrder() {
         urgencyLevel: item.urgencyLevel
       }))
     })
-    examOrderResult.value = res.data
-    ElMessage.success('检查申请已生成，并已进入检查/检验队列')
+    const result = res.data
+    examOrderResult.value = result
+    ElMessage.success(
+      result.queueReady
+        ? '检查/检验申请已进入队列'
+        : '检查/检验申请已生成，请患者缴费，支付成功后自动进入队列'
+    )
     showExamDialog.value = false
     examItems.value = [{ id: Date.now(), itemCode: '', itemName: '', dept: '' }]
   } catch (e: any) {
