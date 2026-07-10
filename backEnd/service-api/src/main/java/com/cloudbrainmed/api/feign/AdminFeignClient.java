@@ -1,6 +1,8 @@
 package com.cloudbrainmed.api.feign;
 
 import com.cloudbrainmed.api.fallback.AdminFeignFallback;
+import com.cloudbrainmed.admin.dto.ScheduleBatchCreateResponse;
+import com.cloudbrainmed.admin.dto.ScheduleConflictResult;
 import com.cloudbrainmed.admin.dto.ScheduleSaveDto;
 import com.cloudbrainmed.admin.entity.DoctorSchedule;
 import com.cloudbrainmed.common.result.Result;
@@ -24,14 +26,24 @@ public interface AdminFeignClient {
     );
 
     /**
+     * 获取诊室占用（AI智能排班用）
+     */
+    @GetMapping("/admin-service/schedule/ai/room-usage")
+    Result<List<DoctorSchedule>> getRoomUsageForAI(
+            @RequestParam("rooms") List<String> rooms,
+            @RequestParam("startDate") String startDate,
+            @RequestParam("endDate") String endDate
+    );
+
+    /**
      * 批量创建排班（AI生成后调用）
      */
     @PostMapping("/admin-service/schedule/ai/batch-create")
-    Result<List<DoctorSchedule>> batchCreateSchedules(@RequestBody List<ScheduleSaveDto> dtoList);
+    Result<ScheduleBatchCreateResponse> batchCreateSchedules(@RequestBody List<ScheduleSaveDto> dtoList);
 
     /**
      * 检查排班冲突
      */
     @PostMapping("/admin-service/schedule/ai/check-conflict")
-    Result<Boolean> checkConflict(@RequestBody DoctorSchedule schedule);
+    Result<ScheduleConflictResult> checkConflict(@RequestBody DoctorSchedule schedule);
 }

@@ -44,6 +44,7 @@ export interface AiScheduleGenerateResponse {
     price: number
     room: string
     conflict?: boolean
+    conflictType?: string | null
     conflictReason?: string | null
   }>
   conflicts: Array<{
@@ -69,15 +70,29 @@ export interface AiSchedulePublishRequest {
     maxNum: number
     price: number
     room: string
+    conflict?: boolean
+    conflictType?: string | null
+    conflictReason?: string | null
   }>
 }
 
 export interface AiSchedulePublishResponse {
-  publishedCount: number
-  failedIds: string[]
+  traceId?: string
+  status: string
+  submittedCount: number
+  createdCount: number
+  createdSchedules: any[]
+  warnings: string[]
   failedItems?: Array<{
     index: number
+    doctorId?: string
+    doctorName?: string
+    workDate?: string
+    startTime?: string
+    endTime?: string
+    room?: string
     reason: string
+    conflictType?: string
   }>
 }
 
@@ -91,7 +106,7 @@ export function previewAiSchedule(data: AiScheduleGenerateRequest) {
 
 // 冲突检查
 export function checkConflicts(data: {
-  schedules: AiScheduleGenerateResponse['schedules']
+  items: AiScheduleGenerateResponse['schedules']
 }) {
   return request.post<AiScheduleGenerateResponse>(
     '/ai-service/schedule/conflict-check',

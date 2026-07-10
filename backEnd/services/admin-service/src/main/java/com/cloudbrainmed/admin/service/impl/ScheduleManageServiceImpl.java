@@ -2,6 +2,9 @@ package com.cloudbrainmed.admin.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.cloudbrainmed.admin.dto.ScheduleBatchCreateResponse;
+import com.cloudbrainmed.admin.dto.ScheduleConflictResult;
+import com.cloudbrainmed.admin.dto.SchedulePublishFailure;
 import com.cloudbrainmed.admin.dto.ScheduleQueryDto;
 import com.cloudbrainmed.admin.dto.ScheduleSaveDto;
 import com.cloudbrainmed.admin.dto.ScheduleUpdateDto;
@@ -17,7 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -112,16 +114,9 @@ public class ScheduleManageServiceImpl implements ScheduleManageService {
             }
         }
 
-        // 检查冲突
-        int conflictCount = scheduleMapper.checkConflict(
-                dto.getDoctorId(),
-                dto.getWorkDate(),
-                dto.getStartTime(),
-                dto.getEndTime(),
-                null
-        );
-        if (conflictCount > 0) {
-            throw new BusinessException("该时段已有排班，请调整时间");
+        ScheduleConflictResult conflict = checkScheduleConflictDetail(toDoctorSchedule(dto, null));
+        if (conflict.isConflict()) {
+            throw new BusinessException(conflict.getConflictReason());
         }
 
         DoctorSchedule schedule = new DoctorSchedule();
@@ -175,17 +170,19 @@ public class ScheduleManageServiceImpl implements ScheduleManageService {
             throw new BusinessException("开始时间必须早于结束时间");
         }
 
-        // 检查冲突（排除自己）
         String doctorId = dto.getDoctorId() != null ? dto.getDoctorId() : existing.getDoctorId();
-        int conflictCount = scheduleMapper.checkConflict(
-                doctorId,
-                workDate,
-                startTime,
-                endTime,
-                dto.getScheduleId()
-        );
-        if (conflictCount > 0) {
-            throw new BusinessException("该时段已有排班，请调整时间");
+        DoctorSchedule candidate = new DoctorSchedule();
+        candidate.setScheduleId(dto.getScheduleId());
+        candidate.setDoctorId(doctorId);
+        candidate.setDoctorName(dto.getDoctorName() != null ? dto.getDoctorName() : existing.getDoctorName());
+        candidate.setDeptId(dto.getDeptId() != null ? dto.getDeptId() : existing.getDeptId());
+        candidate.setWorkDate(workDate);
+        candidate.setStartTime(startTime);
+        candidate.setEndTime(endTime);
+        candidate.setRoom(dto.getRoom() != null ? dto.getRoom() : existing.getRoom());
+        ScheduleConflictResult conflict = checkScheduleConflictDetail(candidate);
+        if (conflict.isConflict()) {
+            throw new BusinessException(conflict.getConflictReason());
         }
 
         // 更新字段
@@ -237,15 +234,80 @@ public class ScheduleManageServiceImpl implements ScheduleManageService {
     }
 
     @Override
+    public List<DoctorSchedule> getRoomUsagesForAI(List<String> rooms, LocalDate startDate, LocalDate endDate) {
+        Set<String> roomSet = rooms == null ? Set.of() : rooms.stream()
+                .filter(StringUtils::hasText)
+                .collect(Collectors.toSet());
+        if (roomSet.isEmpty()) {
+            return List.of();
+        }
+        return scheduleMapper.selectByDateRange(startDate, endDate).stream()
+                .filter(schedule -> Integer.valueOf(1).equals(schedule.getStatus()))
+                .filter(schedule -> StringUtils.hasText(schedule.getRoom()))
+                .filter(schedule -> roomSet.contains(schedule.getRoom()))
+                .toList();
+    }
+
+    @Override
     public boolean checkScheduleConflict(DoctorSchedule schedule) {
-        int count = scheduleMapper.checkConflict(
+        return checkScheduleConflictDetail(schedule).isConflict();
+    }
+
+    @Override
+    public ScheduleConflictResult checkScheduleConflictDetail(DoctorSchedule schedule) {
+        if (schedule == null
+                || schedule.getDoctorId() == null
+                || schedule.getWorkDate() == null
+                || schedule.getStartTime() == null
+                || schedule.getEndTime() == null) {
+            return ScheduleConflictResult.of(
+                    ScheduleConflictResult.DOCTOR_TIME,
+                    "排班医生、日期或时间不完整，无法检查冲突",
+                    null,
+                    schedule == null ? null : schedule.getDoctorId(),
+                    schedule == null ? null : schedule.getDoctorName(),
+                    schedule == null ? null : schedule.getRoom());
+        }
+
+        DoctorSchedule doctorConflict = scheduleMapper.findDoctorTimeConflict(
                 schedule.getDoctorId(),
                 schedule.getWorkDate(),
                 schedule.getStartTime(),
                 schedule.getEndTime(),
                 schedule.getScheduleId()
         );
-        return count > 0;
+        if (doctorConflict != null) {
+            return ScheduleConflictResult.of(
+                    ScheduleConflictResult.DOCTOR_TIME,
+                    "医生 " + valueOrDefault(schedule.getDoctorName(), doctorConflict.getDoctorName())
+                            + " 在该时段已有排班",
+                    doctorConflict.getScheduleId(),
+                    doctorConflict.getDoctorId(),
+                    doctorConflict.getDoctorName(),
+                    doctorConflict.getRoom());
+        }
+
+        if (StringUtils.hasText(schedule.getRoom())) {
+            DoctorSchedule roomConflict = scheduleMapper.findRoomTimeConflict(
+                    schedule.getRoom(),
+                    schedule.getWorkDate(),
+                    schedule.getStartTime(),
+                    schedule.getEndTime(),
+                    schedule.getScheduleId()
+            );
+            if (roomConflict != null) {
+                return ScheduleConflictResult.of(
+                        ScheduleConflictResult.ROOM_TIME,
+                        "诊室 " + schedule.getRoom() + " 在该时段已被 "
+                                + valueOrDefault(roomConflict.getDoctorName(), "其他医生")
+                                + " 占用",
+                        roomConflict.getScheduleId(),
+                        roomConflict.getDoctorId(),
+                        roomConflict.getDoctorName(),
+                        roomConflict.getRoom());
+            }
+        }
+        return ScheduleConflictResult.none();
     }
 
     @Override
@@ -271,15 +333,9 @@ public class ScheduleManageServiceImpl implements ScheduleManageService {
             throw new BusinessException("排班已经是启用状态");
         }
 
-        int conflictCount = scheduleMapper.checkConflict(
-                schedule.getDoctorId(),
-                schedule.getWorkDate(),
-                schedule.getStartTime(),
-                schedule.getEndTime(),
-                schedule.getScheduleId()
-        );
-        if (conflictCount > 0) {
-            throw new BusinessException("该时段已有启用的排班，无法启用");
+        ScheduleConflictResult conflict = checkScheduleConflictDetail(schedule);
+        if (conflict.isConflict()) {
+            throw new BusinessException(conflict.getConflictReason());
         }
 
         return scheduleMapper.enableSchedule(scheduleId) > 0;
@@ -287,50 +343,59 @@ public class ScheduleManageServiceImpl implements ScheduleManageService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public List<DoctorSchedule> batchCreateSchedules(List<ScheduleSaveDto> dtoList) {
-        List<DoctorSchedule> result = new ArrayList<>();
-        for (ScheduleSaveDto dto : dtoList) {
-            // 验证医生是否在职
+    public ScheduleBatchCreateResponse batchCreateSchedules(List<ScheduleSaveDto> dtoList) {
+        ScheduleBatchCreateResponse response = new ScheduleBatchCreateResponse();
+        List<ScheduleSaveDto> items = dtoList == null ? List.of() : dtoList;
+        response.setSubmittedCount(items.size());
+        List<DoctorSchedule> acceptedSchedules = new ArrayList<>();
+
+        for (int index = 0; index < items.size(); index++) {
+            ScheduleSaveDto dto = items.get(index);
+            if (dto == null) {
+                response.getFailedItems().add(buildFailure(
+                        index, null, "排班数据为空", ScheduleConflictResult.NONE));
+                continue;
+            }
             if (!isDoctorActive(dto.getDoctorId())) {
-                continue;  // 跳过停职医生的排班
+                response.getFailedItems().add(buildFailure(
+                        index, dto, "医生不存在或已停职，无法创建排班", ScheduleConflictResult.NONE));
+                continue;
+            }
+            if (!isValidTimeRange(dto.getStartTime(), dto.getEndTime())) {
+                response.getFailedItems().add(buildFailure(
+                        index, dto, "开始时间必须早于结束时间", ScheduleConflictResult.NONE));
+                continue;
             }
 
-            if (dto.getStartTime() != null && dto.getEndTime() != null) {
-                if (dto.getStartTime().isAfter(dto.getEndTime()) || dto.getStartTime().equals(dto.getEndTime())) {
-                    continue;
-                }
+            DoctorSchedule candidate = toDoctorSchedule(dto, null);
+            ScheduleConflictResult persistedConflict = checkScheduleConflictDetail(candidate);
+            if (persistedConflict.isConflict()) {
+                response.getFailedItems().add(buildFailure(index, dto, persistedConflict));
+                continue;
             }
 
-            int conflictCount = scheduleMapper.checkConflict(
-                    dto.getDoctorId(),
-                    dto.getWorkDate(),
-                    dto.getStartTime(),
-                    dto.getEndTime(),
-                    null
-            );
-            if (conflictCount == 0) {
-                DoctorSchedule schedule = new DoctorSchedule();
-                schedule.setScheduleId(generateScheduleId());
-                schedule.setDoctorId(dto.getDoctorId());
-                schedule.setDoctorName(dto.getDoctorName());
-                schedule.setDeptId(dto.getDeptId());
-                schedule.setWorkDate(dto.getWorkDate());
-                schedule.setStartTime(dto.getStartTime());
-                schedule.setEndTime(dto.getEndTime());
-                schedule.setMaxNum(dto.getMaxNum());
-                schedule.setRemainNum(dto.getMaxNum());
-                schedule.setPrice(dto.getPrice());
-                schedule.setRoom(dto.getRoom());
-                schedule.setStatus(1);
-                schedule.setSourceType("AI_GENERATED");
-                schedule.setScheduleStatus("PUBLISHED");
-                schedule.setCreateTime(OffsetDateTime.now(ZoneOffset.ofHours(8)));
-
-                scheduleMapper.insert(schedule);
-                result.add(schedule);
+            ScheduleConflictResult batchConflict = checkBatchConflict(candidate, acceptedSchedules);
+            if (batchConflict.isConflict()) {
+                response.getFailedItems().add(buildFailure(index, dto, batchConflict));
+                continue;
             }
+
+            DoctorSchedule schedule = toDoctorSchedule(dto, generateScheduleId());
+            schedule.setRemainNum(dto.getMaxNum());
+            schedule.setStatus(1);
+            schedule.setSourceType("AI_GENERATED");
+            schedule.setScheduleStatus("PUBLISHED");
+            schedule.setCreateTime(OffsetDateTime.now(ZoneOffset.ofHours(8)));
+
+            scheduleMapper.insert(schedule);
+            response.getCreatedSchedules().add(schedule);
+            acceptedSchedules.add(schedule);
         }
-        return result;
+        response.setCreatedCount(response.getCreatedSchedules().size());
+        if (!response.getFailedItems().isEmpty()) {
+            response.getWarnings().add("部分排班因医生时间冲突、诊室占用或参数无效未创建");
+        }
+        return response;
     }
 
     // ===== 私有辅助方法 =====
@@ -363,5 +428,99 @@ public class ScheduleManageServiceImpl implements ScheduleManageService {
 
     private String generateScheduleId() {
         return "SCH" + System.currentTimeMillis() + String.format("%04d", new Random().nextInt(10000));
+    }
+
+    private DoctorSchedule toDoctorSchedule(ScheduleSaveDto dto, String scheduleId) {
+        DoctorSchedule schedule = new DoctorSchedule();
+        schedule.setScheduleId(scheduleId);
+        schedule.setDoctorId(dto.getDoctorId());
+        schedule.setDoctorName(dto.getDoctorName());
+        schedule.setDeptId(dto.getDeptId());
+        schedule.setWorkDate(dto.getWorkDate());
+        schedule.setStartTime(dto.getStartTime());
+        schedule.setEndTime(dto.getEndTime());
+        schedule.setMaxNum(dto.getMaxNum());
+        schedule.setPrice(dto.getPrice());
+        schedule.setRoom(dto.getRoom());
+        return schedule;
+    }
+
+    private boolean isValidTimeRange(LocalTime startTime, LocalTime endTime) {
+        return startTime != null && endTime != null && startTime.isBefore(endTime);
+    }
+
+    private ScheduleConflictResult checkBatchConflict(
+            DoctorSchedule candidate,
+            List<DoctorSchedule> acceptedSchedules) {
+        for (DoctorSchedule accepted : acceptedSchedules) {
+            if (!Objects.equals(candidate.getWorkDate(), accepted.getWorkDate())
+                    || !timeOverlaps(candidate, accepted)) {
+                continue;
+            }
+            if (Objects.equals(candidate.getDoctorId(), accepted.getDoctorId())) {
+                return ScheduleConflictResult.of(
+                        ScheduleConflictResult.BATCH_DOCTOR_TIME,
+                        "本批次中医生 " + valueOrDefault(candidate.getDoctorName(), accepted.getDoctorName())
+                                + " 在该时段已有排班",
+                        accepted.getScheduleId(),
+                        accepted.getDoctorId(),
+                        accepted.getDoctorName(),
+                        accepted.getRoom());
+            }
+            if (StringUtils.hasText(candidate.getRoom())
+                    && Objects.equals(candidate.getRoom(), accepted.getRoom())) {
+                return ScheduleConflictResult.of(
+                        ScheduleConflictResult.BATCH_ROOM_TIME,
+                        "本批次中诊室 " + candidate.getRoom() + " 在该时段已被 "
+                                + valueOrDefault(accepted.getDoctorName(), "其他医生")
+                                + " 占用",
+                        accepted.getScheduleId(),
+                        accepted.getDoctorId(),
+                        accepted.getDoctorName(),
+                        accepted.getRoom());
+            }
+        }
+        return ScheduleConflictResult.none();
+    }
+
+    private boolean timeOverlaps(DoctorSchedule left, DoctorSchedule right) {
+        return left.getStartTime() != null
+                && left.getEndTime() != null
+                && right.getStartTime() != null
+                && right.getEndTime() != null
+                && left.getStartTime().isBefore(right.getEndTime())
+                && left.getEndTime().isAfter(right.getStartTime());
+    }
+
+    private SchedulePublishFailure buildFailure(
+            int index,
+            ScheduleSaveDto dto,
+            ScheduleConflictResult conflict) {
+        return buildFailure(index, dto,
+                conflict.getConflictReason(), conflict.getConflictType());
+    }
+
+    private SchedulePublishFailure buildFailure(
+            int index,
+            ScheduleSaveDto dto,
+            String reason,
+            String conflictType) {
+        SchedulePublishFailure failure = new SchedulePublishFailure();
+        failure.setIndex(index);
+        if (dto != null) {
+            failure.setDoctorId(dto.getDoctorId());
+            failure.setDoctorName(dto.getDoctorName());
+            failure.setWorkDate(dto.getWorkDate());
+            failure.setStartTime(dto.getStartTime());
+            failure.setEndTime(dto.getEndTime());
+            failure.setRoom(dto.getRoom());
+        }
+        failure.setReason(reason);
+        failure.setConflictType(conflictType);
+        return failure;
+    }
+
+    private String valueOrDefault(String value, String defaultValue) {
+        return StringUtils.hasText(value) ? value : defaultValue;
     }
 }
