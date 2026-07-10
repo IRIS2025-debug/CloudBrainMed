@@ -125,6 +125,32 @@ public class MedicineServiceImpl implements MedicineService {
         return suggestions;
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean batchUpdate(List<MedicineDto> dtoList) {
+        if (dtoList == null || dtoList.isEmpty()) {
+            return false;
+        }
+
+        List<Medicine> entities = new ArrayList<>();
+        for (MedicineDto dto : dtoList) {
+            Medicine entity = new Medicine();
+            entity.setMedicineId(dto.getMedicineId());
+            entity.setName(dto.getName());
+            entity.setSpec(dto.getSpec());
+            entity.setUsage(dto.getUsage());
+            entity.setIndication(dto.getIndication());
+            entity.setAttention(dto.getAttention());
+            entity.setStock(dto.getStock());
+            entity.setPrice(dto.getPrice());
+            entities.add(entity);
+        }
+
+        // 使用批量更新（只更新非空字段）
+        int result = medicineMapper.batchUpdateSelective(entities);
+        return result == dtoList.size();
+    }
+
     /**
      * 转换为 DTO
      */

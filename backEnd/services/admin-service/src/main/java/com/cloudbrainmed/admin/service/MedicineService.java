@@ -48,6 +48,8 @@ public interface MedicineService {
      */
     List<MedicineWarnVo> getWarnList(Integer minStockThreshold);
 
+    boolean batchUpdate(List<MedicineDto> dtoList);
+
     /**
      * 获取智能补货建议
      */

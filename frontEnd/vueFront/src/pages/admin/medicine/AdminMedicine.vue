@@ -19,10 +19,6 @@
           <el-icon><Plus /></el-icon>
           添加药品
         </el-button>
-        <el-button type="success" plain @click="handleExport">
-          <el-icon><Download /></el-icon>
-          导出报表
-        </el-button>
       </div>
     </header>
 
@@ -142,7 +138,7 @@
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item command="export">导出选中</el-dropdown-item>
+              <el-dropdown-item command="edit">批量编辑</el-dropdown-item>
               <el-dropdown-item command="delete" divided>删除选中</el-dropdown-item>
             </el-dropdown-menu>
           </template>
@@ -405,6 +401,73 @@
       </template>
     </el-dialog>
 
+    <!-- 批量编辑弹窗 -->
+    <el-dialog v-model="batchEditDialogVisible" title="批量编辑" width="520px" destroy-on-close>
+      <div class="dialog-info">
+        <div class="info-row">
+          <span class="info-label">已选药品：</span>
+          <span class="info-value">{{ selectedRows.length }} 个</span>
+        </div>
+        <div class="info-row" v-if="selectedRows.length > 0">
+          <span class="info-label">药品列表：</span>
+          <span class="info-value" style="font-size: 13px; color: #6b7280;">
+            {{ selectedRows.map(r => r.name).join('、') }}
+          </span>
+        </div>
+      </div>
+      <el-form ref="batchFormRef" :model="batchFormData" label-width="100px">
+        <el-form-item label="库存数量">
+          <el-input-number 
+            v-model="batchFormData.stock" 
+            :min="0" 
+            :step="10" 
+            controls-position="right" 
+            style="width: 100%" 
+            placeholder="不修改请留空"
+          />
+          <div class="form-hint">留空表示不修改</div>
+        </el-form-item>
+        <el-form-item label="单价">
+          <el-input-number 
+            v-model="batchFormData.price" 
+            :min="0" 
+            :precision="2" 
+            :step="0.5" 
+            controls-position="right" 
+            style="width: 100%" 
+            placeholder="不修改请留空"
+          />
+          <div class="form-hint">留空表示不修改</div>
+        </el-form-item>
+        <el-form-item label="预警线">
+          <el-input-number 
+            v-model="batchFormData.minStock" 
+            :min="0" 
+            :step="1" 
+            controls-position="right" 
+            style="width: 100%" 
+            placeholder="不修改请留空"
+          />
+          <div class="form-hint">留空表示不修改</div>
+        </el-form-item>
+        <el-form-item label="建议补货量">
+          <el-input-number 
+            v-model="batchFormData.reorderQuantity" 
+            :min="0" 
+            :step="5" 
+            controls-position="right" 
+            style="width: 100%" 
+            placeholder="不修改请留空"
+          />
+          <div class="form-hint">留空表示不修改</div>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="batchEditDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="batchEditLoading" @click="handleBatchEditConfirm">确认修改</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 预警列表弹窗 -->
     <el-dialog v-model="warnDialogVisible" title="库存预警通知" width="800px" destroy-on-close>
       <div class="warn-summary">
@@ -565,6 +628,22 @@ const addStockLoading = ref<boolean>(false)
 const warnDialogVisible = ref<boolean>(false)
 const warnList = ref<MedicineWarnVo[]>([])
 const warnFilter = ref<string>('all')
+
+// 批量编辑相关
+const batchEditDialogVisible = ref<boolean>(false)
+const batchEditLoading = ref<boolean>(false)
+const batchFormRef = ref<FormInstance | null>(null)
+const batchFormData = reactive<{
+  stock: number | null
+  price: number | null
+  minStock: number | null
+  reorderQuantity: number | null
+}>({
+  stock: null,
+  price: null,
+  minStock: null,
+  reorderQuantity: null
+})
 
 const recentOperations = ref<Array<{ time: string; action: string; name: string }>>([])
 
@@ -789,6 +868,10 @@ function handleSelectionChange(rows: Medicine[]): void {
   selectedRows.value = rows
 }
 
+// ============================================================
+// 批量操作
+// ============================================================
+
 function handleBatchCommand(command: string): void {
   if (selectedRows.value.length === 0) {
     ElMessage.warning('请先选择药品')
@@ -796,44 +879,130 @@ function handleBatchCommand(command: string): void {
   }
   
   if (command === 'delete') {
-    ElMessageBox.confirm(
-      `确定要删除选中的 ${selectedRows.value.length} 个药品吗？`,
+    handleBatchDelete()
+  } else if (command === 'edit') {
+    // 重置批量编辑表单
+    batchFormData.stock = null
+    batchFormData.price = null
+    batchFormData.minStock = null
+    batchFormData.reorderQuantity = null
+    batchEditDialogVisible.value = true
+  }
+}
+
+async function handleBatchDelete(): Promise<void> {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除选中的 ${selectedRows.value.length} 个药品吗？此操作不可恢复！`,
       '批量删除确认',
       { type: 'warning' }
-    ).then(async () => {
-      let successCount = 0
-      for (const row of selectedRows.value) {
-        try {
-          const res = await deleteMedicine(row.medicineId)
-          if (res.code === 200) successCount++
-        } catch (e) {
-          console.error(e)
+    )
+    
+    let successCount = 0
+    let failCount = 0
+    const names: string[] = []
+    
+    for (const row of selectedRows.value) {
+      try {
+        const res = await deleteMedicine(row.medicineId)
+        if (res.code === 200) {
+          successCount++
+          names.push(row.name)
+        } else {
+          failCount++
         }
+      } catch (e) {
+        failCount++
+        console.error(e)
       }
-      ElMessage.success(`成功删除 ${successCount} 个药品`)
-      await fetchData()
-    }).catch(() => {})
-  } else if (command === 'export') {
-    handleExportSelected()
+    }
+    
+    if (successCount > 0) {
+      ElMessage.success(`成功删除 ${successCount} 个药品${failCount > 0 ? `，${failCount} 个失败` : ''}`)
+      addOperationLog('批量删除', `${successCount} 个药品: ${names.join('、')}`)
+    } else {
+      ElMessage.error('批量删除失败')
+    }
+    await fetchData()
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('批量删除失败:', error)
+      ElMessage.error('批量删除失败')
+    }
   }
 }
 
-function handleExport(): void {
-  ElMessage.success('报表导出中...')
-  setTimeout(() => {
-    ElMessage.success('报表导出成功')
-  }, 1000)
-}
-
-function handleExportSelected(): void {
-  if (selectedRows.value.length === 0) {
-    ElMessage.warning('请先选择药品')
+async function handleBatchEditConfirm(): Promise<void> {
+  // 检查是否有任何字段需要更新
+  const hasChanges = 
+    batchFormData.stock !== null ||
+    batchFormData.price !== null ||
+    batchFormData.minStock !== null ||
+    batchFormData.reorderQuantity !== null
+  
+  if (!hasChanges) {
+    ElMessage.warning('请至少修改一个字段')
     return
   }
-  ElMessage.success(`正在导出 ${selectedRows.value.length} 个药品数据...`)
-  setTimeout(() => {
-    ElMessage.success('导出成功')
-  }, 1000)
+  
+  batchEditLoading.value = true
+  try {
+    let successCount = 0
+    let failCount = 0
+    const names: string[] = []
+    const updatePromises = selectedRows.value.map(async (row) => {
+      const updateData: MedicineDto = {
+        medicineId: row.medicineId,
+        name: row.name,
+        spec: row.spec,
+        usage: row.usage || '',
+        indication: row.indication || '',
+        attention: row.attention || '',
+        stock: batchFormData.stock !== null ? batchFormData.stock : row.stock,
+        price: batchFormData.price !== null ? batchFormData.price : row.price,
+        minStock: batchFormData.minStock !== null ? batchFormData.minStock : row.minStock,
+        reorderQuantity: batchFormData.reorderQuantity !== null ? batchFormData.reorderQuantity : row.reorderQuantity
+      }
+      
+      try {
+        const res = await updateMedicine(updateData)
+        if (res.code === 200) {
+          successCount++
+          names.push(row.name)
+          return true
+        } else {
+          failCount++
+          return false
+        }
+      } catch (e) {
+        failCount++
+        console.error(e)
+        return false
+      }
+    })
+    
+    await Promise.all(updatePromises)
+    
+    if (successCount > 0) {
+      const changes: string[] = []
+      if (batchFormData.stock !== null) changes.push(`库存=${batchFormData.stock}`)
+      if (batchFormData.price !== null) changes.push(`单价=${batchFormData.price}`)
+      if (batchFormData.minStock !== null) changes.push(`预警线=${batchFormData.minStock}`)
+      if (batchFormData.reorderQuantity !== null) changes.push(`补货量=${batchFormData.reorderQuantity}`)
+      
+      ElMessage.success(`成功更新 ${successCount} 个药品${failCount > 0 ? `，${failCount} 个失败` : ''}`)
+      addOperationLog('批量编辑', `${successCount} 个药品: ${changes.join('、')}`)
+      batchEditDialogVisible.value = false
+      await fetchData()
+    } else {
+      ElMessage.error('批量更新失败')
+    }
+  } catch (error) {
+    console.error('批量更新失败:', error)
+    ElMessage.error('批量更新失败')
+  } finally {
+    batchEditLoading.value = false
+  }
 }
 
 function handleView(row: Medicine): void {
@@ -1076,6 +1245,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* ... 样式保持不变 ... */
 .medicine-page {
   padding: 24px 32px;
   min-height: 100vh;
@@ -1408,6 +1578,12 @@ onMounted(() => {
 .info-value {
   font-weight: 500;
   color: #0f172a;
+}
+
+.form-hint {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 4px;
 }
 
 .warning-hint {

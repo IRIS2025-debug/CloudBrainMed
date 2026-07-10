@@ -132,4 +132,16 @@ public class MedicineManageController {
         result.put("data", suggestions);
         return result;
     }
+
+    /**
+     * 批量更新药品
+     */
+    @PutMapping("/batch-update")
+    public Map<String, Object> batchUpdate(@RequestBody List<MedicineDto> dtoList) {
+        boolean success = medicineService.batchUpdate(dtoList);
+        Map<String, Object> result = new HashMap<>();
+        result.put("code", success ? 200 : 500);
+        result.put("message", success ? "批量更新成功" : "批量更新失败");
+        return result;
+    }
 }

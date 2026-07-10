@@ -65,4 +65,115 @@ public interface MedicineMapper {
     @Update("UPDATE medicine SET stock = stock + #{quantity} " +
             "WHERE medicine_id = #{medicineId}")
     int addStock(@Param("medicineId") String medicineId, @Param("quantity") Integer quantity);
+
+    /**
+     * 批量更新药品 - 使用 CASE WHEN (PostgreSQL)
+     */
+    @Update("<script>" +
+            "UPDATE medicine SET " +
+            "  name = CASE medicine_id " +
+            "    <foreach collection='list' item='item'>" +
+            "      WHEN #{item.medicineId} THEN #{item.name}" +
+            "    </foreach>" +
+            "  END, " +
+            "  spec = CASE medicine_id " +
+            "    <foreach collection='list' item='item'>" +
+            "      WHEN #{item.medicineId} THEN #{item.spec}" +
+            "    </foreach>" +
+            "  END, " +
+            "  usage = CASE medicine_id " +
+            "    <foreach collection='list' item='item'>" +
+            "      WHEN #{item.medicineId} THEN #{item.usage}" +
+            "    </foreach>" +
+            "  END, " +
+            "  indication = CASE medicine_id " +
+            "    <foreach collection='list' item='item'>" +
+            "      WHEN #{item.medicineId} THEN #{item.indication}" +
+            "    </foreach>" +
+            "  END, " +
+            "  attention = CASE medicine_id " +
+            "    <foreach collection='list' item='item'>" +
+            "      WHEN #{item.medicineId} THEN #{item.attention}" +
+            "    </foreach>" +
+            "  END, " +
+            "  stock = CASE medicine_id " +
+            "    <foreach collection='list' item='item'>" +
+            "      WHEN #{item.medicineId} THEN #{item.stock}" +
+            "    </foreach>" +
+            "  END, " +
+            "  price = CASE medicine_id " +
+            "    <foreach collection='list' item='item'>" +
+            "      WHEN #{item.medicineId} THEN #{item.price}" +
+            "    </foreach>" +
+            "  END " +
+            "WHERE medicine_id IN " +
+            "  <foreach collection='list' item='item' open='(' separator=',' close=')'>" +
+            "    #{item.medicineId}" +
+            "  </foreach>" +
+            "</script>")
+    int batchUpdate(@Param("list") List<Medicine> list);
+
+    /**
+     * 批量更新药品 - 只更新非空字段 (PostgreSQL)
+     * 使用动态SQL，只更新传入的非空字段
+     */
+    @Update("<script>" +
+            "UPDATE medicine SET " +
+            "  <trim suffixOverrides=','>" +
+            "    <if test='list[0].name != null'>" +
+            "      name = CASE medicine_id " +
+            "        <foreach collection='list' item='item'>" +
+            "          WHEN #{item.medicineId} THEN #{item.name}" +
+            "        </foreach>" +
+            "      END, " +
+            "    </if>" +
+            "    <if test='list[0].spec != null'>" +
+            "      spec = CASE medicine_id " +
+            "        <foreach collection='list' item='item'>" +
+            "          WHEN #{item.medicineId} THEN #{item.spec}" +
+            "        </foreach>" +
+            "      END, " +
+            "    </if>" +
+            "    <if test='list[0].usage != null'>" +
+            "      usage = CASE medicine_id " +
+            "        <foreach collection='list' item='item'>" +
+            "          WHEN #{item.medicineId} THEN #{item.usage}" +
+            "        </foreach>" +
+            "      END, " +
+            "    </if>" +
+            "    <if test='list[0].indication != null'>" +
+            "      indication = CASE medicine_id " +
+            "        <foreach collection='list' item='item'>" +
+            "          WHEN #{item.medicineId} THEN #{item.indication}" +
+            "        </foreach>" +
+            "      END, " +
+            "    </if>" +
+            "    <if test='list[0].attention != null'>" +
+            "      attention = CASE medicine_id " +
+            "        <foreach collection='list' item='item'>" +
+            "          WHEN #{item.medicineId} THEN #{item.attention}" +
+            "        </foreach>" +
+            "      END, " +
+            "    </if>" +
+            "    <if test='list[0].stock != null'>" +
+            "      stock = CASE medicine_id " +
+            "        <foreach collection='list' item='item'>" +
+            "          WHEN #{item.medicineId} THEN #{item.stock}" +
+            "        </foreach>" +
+            "      END, " +
+            "    </if>" +
+            "    <if test='list[0].price != null'>" +
+            "      price = CASE medicine_id " +
+            "        <foreach collection='list' item='item'>" +
+            "          WHEN #{item.medicineId} THEN #{item.price}" +
+            "        </foreach>" +
+            "      END, " +
+            "    </if>" +
+            "  </trim>" +
+            "WHERE medicine_id IN " +
+            "  <foreach collection='list' item='item' open='(' separator=',' close=')'>" +
+            "    #{item.medicineId}" +
+            "  </foreach>" +
+            "</script>")
+    int batchUpdateSelective(@Param("list") List<Medicine> list);
 }
