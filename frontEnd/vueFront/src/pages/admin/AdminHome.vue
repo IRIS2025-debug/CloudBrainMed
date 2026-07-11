@@ -49,28 +49,40 @@
 </template>
 
 <script setup lang="ts">
-import { ArrowRight, CollectionTag, Cpu, DataAnalysis, List, UserFilled } from '@element-plus/icons-vue'
+import { onMounted, ref } from 'vue'
+import { ArrowRight, DataAnalysis, List, UserFilled } from '@element-plus/icons-vue'
+import { getDashboardOverview } from '@/api/admin/dashboard'
 
-const stats = [
-  { label: '今日排班', value: '--', icon: UserFilled, color: '#2563eb' },
-  { label: 'AI推理次数', value: '--', icon: Cpu, color: '#7c3aed' },
-  { label: '活跃模型', value: '--', icon: DataAnalysis, color: '#0d9488' },
-  { label: '训练样本', value: '--', icon: CollectionTag, color: '#f59e0b' },
-]
+const stats = ref([
+  { key: 'todayScheduleCount', label: '今日排班', value: '--', icon: DataAnalysis, color: '#2563eb' },
+  { key: 'doctorCount', label: '医生总数', value: '--', icon: UserFilled, color: '#7c3aed' },
+  { key: 'departmentCount', label: '科室总数', value: '--', icon: List, color: '#0d9488' },
+  { key: 'medicineCount', label: '药品总数', value: '--', icon: List, color: '#f59e0b' },
+])
 
 const modules = [
   { path: '/admin/profile', title: '管理员个人信息', desc: '查看编辑资料、头像上传、密码修改', icon: UserFilled, color: '#2563eb' },
   { path: '/admin/userManage', title: '账号权限管理', desc: '对医生和管理员账号进行增删改查操作', icon: List, color: '#0d9488' },
   { path: '/admin/medicine', title: '药品管理', desc: '药品信息维护、库存管理', icon: List, color: '#165DFF' },
   { path: '/admin/ml/dashboard', title: 'AI 推理看板', desc: '成功率、采纳率、耗时统计', icon: DataAnalysis, color: '#7c3aed' },
-  { path: '/admin/ml/samples', title: '样本标注', desc: 'AI 反馈样本、标签管理', icon: CollectionTag, color: '#f59e0b' },
-  { path: '/admin/ml/models', title: '模型管理', desc: '版本注册、流量灰度、训练触发', icon: Cpu, color: '#ef4444' },
   { path: '/admin/scheduling', title: 'AI智能排班', desc: '根据医生工作量和患者需求，智能排班', icon: DataAnalysis, color: '#165DFF' },
 ]
 
 const activities = [
   { text: '系统初始化完成', time: '刚刚' },
 ]
+
+onMounted(async () => {
+  try {
+    const response = await getDashboardOverview()
+    const overview = response.data
+    stats.value.forEach((stat) => {
+      stat.value = String(overview[stat.key as keyof typeof overview] ?? 0)
+    })
+  } catch {
+    // 统一请求层负责错误提示，卡片保留未加载状态。
+  }
+})
 </script>
 
 <style scoped>
