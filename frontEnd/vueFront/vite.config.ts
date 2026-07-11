@@ -130,12 +130,12 @@ export default defineConfig({
         target: 'http://localhost:8004',
         changeOrigin: true,
       },
-      '/admin-service': {
-        target: 'http://localhost:8000',
+      '/admin-service/ml': {
+        target: 'http://localhost:8001',
         changeOrigin: true,
       },
-      '/files/avatar/doctor': {
-        target: 'http://localhost:8003',
+      '/admin-service': {
+        target: 'http://localhost:8000',
         changeOrigin: true,
       },
       '/files/avatar': {
