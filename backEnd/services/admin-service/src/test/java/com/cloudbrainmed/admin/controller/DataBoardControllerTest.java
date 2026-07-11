@@ -21,11 +21,7 @@ class DataBoardControllerTest {
 
     @Test
     void returnsOverviewForAdminToken() {
-        Map<String, Integer> overview = Map.of(
-                "doctorCount", 12,
-                "departmentCount", 4,
-                "todayScheduleCount", 8,
-                "medicineCount", 36);
+        Map<String, Integer> overview = Map.of("todayScheduleCount", 8);
         when(dataBoardService.getOverview()).thenReturn(overview);
 
         Result<?> result = controller.overview(

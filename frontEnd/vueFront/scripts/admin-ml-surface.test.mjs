@@ -18,17 +18,17 @@ test('routes MLOps requests to ai-service before the general admin proxy', () =>
   assert.match(vite.slice(mlProxy, adminProxy), /localhost:8001/)
 })
 
-test('removes sample and model management pages while keeping the dashboard', () => {
+test('keeps sample and model management pages alongside the dashboard', () => {
   const app = read('src/App.vue')
   const router = read('src/router/index.ts')
-  const home = read('src/pages/admin/AdminHome.vue')
 
   assert.match(app, /\/admin\/ml\/dashboard/)
-  assert.doesNotMatch(app, /\/admin\/ml\/(samples|models)/)
-  assert.doesNotMatch(router, /\/admin\/ml\/(samples|models)/)
-  assert.doesNotMatch(home, /\/admin\/ml\/(samples|models)/)
-  assert.equal(fs.existsSync(path.join(root, 'src/pages/admin/ml/Samples.vue')), false)
-  assert.equal(fs.existsSync(path.join(root, 'src/pages/admin/ml/Models.vue')), false)
+  assert.match(app, /\/admin\/ml\/samples/)
+  assert.match(app, /\/admin\/ml\/models/)
+  assert.match(router, /\/admin\/ml\/samples/)
+  assert.match(router, /\/admin\/ml\/models/)
+  assert.equal(fs.existsSync(path.join(root, 'src/pages/admin/ml/Samples.vue')), true)
+  assert.equal(fs.existsSync(path.join(root, 'src/pages/admin/ml/Models.vue')), true)
 })
 
 test('keeps the model list but displays modelKey as the first model name column', () => {
@@ -43,12 +43,23 @@ test('keeps the model list but displays modelKey as the first model name column'
   assert.doesNotMatch(dashboard, /ElMessage/)
 })
 
-test('loads the admin overview and removes page-only MLOps API calls', () => {
+test('loads the four dashboard metrics from their real sources without faking zeros', () => {
   const home = read('src/pages/admin/AdminHome.vue')
   const mlApi = read('src/api/admin/ml.ts')
 
+  // 首页并行拉取三个数据源，且用 allSettled 隔离单点失败。
+  assert.match(home, /Promise\.allSettled/)
   assert.match(home, /getDashboardOverview/)
+  assert.match(home, /getModelStats/)
+  assert.match(home, /getSampleList/)
+
+  // ml.ts 保留完整的样本/模型管理页面所需接口。
   assert.match(mlApi, /getInferenceStats/)
+  assert.match(mlApi, /getModelStats/)
   assert.match(mlApi, /getModelList/)
-  assert.doesNotMatch(mlApi, /getSampleList|labelSample|triggerTraining|getTrainingTasks|setModelTraffic/)
+  assert.match(mlApi, /getSampleList/)
+  assert.match(mlApi, /labelSample/)
+  assert.match(mlApi, /triggerTraining/)
+  assert.match(mlApi, /getTrainingTasks/)
+  assert.match(mlApi, /setModelTraffic/)
 })
