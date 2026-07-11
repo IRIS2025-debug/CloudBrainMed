@@ -222,6 +222,8 @@ services:
       SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE: 100MB
       SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE: 100MB
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-local-integration-key}
+    volumes:
+      - ./data/doctor-avatar:/uploads/avatar/doctor
     depends_on:
       nacos:
         condition: service_healthy

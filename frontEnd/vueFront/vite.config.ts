@@ -134,6 +134,10 @@ export default defineConfig({
         target: 'http://localhost:8000',
         changeOrigin: true,
       },
+      '/files/avatar/doctor': {
+        target: 'http://localhost:8003',
+        changeOrigin: true,
+      },
       '/files/avatar': {
         target: 'http://localhost:8000',
         changeOrigin: true,
