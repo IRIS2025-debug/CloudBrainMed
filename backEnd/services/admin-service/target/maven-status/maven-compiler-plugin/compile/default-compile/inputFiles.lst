@@ -11,6 +11,7 @@ D:\neusoft\CloudBrainMed\backEnd\services\admin-service\src\main\java\com\cloudb
 D:\neusoft\CloudBrainMed\backEnd\services\admin-service\src\main\java\com\cloudbrainmed\admin\config\UploadFileConfig.java
 D:\neusoft\CloudBrainMed\backEnd\services\admin-service\src\main\java\com\cloudbrainmed\admin\dto\MedicineDto.java
 D:\neusoft\CloudBrainMed\backEnd\services\admin-service\src\main\java\com\cloudbrainmed\admin\entity\SchedulePlanItem.java
+D:\neusoft\CloudBrainMed\backEnd\services\admin-service\src\main\java\com\cloudbrainmed\admin\dto\SchedulePublishFailure.java
 D:\neusoft\CloudBrainMed\backEnd\services\admin-service\src\main\java\com\cloudbrainmed\admin\service\AccountService.java
 D:\neusoft\CloudBrainMed\backEnd\services\admin-service\src\main\java\com\cloudbrainmed\admin\service\impl\DoctorManageServiceImpl.java
 D:\neusoft\CloudBrainMed\backEnd\services\admin-service\src\main\java\com\cloudbrainmed\admin\service\impl\MlManageServiceImpl.java
@@ -31,6 +32,7 @@ D:\neusoft\CloudBrainMed\backEnd\services\admin-service\src\main\java\com\cloudb
 D:\neusoft\CloudBrainMed\backEnd\services\admin-service\src\main\java\com\cloudbrainmed\admin\dto\ScheduleUpdateDto.java
 D:\neusoft\CloudBrainMed\backEnd\services\admin-service\src\main\java\com\cloudbrainmed\admin\controller\DeptInfoController.java
 D:\neusoft\CloudBrainMed\backEnd\services\admin-service\src\main\java\com\cloudbrainmed\admin\entity\SchedulePlan.java
+D:\neusoft\CloudBrainMed\backEnd\services\admin-service\src\main\java\com\cloudbrainmed\admin\dto\ScheduleBatchCreateResponse.java
 D:\neusoft\CloudBrainMed\backEnd\services\admin-service\src\main\java\com\cloudbrainmed\admin\handler\GlobalExceptionHandler.java
 D:\neusoft\CloudBrainMed\backEnd\services\admin-service\src\main\java\com\cloudbrainmed\admin\entity\ScheduleRule.java
 D:\neusoft\CloudBrainMed\backEnd\services\admin-service\src\main\java\com\cloudbrainmed\admin\entity\DeptInfo.java
@@ -41,6 +43,7 @@ D:\neusoft\CloudBrainMed\backEnd\services\admin-service\src\main\java\com\cloudb
 D:\neusoft\CloudBrainMed\backEnd\services\admin-service\src\main\java\com\cloudbrainmed\admin\service\MlManageService.java
 D:\neusoft\CloudBrainMed\backEnd\services\admin-service\src\main\java\com\cloudbrainmed\admin\dto\SchedulePlanResponse.java
 D:\neusoft\CloudBrainMed\backEnd\services\admin-service\src\main\java\com\cloudbrainmed\admin\dto\ScheduleSaveDto.java
+D:\neusoft\CloudBrainMed\backEnd\services\admin-service\src\main\java\com\cloudbrainmed\admin\dto\ScheduleConflictResult.java
 D:\neusoft\CloudBrainMed\backEnd\services\admin-service\src\main\java\com\cloudbrainmed\admin\dto\SchedulePlanItemUpdateRequest.java
 D:\neusoft\CloudBrainMed\backEnd\services\admin-service\src\main\java\com\cloudbrainmed\admin\service\impl\ScheduleGenerator.java
 D:\neusoft\CloudBrainMed\backEnd\services\admin-service\src\main\java\com\cloudbrainmed\admin\vo\DoctorManageVo.java

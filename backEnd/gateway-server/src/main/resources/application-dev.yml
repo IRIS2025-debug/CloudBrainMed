@@ -3,6 +3,8 @@ spring:
   cloud:
     nacos:
       server-addr: ${NACOS_SERVER:127.0.0.1:8848}
+      config:
+        enabled: false
     sentinel:
       transport:
         dashboard: ${SENTINEL_DASHBOARD:localhost:8858}

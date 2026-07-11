@@ -16,6 +16,8 @@ spring:
   cloud:
     nacos:
       server-addr: nacos:8848
+      config:
+        enabled: false
     sentinel:
       transport:
         dashboard: sentinel:8858

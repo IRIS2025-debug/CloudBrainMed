@@ -4,8 +4,6 @@ spring:
     name: admin-service
   profiles:
     active: dev
-  config:
-    import: optional:nacos:admin-service.yml
 
 server:
   port: 8000

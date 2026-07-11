@@ -62,7 +62,18 @@
         </dependency>
     </dependencies>
 
-    <build>   <!-- ⚠️ 必须有 build 标签包裹 -->
+    <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>**/*.yml</include>
+                    <include>**/*.yaml</include>
+                    <include>**/*.properties</include>
+                </includes>
+            </resource>
+        </resources>
         <plugins>
             <plugin>   <!-- ✅ 正确：在 build/plugins 下 -->
                 <groupId>org.springframework.boot</groupId>

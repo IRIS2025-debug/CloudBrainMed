@@ -6,8 +6,6 @@ spring:
     name: payment-service
   profiles:
     active: dev
-  config:
-    import: optional:nacos:payment-service.yml
 
 server:
   port: 8005

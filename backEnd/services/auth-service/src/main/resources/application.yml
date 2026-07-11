@@ -4,8 +4,6 @@ spring:
     name: auth-service
   profiles:
     active: dev
-  config:
-    import: optional:nacos:auth-service.yml
 
 server:
   port: 8002
