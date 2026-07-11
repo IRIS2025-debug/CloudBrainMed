@@ -13,6 +13,9 @@ public class UploadFileConfig implements WebMvcConfigurer {
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
+        registry.addResourceHandler("/files/avatar/patient/**")
+                .addResourceLocations("file:" + avatarUploadDir + "/");
+        // 兼容存量数据：历史头像 avatar 字段仍为 /avatar/{filename}，保留只读映射避免 404
         registry.addResourceHandler("/avatar/**")
                 .addResourceLocations("file:" + avatarUploadDir + "/");
     }

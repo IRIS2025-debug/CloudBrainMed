@@ -60,12 +60,9 @@ services:
     restart: always
     ports:
       - "8080:8080"
-    volumes:
-      - ../gateway-server/src/main/resources/application-route.yml:/app/BOOT-INF/classes/application-route.yml
     env_file:
       - .env
     environment:
-      SPRING_CONFIG_ADDITIONAL-LOCATION: /app/BOOT-INF/classes/application-route.yml
       SERVER_PORT: 8080
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE}
       SPRING_CLOUD_NACOS_SERVER_ADDR: ${NACOS_SERVER}
@@ -154,7 +151,6 @@ services:
       SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE: 100MB
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-local-integration-key}
       AI_PYTHON_SERVICE_URL: ${AI_PYTHON_SERVICE_URL:-http://host.docker.internal:8010}
-      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
     depends_on:
       nacos:
         condition: service_healthy
@@ -226,6 +222,8 @@ services:
       SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE: 100MB
       SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE: 100MB
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-local-integration-key}
+    volumes:
+      - ./data/doctor-avatar:/uploads/avatar/doctor
     depends_on:
       nacos:
         condition: service_healthy
@@ -302,46 +300,28 @@ services:
     networks:
       - app-network
 
-#   ===== FastAPI 检查申请服务 =====
-  exam-service:
-    build:
-      context: ../../FastApi-backend/exam-service
-      dockerfile: Dockerfile
-    container_name: exam-service
-    restart: always
-    ports:
-      - "8006:8006"
-    env_file:
-      - .env
-    environment:
-      - PYTHONPATH=/app
-      - SERVICE_NAME=exam-service
-      - SERVICE_PORT=8006
-      - NACOS_SERVER_ADDR=nacos:8848
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8006"]
-    depends_on:
-      nacos:
-        condition: service_healthy
-    networks:
-      - app-network
-  # 11. Python AI 推理服务
-  python-ai-service:
-    build:
-      context: ../services/ai-service/python-ml  # 改成您 Python 服务的实际路径
-      dockerfile: Dockerfile
-    container_name: python-ai-service
-    restart: always
-    ports:
-      - "8010:8010"
-    env_file:
-      - .env
-    environment:
-      - PYTHONPATH=/app
-      - SERVICE_PORT=8010
-      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
-    command: ["python", "CTDetectionServer.py"]  # 或 uvicorn 命令，根据实际情况
-    networks:
-      - app-network
+  # ===== FastAPI 检查申请服务 =====
+#  exam-service:
+#    build:
+#      context: ../../FastApi-backend/exam-service
+#      dockerfile: Dockerfile
+#    container_name: exam-service
+#    restart: always
+#    ports:
+#      - "8006:8006"
+#    env_file:
+#      - .env
+#    environment:
+#      - PYTHONPATH=/app
+#      - SERVICE_NAME=exam-service
+#      - SERVICE_PORT=8006
+#      - NACOS_SERVER_ADDR=nacos:8848
+#    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8006"]
+#    depends_on:
+#      nacos:
+#        condition: service_healthy
+#    networks:
+#      - app-network
 
 networks:
   app-network:
