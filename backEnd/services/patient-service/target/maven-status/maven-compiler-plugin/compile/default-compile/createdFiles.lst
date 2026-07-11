@@ -1,11 +1,9 @@
-com\cloudbrainmed\patient\service\MedicalRecordService.class
-com\cloudbrainmed\patient\controller\MedicalRecordController.class
 com\cloudbrainmed\patient\entity\RegisterReport.class
 com\cloudbrainmed\patient\service\MedicalOrderService.class
-com\cloudbrainmed\patient\mapper\MedicalRecordMapper.class
 com\cloudbrainmed\patient\mapper\PrescriptionMapper.class
 com\cloudbrainmed\patient\vo\RegisterPrescriptionGroupVo.class
 com\cloudbrainmed\patient\vo\VisitDetail.class
+com\cloudbrainmed\patient\controller\RegisterReportController.class
 com\cloudbrainmed\patient\dto\ChangePasswordDto.class
 com\cloudbrainmed\patient\service\impl\PrescriptionServiceImpl.class
 com\cloudbrainmed\patient\entity\MedicalReportIndicator.class
@@ -21,6 +19,7 @@ com\cloudbrainmed\patient\mapper\DoctorMapper.class
 com\cloudbrainmed\patient\mapper\RegisterReportMapper.class
 com\cloudbrainmed\patient\mapper\MedicalOrderMapper.class
 com\cloudbrainmed\patient\PatientServiceApplication.class
+com\cloudbrainmed\patient\service\RegisterReportService.class
 com\cloudbrainmed\patient\service\PatientService.class
 com\cloudbrainmed\patient\service\RegisterService.class
 com\cloudbrainmed\patient\controller\RegisterController.class
@@ -31,12 +30,12 @@ com\cloudbrainmed\patient\dto\RegisterQueryDto.class
 com\cloudbrainmed\patient\dto\RegisterSubmitDto.class
 com\cloudbrainmed\patient\entity\Patient.class
 com\cloudbrainmed\patient\mapper\MedicalReportIndicatorMapper.class
-com\cloudbrainmed\patient\service\impl\MedicalRecordServiceImpl.class
 com\cloudbrainmed\patient\entity\Dept.class
 com\cloudbrainmed\patient\mapper\MedicalReportMapper.class
 com\cloudbrainmed\patient\entity\MedicalOrderItem.class
 com\cloudbrainmed\patient\dto\PatientInfoDto.class
 com\cloudbrainmed\patient\mapper\PatientMapper.class
+com\cloudbrainmed\patient\service\impl\RegisterReportServiceImpl.class
 com\cloudbrainmed\patient\controller\PatientProfileController.class
 com\cloudbrainmed\patient\vo\TimeSlot.class
 com\cloudbrainmed\patient\mapper\MedicalOrderItemMapper.class
@@ -47,7 +46,6 @@ com\cloudbrainmed\patient\service\impl\MedicalOrderServiceImpl.class
 com\cloudbrainmed\patient\vo\MedicalOrderItemVo.class
 com\cloudbrainmed\patient\module5\service\PatientProfileService.class
 com\cloudbrainmed\patient\entity\Doctor.class
-com\cloudbrainmed\patient\entity\MedicalRecord.class
 com\cloudbrainmed\patient\vo\DoctorDetailVo.class
 com\cloudbrainmed\patient\vo\ScheduleVo.class
 com\cloudbrainmed\patient\entity\Registration.class

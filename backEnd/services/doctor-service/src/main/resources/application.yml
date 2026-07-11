@@ -4,15 +4,18 @@ spring:
     name: doctor-service
   profiles:
     active: dev
-  config:
-    import: optional:nacos:doctor-service.yml
   servlet:
     multipart:
       max-file-size: 100MB
       max-request-size: 100MB
-
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connect-timeout: 60000   # 连接超时 60s
+            read-timeout: 300000
 server:
   port: 8003
-
 internal:
   service-key: ${INTERNAL_SERVICE_KEY:}

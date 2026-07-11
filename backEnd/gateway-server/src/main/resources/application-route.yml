@@ -62,3 +62,7 @@ spring:
           uri: lb://service-api
           predicates:
             - Path=/service-api/**
+        - id: exam-service-route
+          uri: http://exam-service:8006
+          predicates:
+            - Path=/exam-service/**

@@ -5,6 +5,8 @@ spring:
       server-addr: 127.0.0.1:8848
       discovery:
         ip: 127.0.0.1
+      config:
+        enabled: false
     sentinel:
       transport:
         dashboard: localhost:8858

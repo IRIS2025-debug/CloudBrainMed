@@ -4,8 +4,6 @@ spring:
     name: patient-service
   profiles:
     active: dev
-  config:
-    import: optional:nacos:patient-service.yml
 
 server:
   port: 8004

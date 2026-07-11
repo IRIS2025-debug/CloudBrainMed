@@ -4,8 +4,6 @@ spring:
     name: ai-service
   profiles:
     active: dev
-  config:
-    import: optional:nacos:ai-service.yml
   servlet:
     multipart:
       max-file-size: 100MB
