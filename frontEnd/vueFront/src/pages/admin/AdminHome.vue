@@ -49,14 +49,25 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted, ref } from 'vue'
 import { ArrowRight, CollectionTag, Cpu, DataAnalysis, List, UserFilled } from '@element-plus/icons-vue'
+import { getDashboardOverview } from '@/api/admin/dashboard'
+import { getModelStats, getSampleList } from '@/api/admin/ml'
 
-const stats = [
-  { label: '今日排班', value: '--', icon: UserFilled, color: '#2563eb' },
-  { label: 'AI推理次数', value: '--', icon: Cpu, color: '#7c3aed' },
-  { label: '活跃模型', value: '--', icon: DataAnalysis, color: '#0d9488' },
-  { label: '训练样本', value: '--', icon: CollectionTag, color: '#f59e0b' },
-]
+// 每张卡片对应一个真实指标；'--' 表示加载中或该项请求失败，真实零值显示 0。
+const stats = ref([
+  { key: 'todayScheduleCount', label: '今日排班', value: '--', icon: UserFilled, color: '#2563eb' },
+  { key: 'totalInference', label: 'AI推理次数', value: '--', icon: Cpu, color: '#7c3aed' },
+  { key: 'activeModels', label: '活跃模型', value: '--', icon: DataAnalysis, color: '#0d9488' },
+  { key: 'sampleTotal', label: '训练样本', value: '--', icon: CollectionTag, color: '#f59e0b' },
+])
+
+function applyMetric(key: string, value: unknown) {
+  const stat = stats.value.find((item) => item.key === key)
+  if (stat && typeof value === 'number') {
+    stat.value = String(value)
+  }
+}
 
 const modules = [
   { path: '/admin/profile', title: '管理员个人信息', desc: '查看编辑资料、头像上传、密码修改', icon: UserFilled, color: '#2563eb' },
@@ -71,6 +82,29 @@ const modules = [
 const activities = [
   { text: '系统初始化完成', time: '刚刚' },
 ]
+
+// 四项指标来自三个数据源，使用 allSettled 保证单个请求失败只影响对应卡片，
+// 不会把失败伪装成 0，也不会阻塞其它指标加载。
+onMounted(async () => {
+  const [overviewResult, modelStatsResult, sampleResult] = await Promise.allSettled([
+    getDashboardOverview(),
+    getModelStats(),
+    getSampleList({ page: 1, limit: 1 }),
+  ])
+
+  if (overviewResult.status === 'fulfilled') {
+    applyMetric('todayScheduleCount', overviewResult.value.data?.todayScheduleCount)
+  }
+  if (modelStatsResult.status === 'fulfilled') {
+    const data = modelStatsResult.value.data as Record<string, unknown> | undefined
+    applyMetric('totalInference', data?.totalInference)
+    applyMetric('activeModels', data?.activeModels)
+  }
+  if (sampleResult.status === 'fulfilled') {
+    const data = sampleResult.value.data as Record<string, unknown> | undefined
+    applyMetric('sampleTotal', data?.total)
+  }
+})
 </script>
 
 <style scoped>

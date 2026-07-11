@@ -4,6 +4,10 @@ export function getInferenceStats() {
   return request.get('/admin-service/ml/dashboard/inference-stats')
 }
 
+export function getModelStats() {
+  return request.get('/admin-service/ml/dashboard/model-stats')
+}
+
 export function getInferenceLogs(params: { page: number; limit: number }) {
   return request.get('/admin-service/ml/inference/logs', { params })
 }

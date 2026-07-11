@@ -2,9 +2,12 @@ package com.cloudbrainmed.ai.controller;
 
 import com.cloudbrainmed.ai.service.MlOpsService;
 import com.cloudbrainmed.common.exception.BusinessException;
+import com.cloudbrainmed.common.utils.DoctorJwtUtil;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.http.ResponseEntity;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -12,13 +15,82 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class MlOpsControllerTest {
 
     private final MlOpsService service = mock(MlOpsService.class);
     private final MlOpsController controller = new MlOpsController(service);
+    private final MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
+
+    @Test
+    void dashboardRejectsMissingAdminToken() throws Exception {
+        mockMvc.perform(get("/admin-service/ml/dashboard/inference-stats"))
+                .andExpect(jsonPath("$.code").value(401));
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void dashboardRejectsInvalidAdminToken() throws Exception {
+        mockMvc.perform(get("/admin-service/ml/dashboard/inference-stats")
+                        .header("token", "not-a-jwt"))
+                .andExpect(jsonPath("$.code").value(401));
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void dashboardRejectsDoctorToken() throws Exception {
+        mockMvc.perform(get("/admin-service/ml/dashboard/inference-stats")
+                        .header("token", DoctorJwtUtil.createToken(
+                                "D001", "13800000000", 2)))
+                .andExpect(jsonPath("$.code").value(403));
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void dashboardAcceptsAdminBearerToken() throws Exception {
+        when(service.getInferenceStats()).thenReturn(Map.of("todayTotal", 2));
+
+        mockMvc.perform(get("/admin-service/ml/dashboard/inference-stats")
+                        .header("Authorization", "Bearer " + DoctorJwtUtil.createToken(
+                                "A001", "13800000001", 3)))
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.todayTotal").value(2));
+
+        verify(service).getInferenceStats();
+    }
+
+    @Test
+    void ctInferenceUploadKeepsExistingDoctorServiceProxyContractWithoutAdminToken() throws Exception {
+        when(service.predictCtArtifact(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(Map.of("status", "success"));
+
+        mockMvc.perform(multipart("/admin-service/ml/inference/ct-artifact")
+                        .file("file", new byte[] {1}))
+                .andExpect(jsonPath("$.code").value(200));
+
+        verify(service).predictCtArtifact(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void ctInferenceDownloadKeepsExistingDoctorServiceProxyContractWithoutAdminToken() throws Exception {
+        when(service.downloadCtArtifactMask("scan_mask.nii.gz"))
+                .thenReturn(ResponseEntity.ok("mask".getBytes(StandardCharsets.UTF_8)));
+
+        mockMvc.perform(get("/admin-service/ml/inference/ct-artifact/result/scan_mask.nii.gz"))
+                .andExpect(status().isOk());
+
+        verify(service).downloadCtArtifactMask("scan_mask.nii.gz");
+    }
 
     @Test
     void sampleListAliasReturnsListForFrontendContract() {

@@ -130,6 +130,10 @@ export default defineConfig({
         target: 'http://localhost:8004',
         changeOrigin: true,
       },
+      '/admin-service/ml': {
+        target: 'http://localhost:8001',
+        changeOrigin: true,
+      },
       '/admin-service': {
         target: 'http://localhost:8000',
         changeOrigin: true,
