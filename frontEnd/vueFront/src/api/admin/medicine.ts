@@ -97,3 +97,14 @@ export function getReorderSuggestions(): Promise<ApiResponse<MedicineWarnVo[]>> 
     method: 'get'
   })
 }
+
+/**
+ * 批量更新药品
+ */
+export function batchUpdateMedicine(data: MedicineDto[]): Promise<ApiResponse<null>> {
+  return request({
+    url: '/admin-service/medicine/batch-update',
+    method: 'put',
+    data
+  })
+}

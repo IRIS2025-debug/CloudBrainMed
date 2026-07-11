@@ -102,7 +102,6 @@
 
     <!-- ===== 周视图表格 ===== -->
     <div class="schedule-card" v-loading="loading">
-      <!-- 表格主体 -->
       <div v-if="doctorScheduleData.length > 0" class="schedule-grid">
         <!-- 医生名列 -->
         <div class="grid-doctor-column">
@@ -138,15 +137,12 @@
             <div class="day-date">{{ formatDateShort(day.date) }}</div>
           </div>
           <div class="day-body">
-            <!-- 每个医生的排班 -->
             <div
               v-for="doctor in doctorScheduleData"
               :key="doctor.doctorId"
               class="doctor-schedule-cell"
             >
-              <!-- 排班块 -->
               <template v-if="getSchedulesForDoctorAndDay(doctor.doctorId, day.date).length > 0">
-                <!-- 排班块 -->
                 <div
                   v-for="schedule in getSchedulesForDoctorAndDay(doctor.doctorId, day.date)"
                   :key="schedule.scheduleId"
@@ -172,11 +168,9 @@
                       {{ schedule.remainNum }}/{{ schedule.maxNum }}
                     </el-tag>
                   </div>
-                  <!-- AI生成标签 -->
                   <div class="schedule-ai-tag" v-if="schedule.sourceType === 'AI_GENERATED'">
                     <el-tag size="small" type="warning">AI</el-tag>
                   </div>
-                  <!-- status=1 显示编辑/删除 -->
                   <div class="schedule-actions" v-if="schedule.status === 1 && canModifySchedule(schedule.workDate)">
                     <el-button size="small" type="primary" link @click.stop="handleEdit(schedule)">
                       编辑
@@ -185,24 +179,20 @@
                       删除
                     </el-button>
                   </div>
-                  <!-- status=0 显示启用按钮 -->
                   <div class="schedule-actions" v-else-if="schedule.status === 0 && canModifySchedule(schedule.workDate)">
                     <el-button size="small" type="success" link @click.stop="handleEnable(schedule)">
                       启用
                     </el-button>
                   </div>
-                  <!-- 过去的排班显示已过期标签 -->
                   <div class="schedule-past-tag" v-else-if="!canModifySchedule(schedule.workDate)">
                     <el-tag size="small" type="danger">已过期</el-tag>
                   </div>
-                  <!-- 停用的排班显示已停用标签 -->
                   <div class="schedule-disabled-tag" v-else-if="schedule.status === 0">
                     <el-tag size="small" type="info">已停用</el-tag>
                   </div>
                 </div>
               </template>
 
-              <!-- 添加排班按钮 -->
               <div
                 v-else
                 class="add-schedule-btn"
@@ -216,7 +206,6 @@
         </div>
       </div>
 
-      <!-- 全局空状态 -->
       <el-empty v-else description="本周暂无排班数据" />
     </div>
 
@@ -430,7 +419,7 @@
     <el-dialog
       v-model="aiDialogVisible"
       title="🤖 AI智能排班"
-      width="720px"
+      width="840px"
       destroy-on-close
       :append-to-body="true"
       :modal-append-to-body="true"
@@ -612,6 +601,9 @@
                 <el-icon><Plus /></el-icon> 添加诊室
               </el-button>
             </div>
+            <div style="font-size: 12px; color: #94a3b8; margin-top: 4px;">
+              💡 AI将自动检测诊室冲突，避免同一时段同一诊室被不同医生占用
+            </div>
           </el-form-item>
 
           <el-form-item label="额外要求" prop="requirement">
@@ -626,17 +618,44 @@
           </el-form-item>
         </el-form>
 
-        <!-- 预览结果 -->
+        <!-- ===== 预览结果 - 增强版 ===== -->
         <div v-if="aiPreviewResult" class="ai-preview-result">
           <div class="preview-header">
             <span class="preview-title">📊 生成结果</span>
-            <el-tag type="success">共生成 {{ aiPreviewResult.generatedCount || 0 }} 条排班</el-tag>
-            <el-tag v-if="aiPreviewResult.conflicts && aiPreviewResult.conflicts.length > 0" type="warning">
-              ⚠️ {{ aiPreviewResult.conflicts.length }} 个冲突
+            <el-tag type="success" size="large">
+              共生成 {{ aiPreviewResult.schedules?.length || 0 }} 条排班
+            </el-tag>
+            
+            <!-- 医生冲突统计 -->
+            <el-tag 
+              v-if="doctorConflictCountInPreview > 0" 
+              type="danger"
+              size="large"
+            >
+              👨‍⚕️ 医生冲突 {{ doctorConflictCountInPreview }} 个
+            </el-tag>
+            
+            <!-- 房间冲突统计（重点突出） -->
+            <el-tag 
+              v-if="roomConflictCountInPreview > 0" 
+              type="danger"
+              size="large"
+              effect="dark"
+            >
+              🏠 房间冲突 {{ roomConflictCountInPreview }} 个 ⚠️
+            </el-tag>
+            
+            <!-- 无冲突提示 -->
+            <el-tag 
+              v-else-if="aiPreviewResult.schedules && aiPreviewResult.schedules.length > 0" 
+              type="success"
+              size="large"
+            >
+              ✅ 无冲突（含医生时间+诊室占用检测）
             </el-tag>
           </div>
 
-          <!-- 排班列表 -->
+          <!-- 排班列表 - 增强冲突标识 -->
           <div class="preview-schedules" v-if="aiPreviewResult.schedules && aiPreviewResult.schedules.length > 0">
             <el-table
               :data="aiPreviewResult.schedules"
@@ -644,6 +663,7 @@
               max-height="300"
               border
               style="width: 100%"
+              :row-class-name="getPreviewRowClassName"
             >
               <el-table-column prop="doctorName" label="医生" width="90" />
               <el-table-column prop="workDate" label="日期" width="110">
@@ -653,25 +673,122 @@
               </el-table-column>
               <el-table-column prop="startTime" label="开始" width="80" />
               <el-table-column prop="endTime" label="结束" width="80" />
-              <el-table-column prop="room" label="诊室" width="100" />
+              
+              <!-- 诊室列 - 增强显示 -->
+              <el-table-column prop="room" label="诊室" width="150">
+                <template #default="{ row }">
+                  <span>{{ row.room || '未指定' }}</span>
+                  <!-- 房间冲突标识 -->
+                  <el-tag 
+                    v-if="isRoomConflictType(row.conflictType)" 
+                    type="danger" 
+                    size="small" 
+                    style="margin-left: 4px;"
+                  >
+                    🏠 房间冲突
+                  </el-tag>
+                  <!-- 医生冲突标识 -->
+                  <el-tag 
+                    v-else-if="isDoctorConflictType(row.conflictType)" 
+                    type="danger" 
+                    size="small" 
+                    style="margin-left: 4px;"
+                  >
+                    👨‍⚕️ 医生冲突
+                  </el-tag>
+                  <!-- 其他冲突标识 -->
+                  <el-tag 
+                    v-else-if="row.conflict && row.conflictType" 
+                    type="warning" 
+                    size="small" 
+                    style="margin-left: 4px;"
+                  >
+                    {{ getShortConflictText(row.conflictType) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              
               <el-table-column prop="maxNum" label="号源" width="60" />
               <el-table-column prop="price" label="挂号费" width="80">
                 <template #default="{ row }">
                   ¥{{ row.price?.toFixed(2) || '0.00' }}
                 </template>
               </el-table-column>
+              
+              <!-- 状态列 - 区分冲突类型 -->
+              <el-table-column label="状态" width="110" align="center">
+                <template #default="{ row }">
+                  <el-tag 
+                    v-if="isRoomConflictType(row.conflictType)"
+                    type="danger" 
+                    size="small"
+                    effect="dark"
+                  >
+                    🏠 房间冲突
+                  </el-tag>
+                  <el-tag 
+                    v-else-if="isDoctorConflictType(row.conflictType)"
+                    type="danger" 
+                    size="small"
+                    effect="dark"
+                  >
+                    👨‍⚕️ 医生冲突
+                  </el-tag>
+                  <el-tag 
+                    v-else-if="row.conflict"
+                    type="warning" 
+                    size="small"
+                  >
+                    ⚠️ 有冲突
+                  </el-tag>
+                  <el-tag 
+                    v-else
+                    type="success" 
+                    size="small"
+                  >
+                    ✅ 正常
+                  </el-tag>
+                </template>
+              </el-table-column>
             </el-table>
           </div>
 
-          <!-- 冲突列表 -->
+          <!-- ===== 冲突列表 - 按类型分组 ===== -->
           <div v-if="aiPreviewResult.conflicts && aiPreviewResult.conflicts.length > 0" class="preview-conflicts">
-            <div class="conflicts-title">⚠️ 冲突详情</div>
+            <div class="conflicts-title">
+              ⚠️ 冲突详情
+              <!-- 房间冲突统计 -->
+              <el-tag 
+                v-if="roomConflictCountInPreview > 0" 
+                type="danger" 
+                size="small" 
+                style="margin-left: 8px;"
+                effect="dark"
+              >
+                🏠 房间冲突 {{ roomConflictCountInPreview }} 个
+              </el-tag>
+              <!-- 医生冲突统计 -->
+              <el-tag 
+                v-if="doctorConflictCountInPreview > 0" 
+                type="danger" 
+                size="small" 
+                style="margin-left: 4px;"
+              >
+                👨‍⚕️ 医生冲突 {{ doctorConflictCountInPreview }} 个
+              </el-tag>
+              <span style="font-size: 12px; color: #94a3b8; margin-left: 12px;">
+                💡 房间冲突需更换诊室或调整时间
+              </span>
+            </div>
+            
+            <!-- 冲突表格 -->
             <el-table
-              :data="aiPreviewResult.conflicts"
+              :data="groupedConflicts"
               size="small"
               max-height="200"
               border
               style="width: 100%"
+              :row-class-name="getConflictRowClassName"
             >
               <el-table-column prop="doctorName" label="医生" width="90" />
               <el-table-column prop="workDate" label="日期" width="110">
@@ -681,15 +798,43 @@
               </el-table-column>
               <el-table-column prop="startTime" label="开始" width="80" />
               <el-table-column prop="endTime" label="结束" width="80" />
-              <el-table-column prop="conflictType" label="冲突类型" width="100">
+              
+              <!-- 冲突类型列 - 区分房间冲突 -->
+              <el-table-column prop="conflictType" label="冲突类型" width="150">
                 <template #default="{ row }">
-                  <el-tag :type="getConflictTagType(row.conflictType)" size="small">
-                    {{ row.conflictType }}
+                  <el-tag 
+                    :type="getConflictTagType(row.conflictType)" 
+                    size="small"
+                    :effect="isRoomConflictType(row.conflictType) ? 'dark' : 'light'"
+                  >
+                    {{ getConflictIcon(row.conflictType) }}
+                    {{ getConflictTypeText(row.conflictType) }}
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column prop="conflictDetail" label="冲突详情" min-width="120" />
+              
+              <el-table-column prop="conflictDetail" label="冲突详情" min-width="150">
+                <template #default="{ row }">
+                  <span>{{ row.conflictDetail }}</span>
+                  <!-- 如果是房间冲突，额外提示 -->
+                  <span v-if="isRoomConflictType(row.conflictType)" style="color: #dc2626; font-weight: 500; margin-left: 6px;">
+                    🏠 请更换诊室或调整时间
+                  </span>
+                  <span v-else-if="isDoctorConflictType(row.conflictType)" style="color: #dc2626; font-weight: 500; margin-left: 6px;">
+                    👨‍⚕️ 请调整医生排班时间
+                  </span>
+                </template>
+              </el-table-column>
             </el-table>
+          </div>
+
+          <div v-else-if="aiPreviewResult.schedules && aiPreviewResult.schedules.length > 0" class="preview-no-conflict">
+            <el-alert
+              title="✅ 所有排班均无冲突（包括医生时间冲突和诊室占用冲突），可以安全发布"
+              type="success"
+              :closable="false"
+              show-icon
+            />
           </div>
         </div>
       </div>
@@ -702,7 +847,7 @@
           :loading="aiPreviewLoading"
           :disabled="aiPreviewLoading"
         >
-          <el-icon><View /></el-icon> 预览
+          <el-icon><View /></el-icon> 预览并检测冲突
         </el-button>
         <el-button
           type="success"
@@ -746,10 +891,18 @@ import {
 import {
   previewAiSchedule,
   publishAiSchedule,
+  isRoomConflict,
+  isDoctorConflict,
+  getConflictTypeText,
+  getConflictTagType,
+  getConflictIcon,
   type AiScheduleGenerateRequest,
   type AiScheduleGenerateResponse,
   type AiSchedulePublishRequest,
-} from '@/api/admin/aiSchedule'
+  type AiScheduleConflictItem,
+  type AiScheduleItem,
+  type ConflictType
+} from '@/api/ai/aiSchedule'
 import { getDoctorList } from '@/api/admin/doctor'
 import { getDeptList } from '@/api/admin/dept'
 import {
@@ -783,6 +936,32 @@ interface DoctorScheduleData extends DoctorInfo {
 interface WeekDay {
   date: string
   dayName: string
+}
+
+// API 响应数据类型
+interface AiPreviewResponseItem {
+  doctorId: string
+  doctorName: string
+  deptId: string
+  workDate: string
+  startTime: string
+  endTime: string
+  maxNum?: number
+  price?: number
+  room?: string
+  conflict?: boolean
+  conflictType?: string | null
+  conflictReason?: string | null
+}
+
+interface AiPreviewResponseData {
+  items?: AiPreviewResponseItem[]
+  summary?: string
+  status?: string
+  fallback?: boolean
+  modelVersion?: string
+  warnings?: string[]
+  optimizationReasons?: string[]
 }
 
 // ============================================================
@@ -829,7 +1008,6 @@ const aiFormData = reactive<AiScheduleGenerateRequest>({
 
 const aiFormRef = ref()
 
-// 修正表单验证规则 - 字段名与 aiFormData 匹配
 const aiFormRules = {
   periodStart: [{ required: true, message: '请选择开始日期', trigger: 'change' }],
   periodEnd: [{ required: true, message: '请选择结束日期', trigger: 'change' }],
@@ -870,47 +1048,42 @@ const formRules = {
 }
 
 // ============================================================
-// 工具方法 - 获取名称
+// 计算属性 - AI冲突统计
 // ============================================================
 
-function getDoctorName(doctorId: string): string {
-  if (!doctorId) return ''
-  const doctor = doctorList.value.find(d => d.doctorId === doctorId)
-  return doctor?.name || ''
-}
+// AI预览中的房间冲突数量
+const roomConflictCountInPreview = computed((): number => {
+  if (!aiPreviewResult.value || !aiPreviewResult.value.conflicts) return 0
+  return aiPreviewResult.value.conflicts.filter(
+    (c: AiScheduleConflictItem) => isRoomConflict(c.conflictType)
+  ).length
+})
 
-function getDeptName(deptId: string): string {
-  if (!deptId) return ''
-  const dept = deptList.value.find(d => d.deptId === deptId)
-  return dept?.deptName || ''
-}
+// AI预览中的医生冲突数量
+const doctorConflictCountInPreview = computed((): number => {
+  if (!aiPreviewResult.value || !aiPreviewResult.value.conflicts) return 0
+  return aiPreviewResult.value.conflicts.filter(
+    (c: AiScheduleConflictItem) => isDoctorConflict(c.conflictType)
+  ).length
+})
 
-function canModifySchedule(workDate: string): boolean {
-  if (!workDate) return false
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const date = new Date(workDate)
-  date.setHours(0, 0, 0, 0)
-  return date >= today
-}
-
-function getConflictTagType(type: string): string {
-  const map: Record<string, string> = {
-    'TIME_CONFLICT': 'danger',
-    'SAME_DOCTOR': 'warning',
-    'SAME_ROOM': 'info',
-    'DOCTOR_TIME': 'danger',
-    'ROOM_TIME': 'warning',
-    'BATCH_DOCTOR_TIME': 'danger',
-    'BATCH_ROOM_TIME': 'warning',
-    'CHECK_FAILED': 'danger',
-    'CHECK_EXCEPTION': 'danger'
-  }
-  return map[type] || 'warning'
-}
+// 按类型分组的冲突列表（房间冲突优先显示）
+const groupedConflicts = computed((): AiScheduleConflictItem[] => {
+  if (!aiPreviewResult.value || !aiPreviewResult.value.conflicts) return []
+  
+  const conflicts = [...aiPreviewResult.value.conflicts]
+  // 房间冲突排在最前面
+  return conflicts.sort((a: AiScheduleConflictItem, b: AiScheduleConflictItem) => {
+    const aIsRoom = isRoomConflict(a.conflictType)
+    const bIsRoom = isRoomConflict(b.conflictType)
+    if (aIsRoom && !bIsRoom) return -1
+    if (!aIsRoom && bIsRoom) return 1
+    return 0
+  })
+})
 
 // ============================================================
-// 计算属性 - 使用 getWeekDays 生成周数据
+// 计算属性 - 周视图
 // ============================================================
 
 const weekDays = computed<WeekDay[]>(() => {
@@ -936,19 +1109,6 @@ const weekDays = computed<WeekDay[]>(() => {
   })
 })
 
-function disabledPastDate(time: Date): boolean {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  return time < today
-}
-
-function disabledEndDate(time: Date, startDate: string): boolean {
-  if (!startDate) return false
-  const start = new Date(startDate)
-  start.setHours(0, 0, 0, 0)
-  return time < start
-}
-
 const weekStartDisplay = computed<string>(() => {
   const days = weekDays.value
   if (days.length === 0) return ''
@@ -961,14 +1121,14 @@ const weekEndDisplay = computed<string>(() => {
   return formatDateShort(days[days.length - 1]?.date || '')
 })
 
-const totalSchedules = computed(() => {
+const totalSchedules = computed((): number => {
   return doctorScheduleData.value.reduce((sum, doctor) => {
     const daySchedules = Object.values(doctor.schedules || {})
     return sum + daySchedules.reduce((s, list) => s + (list?.length || 0), 0)
   }, 0)
 })
 
-const totalRemain = computed(() => {
+const totalRemain = computed((): number => {
   return doctorScheduleData.value.reduce((sum, doctor) => {
     const daySchedules = Object.values(doctor.schedules || {})
     return sum + daySchedules.reduce((s, list) => {
@@ -977,7 +1137,7 @@ const totalRemain = computed(() => {
   }, 0)
 })
 
-const totalBooked = computed(() => {
+const totalBooked = computed((): number => {
   return doctorScheduleData.value.reduce((sum, doctor) => {
     const daySchedules = Object.values(doctor.schedules || {})
     return sum + daySchedules.reduce((s, list) => {
@@ -986,7 +1146,7 @@ const totalBooked = computed(() => {
   }, 0)
 })
 
-const fullSchedules = computed(() => {
+const fullSchedules = computed((): number => {
   return doctorScheduleData.value.reduce((sum, doctor) => {
     const daySchedules = Object.values(doctor.schedules || {})
     return sum + daySchedules.reduce((s, list) => {
@@ -995,11 +1155,91 @@ const fullSchedules = computed(() => {
   }, 0)
 })
 
-const totalDoctors = computed(() => doctorScheduleData.value.length)
+const totalDoctors = computed((): number => doctorScheduleData.value.length)
 
 // ============================================================
-// 方法
+// 工具方法 - 冲突检测（使用导入的函数，不重新声明）
 // ============================================================
+
+function isRoomConflictType(type?: string | null): boolean {
+  return isRoomConflict(type)
+}
+
+function isDoctorConflictType(type?: string | null): boolean {
+  return isDoctorConflict(type)
+}
+
+// 直接使用导入的 getConflictTypeText、getConflictTagType、getConflictIcon
+
+function getShortConflictText(type?: string | null): string {
+  if (!type) return '冲突'
+  const map: Record<string, string> = {
+    'DOCTOR_TIME': '医生冲突',
+    'ROOM_TIME': '房间冲突',
+    'BATCH_DOCTOR_TIME': '批量医生冲突',
+    'BATCH_ROOM_TIME': '批量房间冲突',
+    'TIME_CONFLICT': '时间冲突',
+    'SAME_DOCTOR': '医生重复',
+    'SAME_ROOM': '诊室占用'
+  }
+  return map[type] || '冲突'
+}
+
+function getPreviewRowClassName({ row }: { row: AiScheduleItem }): string {
+  if (isRoomConflictType(row.conflictType)) {
+    return 'preview-row-room-conflict'
+  }
+  if (row.conflict) return 'preview-row-conflict'
+  return ''
+}
+
+function getConflictRowClassName({ row }: { row: AiScheduleConflictItem }): string {
+  if (isRoomConflictType(row.conflictType)) {
+    return 'conflict-row-room'
+  }
+  if (isDoctorConflictType(row.conflictType)) {
+    return 'conflict-row-doctor'
+  }
+  return ''
+}
+
+// ============================================================
+// 工具方法 - 通用
+// ============================================================
+
+function getDoctorName(doctorId: string): string {
+  if (!doctorId) return ''
+  const doctor = doctorList.value.find(d => d.doctorId === doctorId)
+  return doctor?.name || ''
+}
+
+function getDeptName(deptId: string): string {
+  if (!deptId) return ''
+  const dept = deptList.value.find(d => d.deptId === deptId)
+  return dept?.deptName || ''
+}
+
+function canModifySchedule(workDate: string): boolean {
+  if (!workDate) return false
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const date = new Date(workDate)
+  date.setHours(0, 0, 0, 0)
+  return date >= today
+}
+
+function disabledPastDate(time: Date): boolean {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return time < today
+}
+
+function disabledEndDate(time: Date, startDate: string): boolean {
+  if (!startDate) return false
+  const start = new Date(startDate)
+  start.setHours(0, 0, 0, 0)
+  return time < start
+}
 
 function getSchedulesForDoctorAndDay(doctorId: string, date: string): DoctorSchedule[] {
   const doctor = doctorScheduleData.value.find(d => d.doctorId === doctorId)
@@ -1025,7 +1265,9 @@ function getRemainClass(remain: number | undefined): string {
   return 'remain-normal'
 }
 
-// ===== 数据获取 =====
+// ============================================================
+// 数据获取
+// ============================================================
 
 async function fetchSchedule() {
   loading.value = true
@@ -1101,6 +1343,10 @@ async function fetchDeptList() {
   }
 }
 
+// ============================================================
+// 排班CRUD操作
+// ============================================================
+
 async function handleEnable(schedule: DoctorSchedule) {
   try {
     await ElMessageBox.confirm(
@@ -1117,40 +1363,6 @@ async function handleEnable(schedule: DoctorSchedule) {
     }
   }
 }
-
-// ===== 周导航 =====
-
-function handlePrevWeek() {
-  const date = new Date(selectedDate.value)
-  date.setDate(date.getDate() - 7)
-  selectedDate.value = formatDate(date)
-  fetchSchedule()
-}
-
-function handleNextWeek() {
-  const date = new Date(selectedDate.value)
-  date.setDate(date.getDate() + 7)
-  selectedDate.value = formatDate(date)
-  fetchSchedule()
-}
-
-function handleCurrentWeek() {
-  selectedDate.value = getThisWeekStart()
-  fetchSchedule()
-}
-
-function handleDateChange(val: string) {
-  if (val) {
-    selectedDate.value = getWeekStart(val)
-    fetchSchedule()
-  }
-}
-
-function handleRefresh() {
-  fetchSchedule()
-}
-
-// ===== 排班操作 =====
 
 function handleAdd() {
   isEdit.value = false
@@ -1277,14 +1489,49 @@ function resetForm() {
   formRef.value?.resetFields()
 }
 
-// ===== AI排班方法 =====
+// ============================================================
+// 周导航
+// ============================================================
+
+function handlePrevWeek() {
+  const date = new Date(selectedDate.value)
+  date.setDate(date.getDate() - 7)
+  selectedDate.value = formatDate(date)
+  fetchSchedule()
+}
+
+function handleNextWeek() {
+  const date = new Date(selectedDate.value)
+  date.setDate(date.getDate() + 7)
+  selectedDate.value = formatDate(date)
+  fetchSchedule()
+}
+
+function handleCurrentWeek() {
+  selectedDate.value = getThisWeekStart()
+  fetchSchedule()
+}
+
+function handleDateChange(val: string) {
+  if (val) {
+    selectedDate.value = getWeekStart(val)
+    fetchSchedule()
+  }
+}
+
+function handleRefresh() {
+  fetchSchedule()
+}
+
+// ============================================================
+// AI排班方法
+// ============================================================
 
 function handleAiSchedule() {
   const today = new Date()
   const nextWeek = new Date(today)
   nextWeek.setDate(today.getDate() + 7)
   
-  // ✅ 重置所有数据，确保数据结构正确
   aiFormData.deptId = filterDeptId.value || ''
   aiFormData.doctorId = filterDoctorId.value || ''
   aiFormData.doctorName = filterDoctorId.value ? getDoctorName(filterDoctorId.value) : ''
@@ -1294,7 +1541,6 @@ function handleAiSchedule() {
   aiFormData.defaultMaxNum = 20
   aiFormData.defaultPrice = 0
   aiFormData.rooms = ['门诊楼A101', '门诊楼A102']
-  // ✅ 确保时段数据正确，没有多余字段
   aiFormData.timeWindows = [
     { startTime: '08:00:00', endTime: '12:00:00' },
     { startTime: '14:00:00', endTime: '17:00:00' }
@@ -1314,7 +1560,6 @@ function addTimeSlot() {
   if (!aiFormData.timeWindows) {
     aiFormData.timeWindows = []
   }
-  // ✅ 确保只添加有效的时段对象，不要添加其他字段
   if (aiFormData.timeWindows.length < 5) {
     aiFormData.timeWindows.push({ startTime: '', endTime: '' })
   } else {
@@ -1385,7 +1630,6 @@ async function handleAiPreview() {
   const validSlots = (aiFormData.timeWindows || [])
     .filter((s: any) => {
       if (!s || typeof s !== 'object') return false
-      if ('unavailableDates' in s) return false
       return s.startTime && typeof s.startTime === 'string' && s.startTime.trim() !== '' &&
              s.endTime && typeof s.endTime === 'string' && s.endTime.trim() !== ''
     })
@@ -1419,29 +1663,14 @@ async function handleAiPreview() {
       unavailableDates: aiFormData.unavailableDates || []
     }
     
-    console.log('========== AI排班请求详情 ==========')
-    console.log('请求数据:', JSON.stringify(requestData, null, 2))
-    console.log('=====================================')
-    
     const response = await previewAiSchedule(requestData)
     
-    console.log('========== AI排班响应 ==========')
-    console.log('完整响应:', response)
-    console.log('响应数据:', response.data)
-    console.log('=================================')
-    
     if (response && response.data) {
-      // ✅ 关键修复：后端返回的排班数据在 items 字段中
-      const responseData = response.data as any
-      
-      // 获取排班列表（后端返回的是 items）
+      const responseData = response.data as AiPreviewResponseData
       const items = responseData.items || []
       
-      console.log('排班数量:', items.length)
-      console.log('排班列表:', items)
-      
-      // 构建前端期望的数据结构
-      const schedules = items.map((item: any) => ({
+      // 正确地将 conflictType 转换为 ConflictType 类型
+      const schedules: AiScheduleItem[] = items.map((item: AiPreviewResponseItem) => ({
         doctorId: item.doctorId,
         doctorName: item.doctorName,
         deptId: item.deptId,
@@ -1451,74 +1680,72 @@ async function handleAiPreview() {
         maxNum: item.maxNum || requestData.defaultMaxNum || 20,
         price: item.price || requestData.defaultPrice || 0,
         room: item.room || '未指定',
-        // 保留冲突信息
         conflict: item.conflict || false,
-        conflictType: item.conflictType || null,
+        conflictType: (item.conflictType as ConflictType) || null,
         conflictReason: item.conflictReason || null
       }))
       
-      // 获取冲突列表（如果有）
-      const conflicts = items
-        .filter((item: any) => item.conflict === true)
-        .map((item: any) => ({
+      const conflicts: AiScheduleConflictItem[] = items
+        .filter((item: AiPreviewResponseItem) => item.conflict === true)
+        .map((item: AiPreviewResponseItem) => ({
           doctorId: item.doctorId,
           doctorName: item.doctorName,
           workDate: item.workDate,
           startTime: item.startTime,
           endTime: item.endTime,
-          conflictType: item.conflictType || 'SCHEDULE_CONFLICT',
+          conflictType: (item.conflictType as ConflictType) || 'TIME_CONFLICT',
           conflictDetail: item.conflictReason || '排班冲突'
         }))
       
-      // ✅ 设置预览结果，匹配前端期望的数据结构
       aiPreviewResult.value = {
         generatedCount: items.length,
         schedules: schedules,
-        conflicts: conflicts
-      }
-      
-      // 显示优化建议
-      if (responseData.summary) {
-        console.log('AI 优化建议:', responseData.summary)
-      }
-      if (responseData.optimizationReasons) {
-        console.log('优化原因:', responseData.optimizationReasons)
+        conflicts: conflicts,
+        summary: responseData.summary,
+        status: responseData.status,
+        fallback: responseData.fallback,
+        modelVersion: responseData.modelVersion,
+        warnings: responseData.warnings,
+        optimizationReasons: responseData.optimizationReasons
       }
       
       const generatedCount = items.length
+      const roomConflicts = conflicts.filter((c: AiScheduleConflictItem) => isRoomConflict(c.conflictType))
+      const doctorConflicts = conflicts.filter((c: AiScheduleConflictItem) => isDoctorConflict(c.conflictType))
       
       if (generatedCount === 0) {
         ElMessage.warning('未生成任何排班，请检查配置条件')
       } else {
-        ElMessage.success(`✅ 成功生成 ${generatedCount} 条排班`)
-        // 显示优化摘要
+        let msg = `✅ 生成 ${generatedCount} 条排班`
+        if (roomConflicts.length > 0) {
+          msg += `，🏠 ${roomConflicts.length} 个房间冲突`
+        }
+        if (doctorConflicts.length > 0) {
+          msg += `，👨‍⚕️ ${doctorConflicts.length} 个医生冲突`
+        }
+        if (roomConflicts.length === 0 && doctorConflicts.length === 0) {
+          msg += '，✅ 无任何冲突'
+        }
+        ElMessage.info(msg)
+        
         if (responseData.summary) {
-          ElMessage.info(`📋 ${responseData.summary}`)
+          console.log('📋 AI摘要:', responseData.summary)
+        }
+        if (responseData.warnings?.length) {
+          console.warn('⚠️ 警告:', responseData.warnings)
         }
       }
     } else {
       ElMessage.error('AI排班预览返回数据格式异常')
     }
   } catch (error: any) {
-    console.error('========== AI排班错误 ==========')
-    console.error('错误:', error)
-    if (error.response) {
-      console.error('响应状态:', error.response.status)
-      console.error('响应数据:', error.response.data)
-    }
-    console.error('=================================')
-    
+    console.error('AI排班预览失败:', error)
     aiPreviewResult.value = null
-    
     let errorMsg = 'AI排班预览失败'
-    if (error.message) {
-      if (error.message.includes('timeout')) {
-        errorMsg = 'AI排班生成超时，请稍后重试或减少排班数量'
-      } else if (error.response?.data?.message) {
-        errorMsg = `AI排班失败: ${error.response.data.message}`
-      } else {
-        errorMsg = `AI排班预览失败: ${error.message}`
-      }
+    if (error.response?.data?.message) {
+      errorMsg = `AI排班失败: ${error.response.data.message}`
+    } else if (error.message) {
+      errorMsg = `AI排班预览失败: ${error.message}`
     }
     ElMessage.error(errorMsg)
   } finally {
@@ -1538,9 +1765,46 @@ async function handleAiPublish() {
     return
   }
 
-  // 显示排班列表确认
+  // 分别统计各类冲突
+  const roomConflicts = (aiPreviewResult.value.conflicts || []).filter(
+    (c: AiScheduleConflictItem) => isRoomConflict(c.conflictType)
+  )
+  
+  const doctorConflicts = (aiPreviewResult.value.conflicts || []).filter(
+    (c: AiScheduleConflictItem) => isDoctorConflict(c.conflictType)
+  )
+  
+  const totalConflicts = (aiPreviewResult.value.conflicts || []).length
+
+  // 如果有冲突，显示详细的警告
+  if (totalConflicts > 0) {
+    let conflictMessage = `⚠️ 检测到 ${totalConflicts} 个排班冲突：`
+    if (roomConflicts.length > 0) {
+      conflictMessage += `\n\n🏠 房间冲突 ${roomConflicts.length} 个 - 同一诊室同一时段被多个医生占用`
+    }
+    if (doctorConflicts.length > 0) {
+      conflictMessage += `\n👨‍⚕️ 医生时间冲突 ${doctorConflicts.length} 个 - 同一医生同一时段有多个排班`
+    }
+    conflictMessage += `\n\n确定要继续发布吗？建议先解决冲突再发布。`
+    
+    try {
+      await ElMessageBox.confirm(
+        conflictMessage,
+        '排班冲突警告',
+        { 
+          type: 'warning',
+          confirmButtonText: '仍要发布',
+          cancelButtonText: '取消发布'
+        }
+      )
+    } catch {
+      return
+    }
+  }
+
+  // 构建发布列表
   const scheduleList = schedules.map((s, i) => 
-    `${i + 1}. ${s.doctorName} - ${s.workDate} ${s.startTime}-${s.endTime} ${s.room}`
+    `${i + 1}. ${s.doctorName} - ${s.workDate} ${s.startTime}-${s.endTime} ${s.room}${s.conflict ? ` ${isRoomConflictType(s.conflictType) ? '🏠房间冲突' : isDoctorConflictType(s.conflictType) ? '👨‍⚕️医生冲突' : '⚠️冲突'}` : ''}`
   ).join('\n')
 
   try {
@@ -1559,8 +1823,6 @@ async function handleAiPublish() {
 
   aiPublishLoading.value = true
   try {
-    // ✅ 构建符合后端 DTO 的请求数据
-    // 后端期望的是 items 数组，包含完整的排班数据
     const requestData: AiSchedulePublishRequest = {
       items: schedules.map(s => ({
         doctorId: s.doctorId,
@@ -1575,42 +1837,36 @@ async function handleAiPublish() {
       }))
     }
     
-    console.log('========== 发布排班请求 ==========')
-    console.log('排班数量:', requestData.items.length)
-    console.log('请求数据:', JSON.stringify(requestData, null, 2))
-    console.log('=================================')
-    
     const response = await publishAiSchedule(requestData)
     
-    console.log('========== 发布排班响应 ==========')
-    console.log('响应数据:', response.data)
-    console.log('=================================')
-    
     if (response.data && response.data.createdCount > 0) {
-      ElMessage.success(`✅ 成功发布 ${response.data.createdCount} 条排班`)
+      const roomFailed = response.data.failedItems?.filter(
+        (f: any) => isRoomConflict(f.conflictType)
+      ).length || 0
+      const doctorFailed = response.data.failedItems?.filter(
+        (f: any) => isDoctorConflict(f.conflictType)
+      ).length || 0
+      
+      let msg = `✅ 成功发布 ${response.data.createdCount} 条排班`
+      if (roomFailed > 0) {
+        msg += `，🏠 ${roomFailed} 条因房间冲突失败`
+      }
+      if (doctorFailed > 0) {
+        msg += `，👨‍⚕️ ${doctorFailed} 条因医生冲突失败`
+      }
+      ElMessage.success(msg)
+    } else {
+      ElMessage.warning('发布失败，请检查排班数据')
     }
-    if (response.data && response.data.failedItems && response.data.failedItems.length > 0) {
-      ElMessage.warning(`⚠️ 有 ${response.data.failedItems.length} 条排班发布失败`)
-      console.error('发布失败的项:', response.data.failedItems)
-    }
+    
     if (response.data && response.data.warnings && response.data.warnings.length > 0) {
-      console.warn('发布警告:', response.data.warnings)
+      response.data.warnings.forEach((w: string) => ElMessage.warning(w))
     }
-    if (response.data && response.data.status === 'FAILED') {
-      ElMessage.error(response.data.warnings?.[0] || '没有排班被发布')
-    }
+    
     aiDialogVisible.value = false
-    // 刷新排班列表
     await fetchSchedule()
   } catch (error: any) {
-    console.error('========== 发布排班错误 ==========')
-    console.error('错误:', error)
-    if (error.response) {
-      console.error('响应状态:', error.response.status)
-      console.error('响应数据:', error.response.data)
-    }
-    console.error('=================================')
-    
+    console.error('发布排班失败:', error)
     let errorMsg = '发布失败'
     if (error.response?.data?.message) {
       errorMsg = `发布失败: ${error.response.data.message}`
@@ -2114,12 +2370,6 @@ onMounted(async () => {
 // ============================================================
 .ai-schedule-content {
   .ai-schedule-form {
-    .form-tip {
-      font-size: 12px;
-      color: #94a3b8;
-      margin-left: 12px;
-    }
-
     .time-slots-wrapper {
       .time-slot-item {
         display: flex;
@@ -2171,15 +2421,58 @@ onMounted(async () => {
       .conflicts-title {
         font-size: 14px;
         font-weight: 500;
-        color: #d97706;
+        color: #dc2626;
         margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
       }
+    }
+
+    .preview-no-conflict {
+      margin-top: 12px;
     }
   }
 }
 
 // ============================================================
-// 修复弹窗中选择框透明问题
+// 预览冲突行样式
+// ============================================================
+:deep(.preview-row-room-conflict) {
+  background-color: #fef2f2 !important;
+  
+  td {
+    background-color: #fef2f2 !important;
+  }
+}
+
+:deep(.preview-row-conflict) {
+  background-color: #fffbeb !important;
+  
+  td {
+    background-color: #fffbeb !important;
+  }
+}
+
+:deep(.conflict-row-room) {
+  background-color: #fef2f2 !important;
+  
+  td {
+    background-color: #fef2f2 !important;
+  }
+}
+
+:deep(.conflict-row-doctor) {
+  background-color: #fefce8 !important;
+  
+  td {
+    background-color: #fefce8 !important;
+  }
+}
+
+// ============================================================
+// 弹窗样式
 // ============================================================
 .schedule-form,
 .ai-schedule-form {
@@ -2336,46 +2629,6 @@ onMounted(async () => {
 }
 
 .el-select-dropdown__item.is-selected {
-  background-color: #ecf5ff !important;
-  color: #409eff !important;
-}
-
-.el-picker-panel {
-  background-color: #ffffff !important;
-  border: 1px solid #dcdfe6 !important;
-  border-radius: 4px !important;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1) !important;
-}
-
-.el-picker-panel .el-date-table td {
-  background-color: #ffffff !important;
-}
-
-.el-picker-panel .el-date-table td:hover {
-  background-color: #f5f7fa !important;
-}
-
-.el-picker-panel .el-date-table td.current:not(.disabled) .el-date-table-cell {
-  background-color: #409eff !important;
-  color: #ffffff !important;
-}
-
-.el-time-panel {
-  background-color: #ffffff !important;
-  border: 1px solid #dcdfe6 !important;
-  border-radius: 4px !important;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1) !important;
-}
-
-.el-time-panel .el-time-spinner__item {
-  background-color: #ffffff !important;
-}
-
-.el-time-panel .el-time-spinner__item:hover {
-  background-color: #f5f7fa !important;
-}
-
-.el-time-panel .el-time-spinner__item.active:not(.disabled) {
   background-color: #ecf5ff !important;
   color: #409eff !important;
 }
