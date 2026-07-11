@@ -118,31 +118,11 @@ const sendQuestion = async (): Promise<void> => {
       throw new Error(`请求失败 ${response.status} ${errText}`)
     }
 
-    if (!response.body) {
-      throw new Error('AI 服务未返回响应内容')
-    }
-
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
-      buffer = lines.pop() || ''
-      for (const line of lines) {
-        if (line.startsWith('data:')) {
-          const msg = chatList.value[lastIdx]
-          if (msg) msg.content += line.substring(5)
-        }
-      }
-      await nextTick(() => scrollToBottom())
-    }
-    if (buffer.startsWith('data:')) {
-      const msg = chatList.value[lastIdx]
-      if (msg) msg.content += buffer.substring(5)
-    }
+    // 后端返回纯文本（非 SSE 流），直接整段读取
+    const answer = (await response.text()).trim()
+    const msg = chatList.value[lastIdx]
+    if (msg) msg.content = answer || '抱歉，未获取到有效回答，请稍后重试。'
+    await nextTick(() => scrollToBottom())
   } catch (e: any) {
     ElMessage.error(e?.message || 'AI 药物查询失败')
     const msg = chatList.value[lastIdx]
