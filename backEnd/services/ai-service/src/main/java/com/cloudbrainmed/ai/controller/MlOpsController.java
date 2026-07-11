@@ -1,12 +1,8 @@
 package com.cloudbrainmed.ai.controller;
 
 import com.cloudbrainmed.ai.service.MlOpsService;
-import com.cloudbrainmed.ai.support.AdminAuthException;
-import com.cloudbrainmed.ai.support.AdminAuthHelper;
 import com.cloudbrainmed.common.exception.BusinessException;
 import com.cloudbrainmed.common.result.Result;
-import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -25,20 +21,6 @@ public class MlOpsController {
 
     public MlOpsController(MlOpsService mlOpsService) {
         this.mlOpsService = mlOpsService;
-    }
-
-    @ModelAttribute
-    public void requireAdmin(@RequestHeader Map<String, String> headers,
-                             HttpServletRequest request) {
-        if (request.getRequestURI().startsWith("/admin-service/ml/inference/ct-")) {
-            return;
-        }
-        AdminAuthHelper.requireAdminId(resolveToken(headers), "MLOps");
-    }
-
-    @ExceptionHandler(AdminAuthException.class)
-    public Result<?> handleAdminAuth(AdminAuthException exception) {
-        return Result.error(exception.getCode(), exception.getMessage());
     }
 
     /** 推理统计仪表盘 */
@@ -128,32 +110,6 @@ public class MlOpsController {
         } catch (NumberFormatException e) {
             throw new BusinessException("流量配置参数错误");
         }
-    }
-
-    private String resolveToken(Map<String, String> headers) {
-        if (headers == null || headers.isEmpty()) {
-            return "";
-        }
-        String authorization = firstHeader(
-                headers, HttpHeaders.AUTHORIZATION, "authorization");
-        if (authorization != null && !authorization.isBlank()) {
-            String value = authorization.trim();
-            return value.regionMatches(true, 0, "Bearer ", 0, 7)
-                    ? value.substring(7).trim()
-                    : value;
-        }
-        String legacyToken = firstHeader(headers, "token", "Token");
-        return legacyToken == null ? "" : legacyToken.trim();
-    }
-
-    private String firstHeader(Map<String, String> headers, String... names) {
-        for (String name : names) {
-            String value = headers.get(name);
-            if (value != null) {
-                return value;
-            }
-        }
-        return null;
     }
 
     /** 训练任务列表 */

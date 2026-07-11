@@ -41,7 +41,7 @@
     <div class="card">
       <div class="card-head">已注册模型</div>
       <el-table :data="models" stripe class="model-table" v-loading="loadingModels">
-        <el-table-column prop="modelKey" label="模型名称" min-width="180" />
+        <el-table-column prop="modelKey" label="模型标识" min-width="160" />
         <el-table-column prop="version" label="版本" width="140" />
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
@@ -53,6 +53,7 @@
             <el-progress :percentage="row.trafficPct" :stroke-width="10" :color="progressColor(row.trafficPct)" />
           </template>
         </el-table-column>
+        <el-table-column prop="artifactPath" label="模型路径" show-overflow-tooltip min-width="180" />
       </el-table>
     </div>
   </div>
@@ -60,6 +61,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
 import { Check, DataAnalysis, Star, Timer } from '@element-plus/icons-vue'
 import { getInferenceStats, getModelList } from '@/api/admin/ml'
 
@@ -82,16 +84,16 @@ onMounted(async () => {
   try {
     const res = await getInferenceStats()
     stats.value = res.data || {}
-  } catch {
-    // 统一请求层负责错误提示。
+  } catch (e: any) {
+    ElMessage.error(e?.message || '推理统计加载失败')
   }
 
   loadingModels.value = true
   try {
     const res = await getModelList()
     models.value = res.data || []
-  } catch {
-    // 统一请求层负责错误提示。
+  } catch (e: any) {
+    ElMessage.error(e?.message || '模型列表加载失败')
   } finally {
     loadingModels.value = false
   }

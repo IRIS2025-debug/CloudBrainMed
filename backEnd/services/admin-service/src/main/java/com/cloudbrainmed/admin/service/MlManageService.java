@@ -1,4 +1,4 @@
 package com.cloudbrainmed.admin.service;
 
-public interface DataBoardService {
+public interface MlManageService {
 }
