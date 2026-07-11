@@ -24,6 +24,9 @@ sentinel-dashboard-*.jar
 !.env.example
 !.env.template
 
+# Local doctor avatar uploads mounted by Docker Compose
+backEnd/docker/data/doctor-avatar/
+
 
 
 

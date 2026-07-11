@@ -6783,7 +6783,7 @@ GET /internal/doctor/consult/context
 | 查询当前医生可领取队列 | `GET` | `/doctor-service/task/queue` |
 | 检查/检验医生提交报告 | `POST` | `/doctor-service/task/report` |
 
-`/inspection-doctor/orders` 返回全部 `EXAM` 和 `LAB` 医技申请，不再仅限 LAB。
+`/inspection-doctor/orders`、`/inspection-doctor/order/{orderId}` 及 `/inspection-doctor/order/{orderId}/assign` 均为后端兼容接口，当前前端已无入口（旧检验申请列表页 `InspectionOrderList.vue` 已删除，`/inspection-doctor/order-list` 重定向到 `/inspection-doctor/queue`）。检查医生和检验医生主流程统一复用 `/doctor-service/task/queue` 与 `/doctor-service/task/workbench`。
 
 分配请求体：
 
