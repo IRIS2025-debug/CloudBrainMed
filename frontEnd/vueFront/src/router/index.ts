@@ -80,18 +80,6 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 3 }
     },
     {
-      path: '/admin/ml/samples',
-      name: 'mlSamples',
-      component: () => import('@/pages/admin/ml/Samples.vue'),
-      meta: { requiresAuth: true, role: 3 }
-    },
-    {
-      path: '/admin/ml/models',
-      name: 'mlModels',
-      component: () => import('@/pages/admin/ml/Models.vue'),
-      meta: { requiresAuth: true, role: 3 }
-    },
-    {
       path: '/admin/scheduling',
       name: 'scheduling',
       component: () => import('@/pages/admin/scheduling/Scheduling.vue'),
