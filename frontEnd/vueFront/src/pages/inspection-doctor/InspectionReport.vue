@@ -23,7 +23,7 @@
           当前任务不是检验项目，不能在此页面生成报告。
         </div>
         <div v-else-if="task.status !== 'IN_PROCESS'" class="state-notice">
-          当前任务状态为“{{ task.statusLabel || task.status }}”，只有处理中的任务可以回传报告。
+          当前任务状态为"{{ task.statusLabel || task.status }}"，只有处理中的任务可以回传报告。
         </div>
 
         <section class="report-sheet">
@@ -86,6 +86,27 @@
                 :disabled="!canSubmit"
               />
             </el-form-item>
+
+            <!-- AI生成检验结论按钮区域 -->
+            <div class="ai-assist-section">
+              <el-button
+                type="primary"
+                plain
+                :loading="aiGenerating"
+                :disabled="!canSubmit || !form.resultSummary.trim()"
+                @click="generateConclusion"
+              >
+                <el-icon><MagicStick /></el-icon>
+                AI 生成检验结论
+              </el-button>
+              <span class="ai-hint" v-if="form.resultSummary.trim()">
+                基于检验结果摘要自动生成专业结论
+              </span>
+              <span class="ai-hint ai-hint-warning" v-else>
+                请先填写检验结果摘要
+              </span>
+            </div>
+
             <el-form-item label="检验结论" required>
               <el-input
                 v-model="form.conclusion"
@@ -133,8 +154,9 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, DocumentChecked } from '@element-plus/icons-vue'
+import { ArrowLeft, DocumentChecked, MagicStick } from '@element-plus/icons-vue'
 import { getTaskDetail, getWorkbench, submitTaskReport } from '@/api/doctor/task'
+import { generateReportConclusion } from '@/api/inspection-doctor'
 
 interface LaboratoryTask {
   orderItemId: string
@@ -159,6 +181,7 @@ const route = useRoute()
 const router = useRouter()
 const loading = ref(false)
 const submitting = ref(false)
+const aiGenerating = ref(false)
 const task = ref<LaboratoryTask | null>(null)
 const form = ref({
   resultSummary: '',
@@ -221,6 +244,33 @@ function resetForm() {
     conclusion: '',
     abnormalFlag: 'NORMAL',
     attachmentUrl: '',
+  }
+}
+
+async function generateConclusion() {
+  if (!form.value.resultSummary.trim()) {
+    ElMessage.warning('请先填写检验结果摘要')
+    return
+  }
+
+  aiGenerating.value = true
+  try {
+    const response = await generateReportConclusion({
+      resultSummary: form.value.resultSummary.trim()
+    })
+    if (response.code === 200 && response.data?.conclusion) {
+      form.value.conclusion = response.data.conclusion
+      ElMessage.success(response.message || 'AI 检验结论生成成功')
+    } else if (response.code !== 200) {
+      ElMessage.warning(response.message || 'AI 生成结论失败，请手动填写')
+    } else {
+      ElMessage.warning('AI 未能生成有效结论，请手动填写')
+    }
+  } catch (error: any) {
+    const errorMsg = error?.response?.data?.message || error?.message || 'AI 生成检验结论失败，请手动填写'
+    ElMessage.error(errorMsg)
+  } finally {
+    aiGenerating.value = false
   }
 }
 
@@ -311,6 +361,30 @@ function formatTime(value?: string) {
 .state-notice { margin-bottom: 14px; padding: 12px 16px; border: 1px solid #f2cf91; border-radius: 6px; background: #fff8e8; color: #8a5b12; font-size: 13px; }
 .state-error { border-color: #efb4b4; background: #fff1f1; color: #a73535; }
 
+/* AI 助手样式 */
+.ai-assist-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0 16px 0;
+  border-bottom: 1px dashed #e5e7eb;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.ai-assist-section .el-button {
+  min-width: 160px;
+}
+
+.ai-hint {
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.ai-hint-warning {
+  color: #f59e0b;
+}
+
 @media (max-width: 760px) {
   .report-page { padding: 16px; }
   .page-header { flex-direction: column; }
@@ -324,5 +398,14 @@ function formatTime(value?: string) {
   .form-row { grid-template-columns: 1fr; }
   .report-actions { flex-direction: column-reverse; padding: 16px 20px 20px; }
   .report-actions .el-button { width: 100%; margin-left: 0; }
+  
+  .ai-assist-section {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .ai-assist-section .el-button {
+    width: 100%;
+  }
 }
 </style>

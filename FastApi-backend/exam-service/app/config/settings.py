@@ -9,7 +9,7 @@ class Settings(BaseSettings):
 
     # 服务配置
     SERVICE_HOST: str = "0.0.0.0"
-    SERVICE_PORT: int = 8006
+    SERVICE_PORT: int = 8008
 
     class Config:
         env_file = ".env"

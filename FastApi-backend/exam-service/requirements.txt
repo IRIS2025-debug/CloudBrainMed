@@ -6,7 +6,7 @@ python-dotenv
 psycopg2-binary
 nacos-sdk-python
 PyJWT
-
+langchain-openai
 langchain
 langchain-community
 dashscope
