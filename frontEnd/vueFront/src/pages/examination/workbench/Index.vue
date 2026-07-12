@@ -75,12 +75,8 @@
         <el-table-column prop="createTime" label="创建时间" width="160" />
         <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
-            <!-- 改造：跳转前存储orderItemId到sessionStorage -->
-            <el-button type="primary" size="small" @click="handleView(row)">
+            <el-button v-if="row.status === 'IN_PROCESS'" type="success" size="small" @click="handleView(row)">
               确认检查
-            </el-button>
-            <el-button v-if="row.status === 'QUEUED'" type="success" size="small" @click="handleStart(row)">
-              开始
             </el-button>
             <el-button v-if="row.status === 'IN_PROCESS'" type="info" size="small" @click="handleSkip(row)">
               跳过
@@ -162,7 +158,7 @@ async function fetchTasks() {
   loading.value = true
   try {
     const [workbenchRes, queueRes] = await Promise.all([getWorkbench(), getQueue()])
-    tasks.value = workbenchRes.data || []
+    tasks.value = (workbenchRes.data || []).filter((t: any) => t.status !== 'COMPLETED')
     queueCount.value = queueRes.data?.queueCount || 0
   } catch {
     ElMessage.error('加载任务列表失败')
@@ -179,17 +175,6 @@ function onSortChange({ prop, order }: { prop: string, order: string }) {
       return order === 'ascending' ? diff : -diff
     })
     tasks.value = list
-  }
-}
-
-async function handleStart(row: any) {
-  try {
-    await ElMessageBox.confirm(`确认开始处理「${row.itemName}」？`, '提示', { type: 'info' })
-    await startTask(row.orderItemId)
-    ElMessage.success('已开始处理')
-    fetchTasks()
-  } catch (e: any) {
-    if (e !== 'cancel') ElMessage.error(e?.response?.data?.msg || '操作失败')
   }
 }
 

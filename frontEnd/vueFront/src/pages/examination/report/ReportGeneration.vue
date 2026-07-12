@@ -313,7 +313,7 @@ import {
 } from '@element-plus/icons-vue'
 import { useRouter, useRoute } from 'vue-router'
 import { getTaskDetail } from '@/api/doctor/task'
-
+import { examApi } from '@/api/examination/examApi'
 
 const router = useRouter()
 const route = useRoute()
@@ -432,6 +432,46 @@ const getRiskType = (level?: string) => {
     '极高风险': 'danger'
   }
   return map[level] || 'info'
+}
+
+// ========= 清空所有报告内容的统一方法 =========
+const clearAllReportContent = (keepPatientInfo = false) => {
+  // 1. 清空CT数据
+  ctData.value = null
+  
+  // 2. 清空单模型只读文本
+  artifactFindings.value = ''
+  artifactDiagnosis.value = ''
+  artifactAdvice.value = ''
+  lesionFindings.value = ''
+  lesionDiagnosis.value = ''
+  lesionAdvice.value = ''
+  
+  // 3. 清空综合报告编辑框
+  reportFindings.value = ''
+  reportDiagnosis.value = ''
+  reportAdvice.value = ''
+  reportDoctor.value = ''
+  
+  // 4. 清空预览图
+  previewImageUrl.value = ''
+  
+  // 5. 根据参数决定是否保留患者信息
+  if (!keepPatientInfo) {
+    orderItemId.value = ''
+    registerId.value = ''
+    patientInfo.value = {
+      name: '',
+      gender: '',
+      age: '',
+      itemName: ''
+    }
+  }
+  
+  // 6. 重置报告编号
+  reportId.value = `RPT-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`
+  
+  console.log(`✅ 所有报告内容已清空${keepPatientInfo ? '（保留患者信息）' : ''}`)
 }
 
 // ========= 综合文本框清空方法 =========
@@ -705,34 +745,19 @@ const handleResetReport = () => {
   resetDialogVisible.value = true
 }
 
-// ReportGeneration.vue - confirmResetReport
-
+// ========= 确认重新书写报告 =========
 const confirmResetReport = async () => {
   resetLoading.value = true
   try {
     await new Promise(resolve => setTimeout(resolve, 300))
 
-    // 清空所有报告相关内容
-    ctData.value = null
-    artifactFindings.value = ''
-    artifactDiagnosis.value = ''
-    artifactAdvice.value = ''
-    lesionFindings.value = ''
-    lesionDiagnosis.value = ''
-    lesionAdvice.value = ''
-    reportFindings.value = ''
-    reportDiagnosis.value = ''
-    reportAdvice.value = ''
-    reportDoctor.value = ''
+    // 使用统一的清空方法，但保留患者信息
+    clearAllReportContent(true)
     
-    // ===== 清空 orderItemId =====
-    orderItemId.value = ''
-    registerId.value = ''
-
+    // 清除sessionStorage
     sessionStorage.removeItem('ct_report_data')
     sessionStorage.removeItem('final_report')
-
-    previewImageUrl.value = ''
+    sessionStorage.removeItem('current_order_item_id')
 
     ElMessage.success('✅ 已清空所有报告内容，请重新从CT工作台导入数据并书写报告')
     resetDialogVisible.value = false
@@ -743,13 +768,7 @@ const confirmResetReport = async () => {
   }
 }
 
-// ========= 生成最终完整报告（存储到sessionStorage） =========
-// 在 handleGenerate 方法中，替换原来的 sessionStorage 存储逻辑
-
-import { examApi } from '@/api/examination/examApi'
-
-// ReportGeneration.vue - handleGenerate 方法
-
+// ========= 生成最终完整报告 =========
 const handleGenerate = async () => {
   if (!artifactData.value && !lesionData.value) {
     ElMessage.warning('请先从CT工作台导入AI推理数据')
@@ -771,9 +790,7 @@ const handleGenerate = async () => {
 
     // 构建请求体
     const requestData = {
-      // ===== 传入 orderItemId（检查项目ID） =====
       orderItemId: orderItemId.value,
-      // ===== registerId 改为用于患者信息展示 =====
       registerId: registerId.value,
       reportTitle: reportTitle.value,
       artifact: {
@@ -806,14 +823,24 @@ const handleGenerate = async () => {
     const response = await examApi.saveReport(requestData)
     
     if (response.code === 200) {
-      ElMessage.success('✅ CT检查报告保存成功')
+      ElMessage.success({
+        message: '✅ CT检查报告保存成功，报告内容已清空',
+        duration: 3000
+      })
+      
+      // ===== 清空所有报告内容，但保留患者信息 =====
+      clearAllReportContent(true)
       
       // 保存成功后清除临时数据
       sessionStorage.removeItem('ct_report_data')
       sessionStorage.removeItem('current_order_item_id')
       
-      // 可选：跳转
-      // router.push(`/report/detail/${response.data.reportId}`)
+      // 显示提示信息
+      ElMessage.info('报告已清空，可继续为当前患者生成其他报告')
+      
+      // 可选：跳转到报告列表或详情页
+      // router.push('/report/list')
+      
     } else {
       ElMessage.error(response.msg || '报告保存失败')
     }
