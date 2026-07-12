@@ -32,6 +32,16 @@ public class ConsultController {
         this.medicalOrderService = medicalOrderService;
     }
 
+    /**
+     * 接诊医生首页概览（只读）。
+     * extractDoctorId 已强制要求 roleType==2 且 doctorType==1，仅统计当前医生当天数据。
+     */
+    @GetMapping("/overview")
+    public Result<?> overview(@RequestHeader(value = "token", required = false) String token) {
+        String doctorId = extractDoctorId(token);
+        return Result.ok(service.getOverview(doctorId));
+    }
+
     /** 4.4.2.1 查询接诊患者列表 */
     @GetMapping("/list")
     public Result<?> list(@RequestHeader(value = "token", required = false) String token,
