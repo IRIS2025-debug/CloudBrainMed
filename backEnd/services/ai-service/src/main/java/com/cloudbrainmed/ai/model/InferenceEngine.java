@@ -249,6 +249,29 @@ public class InferenceEngine {
         }
     }
 
+    /**
+     * 读取 Python 推理服务 "/" 健康响应，用于模型看板展示实际版本/状态。
+     * 服务不可达或返回非 200 时返回 null，由上层降级为「离线」。
+     */
+    public Map<String, Object> getPythonHealth() {
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(pythonServiceUrl + "/"))
+                    .GET()
+                    .timeout(java.time.Duration.ofSeconds(5))
+                    .build();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200 || response.body() == null || response.body().isBlank()) {
+                return null;
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, Object> body = objectMapper.readValue(response.body(), Map.class);
+            return body;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     private String safeMessage(String primary, String fallback) {
         if (primary != null && !primary.isBlank()) {
             return primary;

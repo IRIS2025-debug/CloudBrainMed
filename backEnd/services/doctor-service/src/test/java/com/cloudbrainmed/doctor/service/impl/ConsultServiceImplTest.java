@@ -81,6 +81,52 @@ class ConsultServiceImplTest {
     }
 
     @Test
+    void getOverviewScopesTodayCountsToCurrentDoctorAndFoldsConfirmedIntoInProgress() {
+        when(mapper.countTodayByStatus("D001")).thenReturn(List.of(
+                Map.of("consult_status", "PENDING", "cnt", 3L),
+                Map.of("consult_status", "IN_PROGRESS", "cnt", 2L),
+                Map.of("consult_status", "RECORD_CONFIRMED", "cnt", 1L),
+                Map.of("consult_status", "COMPLETED", "cnt", 4L)));
+        when(mapper.findRecentToday("D001", 5)).thenReturn(List.of(new ConsultRecord()));
+
+        Map<String, Object> overview = service.getOverview("D001");
+
+        // 只对当前医生发起查询，绝不跨医生统计。
+        verify(mapper).countTodayByStatus("D001");
+        verify(mapper).findRecentToday("D001", 5);
+        assertThat(overview).containsEntry("todayTotal", 10L)
+                .containsEntry("pendingCount", 3L)
+                // IN_PROGRESS(2) + RECORD_CONFIRMED(1) 一并计入进行中。
+                .containsEntry("inProgressCount", 3L)
+                .containsEntry("completedTodayCount", 4L);
+        assertThat((List<?>) overview.get("recentConsults")).hasSize(1);
+    }
+
+    @Test
+    void getOverviewReturnsZerosWhenDoctorHasNoConsultToday() {
+        when(mapper.countTodayByStatus("D001")).thenReturn(List.of());
+        when(mapper.findRecentToday("D001", 5)).thenReturn(List.of());
+
+        Map<String, Object> overview = service.getOverview("D001");
+
+        // 真实零值就是 0，而不是缺失或占位。
+        assertThat(overview).containsEntry("todayTotal", 0L)
+                .containsEntry("pendingCount", 0L)
+                .containsEntry("inProgressCount", 0L)
+                .containsEntry("completedTodayCount", 0L);
+        assertThat((List<?>) overview.get("recentConsults")).isEmpty();
+    }
+
+    @Test
+    void getOverviewCapsRecentConsultsAtFive() {
+        when(mapper.countTodayByStatus("D001")).thenReturn(List.of());
+        service.getOverview("D001");
+
+        // 底部动态最多取 5 条，limit 固定为 5。
+        verify(mapper).findRecentToday("D001", 5);
+    }
+
+    @Test
     void completeRequiresConfirmedRecord() {
         ConsultRecord record = consult("D001", "IN_PROGRESS");
         when(mapper.findDetail("R001")).thenReturn(record);

@@ -43,6 +43,31 @@ public class ConsultServiceImpl implements ConsultService {
     }
 
     @Override
+    public Map<String, Object> getOverview(String doctorId) {
+        // 按 consult_status 分组的当天计数，转成状态->数量的映射，缺失状态记 0。
+        Map<String, Long> byStatus = new HashMap<>();
+        for (Map<String, Object> row : consultMapper.countTodayByStatus(doctorId)) {
+            String status = row.get("consult_status") == null ? "" : String.valueOf(row.get("consult_status"));
+            long count = row.get("cnt") == null ? 0L : ((Number) row.get("cnt")).longValue();
+            byStatus.merge(status, count, Long::sum);
+        }
+        long pending = byStatus.getOrDefault("PENDING", 0L);
+        // 进行中同时涵盖 IN_PROGRESS 与已确认病历待完成的 RECORD_CONFIRMED。
+        long inProgress = byStatus.getOrDefault("IN_PROGRESS", 0L)
+                + byStatus.getOrDefault("RECORD_CONFIRMED", 0L);
+        long completed = byStatus.getOrDefault("COMPLETED", 0L);
+        long total = byStatus.values().stream().mapToLong(Long::longValue).sum();
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("todayTotal", total);
+        result.put("pendingCount", pending);
+        result.put("inProgressCount", inProgress);
+        result.put("completedTodayCount", completed);
+        result.put("recentConsults", consultMapper.findRecentToday(doctorId, 5));
+        return result;
+    }
+
+    @Override
     public ConsultRecord getDetail(String doctorId, String registerId) {
         ConsultRecord r = consultMapper.findDetail(registerId);
         if (r == null) throw new BusinessException("就诊记录不存在");

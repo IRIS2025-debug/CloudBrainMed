@@ -4,6 +4,19 @@ export function getConsultList(params: { consultStatus?: string; date?: string; 
   return request.get('/doctor-service/consult/list', { params })
 }
 
+export interface ConsultOverview {
+  todayTotal: number
+  pendingCount: number
+  inProgressCount: number
+  completedTodayCount: number
+  recentConsults: Array<Record<string, any>>
+}
+
+/** 接诊医生首页概览（只读聚合，仅当前医生当天数据） */
+export function getConsultOverview() {
+  return request.get<ConsultOverview>('/doctor-service/consult/overview')
+}
+
 export function getConsultDetail(registerId: string) {
   return request.get('/doctor-service/consult/detail', { params: { registerId } })
 }

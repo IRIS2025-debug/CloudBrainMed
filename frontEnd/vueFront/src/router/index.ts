@@ -80,18 +80,6 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 3 }
     },
     {
-      path: '/admin/ml/samples',
-      name: 'mlSamples',
-      component: () => import('@/pages/admin/ml/Samples.vue'),
-      meta: { requiresAuth: true, role: 3 }
-    },
-    {
-      path: '/admin/ml/models',
-      name: 'mlModels',
-      component: () => import('@/pages/admin/ml/Models.vue'),
-      meta: { requiresAuth: true, role: 3 }
-    },
-    {
       path: '/admin/scheduling',
       name: 'scheduling',
       component: () => import('@/pages/admin/scheduling/Scheduling.vue'),
@@ -123,10 +111,16 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 3 }
     },
     {
+      // 检验医生首页统一走 /doctor/home（页面按 doctorType=3 自适应）。
       path: '/inspection-doctor/home',
-      name: 'InspectionHome',
-      component: () => import('@/pages/inspection-doctor/InspectionHome.vue'),
+      redirect: '/doctor/home',
       meta: { requiresAuth: true, role: 2, doctorType: 3 }
+    },
+    {
+      // 检查医生首页统一走 /doctor/home（页面按 doctorType=2 自适应）。
+      path: '/examination-doctor/home',
+      redirect: '/doctor/home',
+      meta: { requiresAuth: true, role: 2, doctorType: 2 }
     },
     {
       path: '/inspection-doctor/order-list',
