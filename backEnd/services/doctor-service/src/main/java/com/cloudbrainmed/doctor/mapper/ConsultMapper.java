@@ -30,7 +30,7 @@ public interface ConsultMapper {
         " JOIN medical_report mr ON mr.order_item_id = moi.order_item_id " +
         " WHERE mo.register_id = r.register_id AND mr.status = 'PUBLISHED') AS latest_report_time " +
         "FROM registration r " +
-        "WHERE r.doctor_id = #{doctorId} " +
+        "WHERE r.doctor_id = #{doctorId} AND r.pay_status = 'PAID' " +
         "<if test='consultStatus != null and consultStatus != \"\"'>AND r.consult_status = #{consultStatus}</if> " +
         "<if test='date != null and date != \"\"'>AND r.visit_date = #{date}::date</if> " +
         "<if test='reportReturnedOnly'>AND EXISTS (SELECT 1 FROM medical_order mo " +
