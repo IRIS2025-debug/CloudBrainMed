@@ -44,7 +44,7 @@ public interface RegisterReportMapper extends BaseMapper<RegisterReport> {
      * 根据挂号ID查询病历报告
      */
     @Select("SELECT * FROM register_report WHERE register_id = #{registerId}")
-    RegisterReport selectByRegisterId(@Param("registerId") String registerId);
+    RegisterReport selectByOnlyRegisterId(@Param("registerId") String registerId);
 
     /**
      * 根据患者ID查询最新的病历报告

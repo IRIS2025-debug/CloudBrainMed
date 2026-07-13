@@ -10,6 +10,8 @@ import com.cloudbrainmed.patient.vo.DoctorDetailVo;
 import com.cloudbrainmed.patient.vo.ScheduleVo;
 import com.cloudbrainmed.patient.vo.VisitDetail;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
@@ -23,6 +25,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class RegisterServiceImpl implements RegisterService {
+    private static final Logger log = LoggerFactory.getLogger(RegisterServiceImpl.class);
 
     private final DeptMapper deptMapper;
     private final DoctorMapper doctorMapper;
@@ -164,31 +167,56 @@ public class RegisterServiceImpl implements RegisterService {
 
     @Override
     public VisitDetail getVisitDetail(String registerId) {
+        log.info("=== 开始查询就诊详情 ===");
+        log.info("registerId: {}", registerId);
+
         VisitDetail detail = new VisitDetail();
 
-        // 1. 获取挂号信息
-        Registration registration = registrationMapper.selectByRegisterId(registerId);
-        detail.setRegister(registration);
+        try {
+            // 1. 获取挂号信息
+            log.info("1. 查询挂号信息...");
+            Registration registration = registrationMapper.selectByRegisterId(registerId);
+            log.info("挂号信息查询结果: {}", registration != null ? "找到" : "未找到");
+            if (registration != null) {
+                log.info("挂号信息: patientId={}, name={}", registration.getPatientId(), registration.getName());
+            }
+            detail.setRegister(registration);
 
-        // 2. 获取病历报告
-        RegisterReport report = registerReportMapper.selectByRegisterId(registerId);
-        detail.setReport(report);
+            // 2. 获取病历报告
+            log.info("2. 查询病历报告...");
+            RegisterReport report = registerReportMapper.selectByOnlyRegisterId(registerId);
+            log.info("病历报告查询结果: {}", report != null ? "找到" : "未找到");
+            detail.setReport(report);
 
-        // 3. 获取检查检验订单
-        List<MedicalOrder> orders = medicalOrderMapper.selectByRegisterId(registerId);
-        detail.setOrders(orders);
+            // 3. 获取检查检验订单
+            log.info("3. 查询检查检验订单...");
+            List<MedicalOrder> orders = medicalOrderMapper.selectByRegisterId(registerId);
+            log.info("检查检验订单数量: {}", orders != null ? orders.size() : 0);
+            detail.setOrders(orders);
 
-        // 4. 获取检查检验明细（通过 registerId 直接查询）
-        List<MedicalOrderItem> orderItems = medicalOrderItemMapper.selectByRegisterId(registerId);
-        detail.setOrderItems(orderItems);
+            // 4. 获取检查检验明细
+            log.info("4. 查询检查检验明细...");
+            List<MedicalOrderItem> orderItems = medicalOrderItemMapper.selectByRegisterId(registerId);
+            log.info("检查检验明细数量: {}", orderItems != null ? orderItems.size() : 0);
+            detail.setOrderItems(orderItems);
 
-        // 5. 获取处方项
-        if (registration != null) {
-            List<Prescription> prescriptions = prescriptionMapper.selectByRegisterId(registerId, registration.getPatientId());
-            detail.setPrescriptions(prescriptions);
+            // 5. 获取处方项
+            if (registration != null) {
+                log.info("5. 查询处方项...");
+                List<Prescription> prescriptions = prescriptionMapper.selectByRegisterId(registerId, registration.getPatientId());
+                log.info("处方项数量: {}", prescriptions != null ? prescriptions.size() : 0);
+                detail.setPrescriptions(prescriptions);
+            } else {
+                log.warn("挂号信息为空，跳过查询处方项");
+            }
+
+            log.info("=== 就诊详情查询完成 ===");
+            return detail;
+
+        } catch (Exception e) {
+            log.error("查询就诊详情异常", e);
+            throw new BusinessException("查询就诊详情失败: " + e.getMessage());
         }
-
-        return detail;
     }
 
     @Override

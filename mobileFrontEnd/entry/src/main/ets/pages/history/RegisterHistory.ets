@@ -259,17 +259,19 @@ export struct RegisterHistory {
 
       switch (this.currentTab) {
         case 'pending_pay':
-          return visitDate >= today && item.payStatus === 'WAITING';
+          // 待支付：只看支付状态
+          return item.payStatus === 'WAITING';
         case 'pending_visit':
-          return visitDate >= today && item.payStatus === 'PAID';
+          // 待接诊：已支付 + 接诊状态为 WAITING
+          return item.payStatus === 'PAID' && item.consultStatus === 'WAITING';
         case 'expired':
-          return visitDate < today;
+          // 已过期：就诊日期已过 或 接诊状态为 EXPIRED
+          return visitDate < today || item.consultStatus === 'EXPIRED';
         default:
           return true;
       }
     });
   }
-
   /**
    * 获取各Tab的数量
    */
@@ -288,11 +290,11 @@ export struct RegisterHistory {
 
       switch (tab) {
         case 'pending_pay':
-          return visitDate >= today && item.payStatus === 'WAITING';
+          return item.payStatus === 'WAITING';
         case 'pending_visit':
-          return visitDate >= today && item.payStatus === 'PAID';
+          return item.payStatus === 'PAID' && item.consultStatus === 'WAITING';
         case 'expired':
-          return visitDate < today;
+          return visitDate < today || item.consultStatus === 'EXPIRED';
         default:
           return false;
       }
