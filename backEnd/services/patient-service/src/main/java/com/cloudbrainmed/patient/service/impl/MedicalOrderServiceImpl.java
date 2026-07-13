@@ -159,6 +159,26 @@ public class MedicalOrderServiceImpl implements MedicalOrderService {
         }
     }
 
+    /**
+     * 查询医疗订单的支付状态
+     */
+    @Override
+    public String getPayStatus(String orderId) {
+        if (orderId == null) {
+            return "UNKNOWN";
+        }
+        MedicalOrder order = medicalOrderMapper.selectByOrderId(orderId);
+        if (order == null) {
+            return "UNKNOWN";
+        }
+        return order.getPayStatus() != null ? order.getPayStatus() : "WAITING";
+    }
+
+    @Override
+    public MedicalOrder getMedicalOrder(String orderId) {
+        return medicalOrderMapper.selectByOrderId(orderId);
+    }
+
     private String calculateGroupStatus(List<MedicalOrderItemVo> items) {
         if (CollectionUtils.isEmpty(items)) return "待检查";
         boolean hasCancelled = false, hasCompleted = true, hasInProgress = false, hasWaiting = false;

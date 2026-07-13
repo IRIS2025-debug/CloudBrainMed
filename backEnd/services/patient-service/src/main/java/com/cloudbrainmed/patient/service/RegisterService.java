@@ -28,4 +28,10 @@ public interface RegisterService {
     Map<String, Object> checkPatientInfo(String patientId);
     VisitDetail getVisitDetail(String registerId);
 
+    /**
+     * 根据挂号ID查询支付状态（供 payment-service Feign 调用）
+     * @param registerId 挂号ID
+     * @return WAITING(待支付) / PAID(已支付) / CANCELLED(已取消) / REFUNDED(已退款)
+     */
+    String getPayStatus(String registerId);
 }

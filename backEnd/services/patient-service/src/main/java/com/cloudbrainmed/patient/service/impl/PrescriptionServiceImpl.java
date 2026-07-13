@@ -16,25 +16,25 @@ import java.util.List;
 @Service
 public class PrescriptionServiceImpl implements PrescriptionService {
 
-    private final PrescriptionMapper mapper;
+    private final PrescriptionMapper prescriptionMapper;
 
-    public PrescriptionServiceImpl(PrescriptionMapper mapper) {
-        this.mapper = mapper;
+    public PrescriptionServiceImpl(PrescriptionMapper prescriptionMapper) {
+        this.prescriptionMapper = prescriptionMapper;
     }
 
     @Override
     public List<Prescription> getByRegisterId(String registerId, String patientId) {
-        return mapper.selectByRegisterId(registerId, patientId);
+        return prescriptionMapper.selectByRegisterId(registerId, patientId);
     }
 
     @Override
     public List<Prescription> getByPatientId(String patientId) {
-        return mapper.selectByPatientId(patientId);
+        return prescriptionMapper.selectByPatientId(patientId);
     }
 
     @Override
     public List<RegisterPrescriptionGroupVo> getGroupedByPatientId(String patientId) {
-        List<Prescription> prescriptions = mapper.selectByPatientId(patientId);
+        List<Prescription> prescriptions = prescriptionMapper.selectByPatientId(patientId);
         if (prescriptions == null || prescriptions.isEmpty()) {
             return new ArrayList<>();
         }
@@ -62,10 +62,10 @@ public class PrescriptionServiceImpl implements PrescriptionService {
             group.setPatientName(first.getPatientName());
             group.setDoctorName(first.getDoctorName());
 
-            if (first.getPrescriptionDate() != null) {
-                group.setPrescriptionDate(first.getPrescriptionDate().format(dateFormatter));
+            if (first.getCreateDate() != null) {
+                group.setCreateDate(first.getCreateDate().format(dateFormatter));
             } else {
-                group.setPrescriptionDate("");
+                group.setCreateDate("");
             }
 
             group.setPayStatus(first.getPayStatus());
@@ -82,5 +82,26 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         }
 
         return result;
+    }
+
+    /**
+     * 查询处方的支付状态
+     */
+    @Override
+    public String getPayStatus(String prescriptionId) {
+        if (prescriptionId == null) {
+            return "UNKNOWN";
+        }
+        // 需要在 PrescriptionMapper 中添加 selectByPrescriptionId 方法
+        Prescription prescription = prescriptionMapper.selectByPrescriptionId(prescriptionId);
+        if (prescription == null) {
+            return "UNKNOWN";
+        }
+        return prescription.getPayStatus() != null ? prescription.getPayStatus() : "WAITING";
+    }
+
+    @Override
+    public Prescription getPrescription(String prescriptionId) {
+        return prescriptionMapper.selectByPrescriptionId(prescriptionId);
     }
 }

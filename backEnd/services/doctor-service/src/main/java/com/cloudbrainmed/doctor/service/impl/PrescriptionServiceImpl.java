@@ -47,7 +47,7 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         p.setUsage(dto.getUsage());
         p.setNum(dto.getNum());
         p.setPrice(dto.getPrice());
-        p.setPrescriptionDate(LocalDate.now());
+        p.setCreateDate(LocalDate.now());
         p.setPayStatus("WAITING");
         p.setCreateTime(LocalDateTime.now());
         mapper.insert(p);

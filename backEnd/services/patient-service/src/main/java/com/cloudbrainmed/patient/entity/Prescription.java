@@ -19,7 +19,7 @@ public class Prescription {
     private String spec;
     private String usage_;
     private Integer num;
-    private LocalDate prescriptionDate;
+    private LocalDate createDate;
     private BigDecimal price;
     private String payStatus;
     private LocalDateTime createTime;
@@ -46,8 +46,8 @@ public class Prescription {
     public void setUsage_(String usage_) { this.usage_ = usage_; }
     public Integer getNum() { return num; }
     public void setNum(Integer num) { this.num = num; }
-    public LocalDate getPrescriptionDate() { return prescriptionDate; }
-    public void setPrescriptionDate(LocalDate prescriptionDate) { this.prescriptionDate = prescriptionDate; }
+    public LocalDate getCreateDate() { return createDate; }
+    public void setCreateDate(LocalDate createDate) { this.createDate = createDate; }
     public BigDecimal getPrice() { return price; }
     public void setPrice(BigDecimal price) { this.price = price; }
     public String getPayStatus() { return payStatus; }

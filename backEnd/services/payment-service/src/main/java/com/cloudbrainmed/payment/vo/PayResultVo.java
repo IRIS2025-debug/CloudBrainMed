@@ -16,4 +16,9 @@ public class PayResultVo {
     private String payStatusText;
     private LocalDateTime payTime;  // 统一使用 payTime
     private String description;
+    private String businessStatus;      // 业务状态
+    private Boolean canRefund;          // 是否可退款
+    private Boolean isExpired;          // 是否过期
+    private LocalDateTime visitDate;    // 就诊日期（用于前端判断）
+
 }

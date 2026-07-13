@@ -39,6 +39,12 @@ public interface PaymentFeignClient {
     Result<Boolean> refundPay(@PathVariable("payId") String payId);
 
     /**
+     * 申请退款（带业务状态校验）
+     */
+    @PostMapping("/payment-service/pay/refund/apply/{payId}")
+    Result<Boolean> applyRefund(@PathVariable("payId") String payId);
+
+    /**
      * 根据支付ID查询
      */
     @GetMapping("/payment-service/pay/{payId}")
@@ -52,10 +58,16 @@ public interface PaymentFeignClient {
                                         @RequestParam("orderType") String orderType);
 
     /**
-     * 查询患者支付历史
+     * 查询患者支付历史（普通版）
      */
     @GetMapping("/payment-service/pay/history/{patientId}")
     Result<List<PayResultVo>> getPayHistory(@PathVariable("patientId") String patientId);
+
+    /**
+     * 查询患者支付历史（增强版：自动处理过期 + 退款状态）
+     */
+    @GetMapping("/payment-service/pay/history-enhanced/{patientId}")
+    Result<List<PayResultVo>> getPayHistoryEnhanced(@PathVariable("patientId") String patientId);
 
     /**
      * 分页查询支付记录

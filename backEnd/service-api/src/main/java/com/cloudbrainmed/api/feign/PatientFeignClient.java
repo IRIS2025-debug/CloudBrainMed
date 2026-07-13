@@ -21,4 +21,12 @@ public interface PatientFeignClient {
     /** 查询患者挂号记录 */
     @GetMapping("/patient-service/register/history/{patientId}")
     Map<String, Object> getRegisterHistory(@PathVariable("patientId") String patientId);
+
+    /**
+     * 查询挂号状态
+     * @param registerId 挂号ID
+     * @return 挂号状态信息
+     */
+    @GetMapping("/patient-service/register/status/{registerId}")
+    Map<String, Object> getRegisterStatus(@PathVariable("registerId") String registerId);
 }

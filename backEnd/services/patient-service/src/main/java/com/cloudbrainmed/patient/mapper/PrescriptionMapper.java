@@ -21,7 +21,7 @@ public interface PrescriptionMapper {
             @Result(column = "spec", property = "spec"),
             @Result(column = "usage", property = "usage_"),
             @Result(column = "num", property = "num"),
-            @Result(column = "prescription_date", property = "prescriptionDate"),
+            @Result(column = "create_date", property = "createDate"),
             @Result(column = "pay_status", property = "payStatus"),
             @Result(column = "create_time", property = "createTime")
     })
@@ -42,9 +42,31 @@ public interface PrescriptionMapper {
         @Result(column = "spec", property = "spec"),
         @Result(column = "usage", property = "usage_"),
         @Result(column = "num", property = "num"),
-        @Result(column = "prescription_date", property = "prescriptionDate"),
+        @Result(column = "create_date", property = "createDate"),
         @Result(column = "pay_status", property = "payStatus"),
         @Result(column = "create_time", property = "createTime")
     })
     List<Prescription> selectByPatientId(@Param("patientId") String patientId);
+
+    /**
+     * 根据处方ID查询
+     */
+    @Select("SELECT * FROM prescription WHERE prescription_id = #{prescriptionId}")
+    @Results({
+            @Result(column = "prescription_id", property = "prescriptionId"),
+            @Result(column = "register_id", property = "registerId"),
+            @Result(column = "patient_id", property = "patientId"),
+            @Result(column = "doctor_id", property = "doctorId"),
+            @Result(column = "medicine_id", property = "medicineId"),
+            @Result(column = "patient_name", property = "patientName"),
+            @Result(column = "doctor_name", property = "doctorName"),
+            @Result(column = "medicine_name", property = "medicineName"),
+            @Result(column = "spec", property = "spec"),
+            @Result(column = "usage", property = "usage_"),
+            @Result(column = "num", property = "num"),
+            @Result(column = "create_date", property = "createDate"),
+            @Result(column = "pay_status", property = "payStatus"),
+            @Result(column = "create_time", property = "createTime")
+    })
+    Prescription selectByPrescriptionId(@Param("prescriptionId") String prescriptionId);
 }

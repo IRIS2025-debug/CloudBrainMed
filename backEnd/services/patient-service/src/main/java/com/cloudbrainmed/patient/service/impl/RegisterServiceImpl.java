@@ -34,6 +34,7 @@ public class RegisterServiceImpl implements RegisterService {
     private final MedicalOrderItemMapper medicalOrderItemMapper;
     private final PrescriptionMapper prescriptionMapper;
 
+
     @Override
     public List<Dept> getAllDepts() {
         LambdaQueryWrapper<Dept> wrapper = new LambdaQueryWrapper<>();
@@ -231,6 +232,21 @@ public class RegisterServiceImpl implements RegisterService {
         }
 
         return result;
+    }
+
+    /**
+     * 查询挂号的支付状态
+     */
+    @Override
+    public String getPayStatus(String registerId) {
+        if (registerId == null) {
+            return "UNKNOWN";
+        }
+        Registration registration = registrationMapper.selectByRegisterId(registerId);
+        if (registration == null) {
+            return "UNKNOWN";
+        }
+        return registration.getPayStatus() != null ? registration.getPayStatus() : "WAITING";
     }
 
 

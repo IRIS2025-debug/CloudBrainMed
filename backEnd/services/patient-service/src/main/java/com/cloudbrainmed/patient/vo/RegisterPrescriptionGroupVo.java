@@ -8,7 +8,7 @@ public class RegisterPrescriptionGroupVo {
     private String registerId;
     private String patientName;
     private String doctorName;
-    private String prescriptionDate;
+    private String createDate;
     private BigDecimal totalAmount;
     private Integer prescriptionCount;
     private String payStatus;
@@ -38,12 +38,12 @@ public class RegisterPrescriptionGroupVo {
         this.doctorName = doctorName;
     }
 
-    public String getPrescriptionDate() {
-        return prescriptionDate;
+    public String getCreateDate() {
+        return createDate;
     }
 
-    public void setPrescriptionDate(String prescriptionDate) {
-        this.prescriptionDate = prescriptionDate;
+    public void setCreateDate(String createDate) {
+        this.createDate = createDate;
     }
 
     public BigDecimal getTotalAmount() {

@@ -30,6 +30,11 @@ public interface PayService {
     boolean refundPay(String payId);
 
     /**
+     * 判断是否可退款
+     */
+    boolean canRefund(String payId);
+
+    /**
      * 根据支付ID查询
      */
     PayResultVo getByPayId(String payId);
@@ -48,4 +53,9 @@ public interface PayService {
      * 分页查询支付记录
      */
     PageResult<PayResultVo> queryPayPage(PayQueryDto dto);
+
+    /**
+     * 查询患者支付记录（自动处理过期订单 + 退款状态）
+     */
+    List<PayResultVo> getPayHistoryWithStatus(String patientId);
 }

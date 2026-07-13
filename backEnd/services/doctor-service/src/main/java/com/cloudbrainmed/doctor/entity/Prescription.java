@@ -25,7 +25,7 @@ public class Prescription {
     private String spec;
     private String usage;
     private Integer num;
-    private LocalDate prescriptionDate;
+    private LocalDate createDate;
     private BigDecimal price;
     private String payStatus;
     private LocalDateTime createTime;

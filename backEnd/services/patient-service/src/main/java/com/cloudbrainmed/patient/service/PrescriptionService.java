@@ -13,4 +13,16 @@ public interface PrescriptionService {
      * 获取按挂号分组的处方列表
      */
     List<RegisterPrescriptionGroupVo> getGroupedByPatientId(String patientId);
+
+    /**
+     * 根据处方ID查询支付状态（供 payment-service Feign 调用）
+     * @param prescriptionId 处方ID
+     * @return WAITING(待支付) / PAID(已支付) / CANCELLED(已取消) / REFUNDED(已退款)
+     */
+    String getPayStatus(String prescriptionId);
+
+    /**
+     * 根据prescriptionId查询处方（供内部Feign调用）
+     */
+    Prescription getPrescription(String prescriptionId);
 }

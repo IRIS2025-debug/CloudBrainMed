@@ -1,4 +1,3 @@
-// service-api/src/main/java/com/cloudbrainmed/api/fallback/PaymentFeignFallback.java
 package com.cloudbrainmed.api.fallback;
 
 import com.cloudbrainmed.api.feign.PaymentFeignClient;
@@ -36,6 +35,11 @@ public class PaymentFeignFallback implements PaymentFeignClient {
     }
 
     @Override
+    public Result<Boolean> applyRefund(String payId) {
+        return Result.error("支付服务不可用，请稍后重试");
+    }
+
+    @Override
     public Result<PayResultVo> getByPayId(String payId) {
         return Result.error("支付服务不可用，请稍后重试");
     }
@@ -47,6 +51,11 @@ public class PaymentFeignFallback implements PaymentFeignClient {
 
     @Override
     public Result<List<PayResultVo>> getPayHistory(String patientId) {
+        return Result.ok(new ArrayList<>());
+    }
+
+    @Override
+    public Result<List<PayResultVo>> getPayHistoryEnhanced(String patientId) {
         return Result.ok(new ArrayList<>());
     }
 

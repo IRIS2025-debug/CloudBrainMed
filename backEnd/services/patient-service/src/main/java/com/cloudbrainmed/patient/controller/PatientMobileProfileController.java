@@ -135,7 +135,12 @@ public class PatientMobileProfileController {
     @GetMapping("/payments")
     public Result<List<PayResultVo>> payments(@RequestHeader(value = "token", required = false) String token) {
         String patientId = extractPatientId(token);
-        return paymentFeignClient.getPayHistory(patientId);
+        // ✅ 改为调用增强版接口
+        Result<List<PayResultVo>> result = paymentFeignClient.getPayHistoryEnhanced(patientId);
+//        log.info("缴费记录返回: code={}, dataSize={}",
+//                result.getCode(),
+//                result.getData() != null ? result.getData().size() : 0);
+        return result;
     }
 
     // ==================== 4.3.4 聚合接口（鸿蒙端一次拉取全部数据） ====================
@@ -154,7 +159,7 @@ public class PatientMobileProfileController {
         // 板块2: 挂号记录
         data.put("registers", registerService.getRegisterHistory(patientId));
         // 板块3: 缴费记录
-        Result<List<PayResultVo>> paymentResult = paymentFeignClient.getPayHistory(patientId);
+        Result<List<PayResultVo>> paymentResult = paymentFeignClient.getPayHistoryEnhanced(patientId);
         data.put("payments", paymentResult.getData());
 
         return Result.ok(data);

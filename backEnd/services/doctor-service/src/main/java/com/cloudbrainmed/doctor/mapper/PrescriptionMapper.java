@@ -9,11 +9,11 @@ import java.util.List;
 public interface PrescriptionMapper {
 
     @Insert("INSERT INTO prescription (prescription_id, register_id, patient_id, doctor_id, " +
-            "medicine_id, patient_name, doctor_name, medicine_name, spec, usage, num, prescription_date, " +
+            "medicine_id, patient_name, doctor_name, medicine_name, spec, usage, num, create_date, " +
             "price, pay_status, create_time) " +
             "VALUES (#{prescriptionId}, #{registerId}, #{patientId}, #{doctorId}, " +
             "#{medicineId}, #{patientName}, #{doctorName}, #{medicineName}, #{spec}, #{usage}, #{num}, " +
-            "#{prescriptionDate}, #{price}, 'WAITING', CURRENT_TIMESTAMP)")
+            "#{createDate}, #{price}, 'WAITING', CURRENT_TIMESTAMP)")
     @Options(useGeneratedKeys = false)
     int insert(Prescription prescription);
 
@@ -27,7 +27,7 @@ public interface PrescriptionMapper {
         @Result(column = "patient_name", property = "patientName"),
         @Result(column = "doctor_name", property = "doctorName"),
         @Result(column = "medicine_name", property = "medicineName"),
-        @Result(column = "prescription_date", property = "prescriptionDate"),
+        @Result(column = "create_date", property = "createDate"),
         @Result(column = "pay_status", property = "payStatus"),
         @Result(column = "create_time", property = "createTime")
     })
@@ -43,7 +43,7 @@ public interface PrescriptionMapper {
         @Result(column = "patient_name", property = "patientName"),
         @Result(column = "doctor_name", property = "doctorName"),
         @Result(column = "medicine_name", property = "medicineName"),
-        @Result(column = "prescription_date", property = "prescriptionDate"),
+        @Result(column = "create_date", property = "createDate"),
         @Result(column = "pay_status", property = "payStatus"),
         @Result(column = "create_time", property = "createTime")
     })
