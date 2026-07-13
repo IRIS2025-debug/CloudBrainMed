@@ -3,7 +3,6 @@ package com.cloudbrainmed.ai.controller;
 import com.cloudbrainmed.ai.service.MlOpsService;
 import com.cloudbrainmed.ai.support.AdminAuthException;
 import com.cloudbrainmed.ai.support.AdminAuthHelper;
-import com.cloudbrainmed.common.exception.BusinessException;
 import com.cloudbrainmed.common.result.Result;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpHeaders;
@@ -15,7 +14,7 @@ import java.util.Map;
 
 /**
  * 机器学习运维控制器
- * 对应前端: pages/admin/ml/ (Dashboard / Models / Samples / CTInference)
+ * 对应前端: pages/admin/ml/ (Dashboard / CTInference) 及两条 CT 推理链路
  */
 @RestController
 @RequestMapping("/admin-service/ml")
@@ -60,37 +59,7 @@ public class MlOpsController {
         return Result.ok(mlOpsService.getInferenceLogs(page, limit));
     }
 
-    /** 训练样本列表 */
-    @GetMapping("/samples/list")
-    public Result<?> sampleList(@RequestParam(defaultValue = "1") int page,
-                                 @RequestParam(defaultValue = "10") int limit) {
-        return Result.ok(mlOpsService.getSampleList(page, limit));
-    }
-
-    @GetMapping("/sample/list")
-    public Result<?> sampleListAlias(@RequestParam(defaultValue = "1") int page,
-                                     @RequestParam(defaultValue = "10") int limit) {
-        return sampleList(page, limit);
-    }
-
-    /** 更新样本标注 */
-    @PostMapping("/samples/update")
-    public Result<?> updateSample(@RequestBody Map<String, String> body) {
-        mlOpsService.updateSample(
-                body.get("sampleId"), body.get("label"), body.get("labelType"));
-        return Result.ok();
-    }
-
-    @PutMapping("/sample/label")
-    public Result<?> labelSample(@RequestBody Map<String, String> body) {
-        mlOpsService.updateSample(
-                body.get("sampleId"),
-                body.get("labelTag"),
-                body.getOrDefault("labelType", "MANUAL"));
-        return Result.ok();
-    }
-
-    /** 模型列表 */
+    /** 模型列表（固定两个业务模型） */
     @GetMapping("/models/list")
     public Result<?> modelList() {
         return Result.ok(mlOpsService.getModelList());
@@ -99,35 +68,6 @@ public class MlOpsController {
     @GetMapping("/model/list")
     public Result<?> modelListAlias() {
         return modelList();
-    }
-
-    /** 触发模型训练 */
-    @PostMapping("/models/train")
-    public Result<?> triggerTrain(@RequestBody(required = false) Map<String, String> body) {
-        return Result.ok(mlOpsService.triggerTrain(body != null ? body : Map.of()));
-    }
-
-    @PostMapping("/model/train")
-    public Result<?> triggerTrainAlias(@RequestBody(required = false) Map<String, String> body) {
-        return triggerTrain(body);
-    }
-
-    @PutMapping("/model/traffic")
-    public Result<?> setModelTraffic(@RequestBody Map<String, Object> body) {
-        String modelId = String.valueOf(body.get("modelId"));
-        int trafficPct = parseTrafficPct(body.get("trafficPct"));
-        return Result.ok(mlOpsService.setModelTraffic(modelId, trafficPct));
-    }
-
-    private int parseTrafficPct(Object value) {
-        if (value == null) {
-            throw new BusinessException("流量配置参数错误");
-        }
-        try {
-            return Integer.parseInt(String.valueOf(value));
-        } catch (NumberFormatException e) {
-            throw new BusinessException("流量配置参数错误");
-        }
     }
 
     private String resolveToken(Map<String, String> headers) {
@@ -154,12 +94,6 @@ public class MlOpsController {
             }
         }
         return null;
-    }
-
-    /** 训练任务列表 */
-    @GetMapping("/models/tasks")
-    public Result<?> trainingTasks() {
-        return Result.ok(mlOpsService.getTrainingTasks());
     }
 
     /** Python 推理服务健康检查 */

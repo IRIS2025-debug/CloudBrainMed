@@ -27,10 +27,6 @@
       </nav>
 
       <div class="sidebar-footer" v-show="!collapsed">
-        <div class="footer-status">
-          <div class="status-dot"></div>
-          <span>系统运行中</span>
-        </div>
         <el-button class="logout-btn" @click="handleLogout" text>
           <el-icon :size="16"><SwitchButton /></el-icon>
           <span>退出登录</span>
@@ -120,10 +116,8 @@ const adminMenus = [
   { path: '/admin/profile', title: '管理员个人信息', icon: 'UserFilled', group: '管理员端' },
   { path: '/admin/userManage', title: '账号权限管理', icon: 'List', group: '管理员端' },
   { path: '/admin/medicine', title: '药品管理', icon: 'UserFilled', group: '管理员端' },
-  { path: '/admin/scheduling', title: '值班管理', icon: 'DataAnalysis', group: '管理员端' },
+  { path: '/admin/scheduling', title: '排班管理', icon: 'DataAnalysis', group: '管理员端' },
   { path: '/admin/ml/dashboard', title: 'AI 推理看板', icon: 'DataAnalysis', group: '管理员端' },
-  { path: '/admin/ml/samples', title: '样本标注', icon: 'CollectionTag', group: '管理员端' },
-  { path: '/admin/ml/models', title: '模型管理', icon: 'Cpu', group: '管理员端' },
 ]
 
 // ==================== 角色判断（从 sessionStorage 获取）====================

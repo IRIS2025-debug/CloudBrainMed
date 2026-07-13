@@ -5,8 +5,11 @@
         <h1>CloudBrainMed</h1>
         <p class="header-sub">AI 智能医疗诊疗系统</p>
       </div>
-      <div class="header-badge">
-        <span class="badge-dot"></span> 系统运行中
+      <div class="header-actions">
+        <span class="header-updated" v-if="updatedAt">更新于 {{ updatedAt }}</span>
+        <el-button size="small" :loading="loading" @click="loadOverview">
+          <el-icon style="margin-right:4px"><Refresh /></el-icon>刷新
+        </el-button>
       </div>
     </header>
 
@@ -50,22 +53,24 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { ArrowRight, CollectionTag, Cpu, DataAnalysis, List, UserFilled } from '@element-plus/icons-vue'
+import { ArrowRight, Cpu, DataAnalysis, List, Refresh, UserFilled } from '@element-plus/icons-vue'
 import { getDashboardOverview } from '@/api/admin/dashboard'
-import { getModelStats, getSampleList } from '@/api/admin/ml'
+import { getInferenceStats, getModelList } from '@/api/admin/ml'
 
 // 每张卡片对应一个真实指标；'--' 表示加载中或该项请求失败，真实零值显示 0。
 const stats = ref([
   { key: 'todayScheduleCount', label: '今日排班', value: '--', icon: UserFilled, color: '#2563eb' },
-  { key: 'totalInference', label: 'AI推理次数', value: '--', icon: Cpu, color: '#7c3aed' },
-  { key: 'activeModels', label: '活跃模型', value: '--', icon: DataAnalysis, color: '#0d9488' },
-  { key: 'sampleTotal', label: '训练样本', value: '--', icon: CollectionTag, color: '#f59e0b' },
+  { key: 'todayInference', label: '今日推理', value: '--', icon: Cpu, color: '#7c3aed' },
+  { key: 'successRate', label: '成功率', value: '--', icon: DataAnalysis, color: '#22c55e' },
+  { key: 'deployedModels', label: '部署模型数', value: '--', icon: Cpu, color: '#0d9488' },
 ])
+const loading = ref(false)
+const updatedAt = ref('')
 
 function applyMetric(key: string, value: unknown) {
   const stat = stats.value.find((item) => item.key === key)
   if (stat && typeof value === 'number') {
-    stat.value = String(value)
+    stat.value = key === 'successRate' ? `${value}%` : String(value)
   }
 }
 
@@ -74,8 +79,6 @@ const modules = [
   { path: '/admin/userManage', title: '账号权限管理', desc: '对医生和管理员账号进行增删改查操作', icon: List, color: '#0d9488' },
   { path: '/admin/medicine', title: '药品管理', desc: '药品信息维护、库存管理', icon: List, color: '#165DFF' },
   { path: '/admin/ml/dashboard', title: 'AI 推理看板', desc: '成功率、采纳率、耗时统计', icon: DataAnalysis, color: '#7c3aed' },
-  { path: '/admin/ml/samples', title: '样本标注', desc: 'AI 反馈样本、标签管理', icon: CollectionTag, color: '#f59e0b' },
-  { path: '/admin/ml/models', title: '模型管理', desc: '版本注册、流量灰度、训练触发', icon: Cpu, color: '#ef4444' },
   { path: '/admin/scheduling', title: 'AI智能排班', desc: '根据医生工作量和患者需求，智能排班', icon: DataAnalysis, color: '#165DFF' },
 ]
 
@@ -85,26 +88,35 @@ const activities = [
 
 // 四项指标来自三个数据源，使用 allSettled 保证单个请求失败只影响对应卡片，
 // 不会把失败伪装成 0，也不会阻塞其它指标加载。
-onMounted(async () => {
-  const [overviewResult, modelStatsResult, sampleResult] = await Promise.allSettled([
-    getDashboardOverview(),
-    getModelStats(),
-    getSampleList({ page: 1, limit: 1 }),
-  ])
+async function loadOverview() {
+  loading.value = true
+  stats.value.forEach((stat) => { stat.value = '--' })
 
-  if (overviewResult.status === 'fulfilled') {
-    applyMetric('todayScheduleCount', overviewResult.value.data?.todayScheduleCount)
+  try {
+    const [overviewResult, inferenceResult, modelsResult] = await Promise.allSettled([
+      getDashboardOverview(),
+      getInferenceStats(),
+      getModelList(),
+    ])
+
+    if (overviewResult.status === 'fulfilled') {
+      applyMetric('todayScheduleCount', overviewResult.value.data?.todayScheduleCount)
+    }
+    if (inferenceResult.status === 'fulfilled') {
+      const data = inferenceResult.value.data as Record<string, unknown> | undefined
+      applyMetric('todayInference', data?.todayTotal)
+      applyMetric('successRate', data?.successRate)
+    }
+    if (modelsResult.status === 'fulfilled' && Array.isArray(modelsResult.value.data)) {
+      applyMetric('deployedModels', modelsResult.value.data.length)
+    }
+  } finally {
+    updatedAt.value = new Date().toLocaleTimeString('zh-CN')
+    loading.value = false
   }
-  if (modelStatsResult.status === 'fulfilled') {
-    const data = modelStatsResult.value.data as Record<string, unknown> | undefined
-    applyMetric('totalInference', data?.totalInference)
-    applyMetric('activeModels', data?.activeModels)
-  }
-  if (sampleResult.status === 'fulfilled') {
-    const data = sampleResult.value.data as Record<string, unknown> | undefined
-    applyMetric('sampleTotal', data?.total)
-  }
-})
+}
+
+onMounted(loadOverview)
 </script>
 
 <style scoped>
@@ -113,8 +125,8 @@ onMounted(async () => {
 .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; }
 .page-header h1 { font-size: 26px; font-weight: 800; color: #0f172a; letter-spacing: -.5px; }
 .header-sub { font-size: 14px; color: #64748b; margin-top: 4px; }
-.header-badge { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #64748b; background: #fff; padding: 6px 14px; border-radius: 20px; box-shadow: var(--shadow); }
-.badge-dot { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,.4); }
+.header-actions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.header-updated { font-size: 12px; color: #94a3b8; white-space: nowrap; }
 
 .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 36px; }
 .stat-card { background: #fff; border-radius: var(--radius); padding: 20px 24px; display: flex; align-items: center; gap: 16px; box-shadow: var(--shadow); }

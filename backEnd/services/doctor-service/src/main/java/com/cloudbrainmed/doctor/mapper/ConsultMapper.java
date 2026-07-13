@@ -179,4 +179,47 @@ public interface ConsultMapper {
     List<String> findPreviousReports(
             @Param("patientId") String patientId,
             @Param("registerId") String registerId);
+
+    /**
+     * 接诊医生首页概览：仅统计当前医生「当天」接诊记录，按 consult_status 分组计数。
+     * 首页四张指标卡由此结果聚合，不额外读写任何医技订单表。
+     */
+    @Select("""
+        SELECT r.consult_status AS consult_status, COUNT(*) AS cnt
+        FROM registration r
+        WHERE r.doctor_id = #{doctorId}
+          AND r.visit_date = CURRENT_DATE
+        GROUP BY r.consult_status
+        """)
+    List<Map<String, Object>> countTodayByStatus(@Param("doctorId") String doctorId);
+
+    /**
+     * 接诊医生首页概览：当前医生「当天」最近若干条接诊记录，用于首页底部动态。
+     * 按接诊时间、创建时间倒序，只读 registration 视图字段。
+     */
+    @Select("""
+        SELECT r.register_id, r.patient_id, r.doctor_id, r.name, r.gender,
+               r.chief_complaint, r.department, r.consult_room, r.visit_date,
+               r.consult_time, r.consult_status, r.create_time,
+               EXTRACT(YEAR FROM AGE(NOW(), r.birthday)) AS patient_age
+        FROM registration r
+        WHERE r.doctor_id = #{doctorId}
+          AND r.visit_date = CURRENT_DATE
+        ORDER BY r.consult_time DESC NULLS LAST, r.create_time DESC
+        LIMIT #{limit}
+        """)
+    @Results({
+        @Result(column = "register_id", property = "registerId"),
+        @Result(column = "patient_id", property = "patientId"),
+        @Result(column = "doctor_id", property = "doctorId"),
+        @Result(column = "chief_complaint", property = "chiefComplaint"),
+        @Result(column = "consult_room", property = "consultRoom"),
+        @Result(column = "visit_date", property = "visitDate"),
+        @Result(column = "consult_time", property = "consultTime"),
+        @Result(column = "consult_status", property = "consultStatus"),
+        @Result(column = "create_time", property = "createTime"),
+        @Result(column = "patient_age", property = "patientAge")
+    })
+    List<ConsultRecord> findRecentToday(@Param("doctorId") String doctorId,
+                                        @Param("limit") int limit);
 }
