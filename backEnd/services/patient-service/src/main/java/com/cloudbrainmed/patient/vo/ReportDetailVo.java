@@ -109,6 +109,26 @@ public class ReportDetailVo {
     private String followUpAdvice;
 
     /**
+     * 排队人数
+     */
+    private Integer queueCount;
+
+    /**
+     * 预计等待分钟数
+     */
+    private Integer estimatedWaitMinutes;
+
+    /**
+     * 检查室ID
+     */
+    private String roomId;
+
+    /**
+     * 检查室名称
+     */
+    private String roomName;
+
+    /**
      * 检验指标列表（仅检验项目有）
      */
     private List<IndicatorVo> indicators;
@@ -272,6 +292,38 @@ public class ReportDetailVo {
 
     public void setFollowUpAdvice(String followUpAdvice) {
         this.followUpAdvice = followUpAdvice;
+    }
+
+    public Integer getQueueCount() {
+        return queueCount;
+    }
+
+    public void setQueueCount(Integer queueCount) {
+        this.queueCount = queueCount;
+    }
+
+    public Integer getEstimatedWaitMinutes() {
+        return estimatedWaitMinutes;
+    }
+
+    public void setEstimatedWaitMinutes(Integer estimatedWaitMinutes) {
+        this.estimatedWaitMinutes = estimatedWaitMinutes;
+    }
+
+    public String getRoomId() {
+        return roomId;
+    }
+
+    public void setRoomId(String roomId) {
+        this.roomId = roomId;
+    }
+
+    public String getRoomName() {
+        return roomName;
+    }
+
+    public void setRoomName(String roomName) {
+        this.roomName = roomName;
     }
 
     public List<IndicatorVo> getIndicators() {
