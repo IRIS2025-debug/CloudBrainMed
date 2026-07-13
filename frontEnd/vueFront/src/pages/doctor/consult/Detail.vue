@@ -390,9 +390,49 @@
 
         <template v-else>
           <div class="medicine-chat-list">
-            <div v-if="!medicineMessages.length" class="chat-empty">
+            <div v-if="!medicineDraft && !medicineMessages.length" class="chat-empty">
               <div class="empty-title">AI药品推荐</div>
-              <p>根据当前病历、诊断和处理计划推荐可考虑药品；医生确认后再回到处方页开具处方。</p>
+              <p>根据当前病历、诊断和处理计划，从系统药品库中推荐可考虑药品；医生确认后可带入处方。</p>
+            </div>
+            <div v-if="medicineDraft" class="medicine-draft">
+              <div class="medicine-draft-head">
+                <strong>数据库药品推荐</strong>
+                <el-tag :type="medicineRiskTag(medicineDraft.overallRiskLevel)" size="small" round>
+                  {{ medicineDraft.overallRiskLevel || 'UNKNOWN' }}
+                </el-tag>
+              </div>
+              <p v-if="medicineDraft.summary" class="medicine-draft-summary">{{ medicineDraft.summary }}</p>
+              <div v-if="medicineDraft.missingInformation?.length" class="medicine-draft-notice">
+                <strong>仍需补充</strong>
+                <span>{{ medicineDraft.missingInformation.join('；') }}</span>
+              </div>
+              <div v-if="medicineDraft.warnings?.length" class="medicine-draft-notice is-warning">
+                <strong>整体提醒</strong>
+                <span>{{ medicineDraft.warnings.join('；') }}</span>
+              </div>
+              <div v-if="medicineDraft.medicines?.length" class="medicine-draft-list">
+                <article v-for="item in medicineDraft.medicines" :key="item.medicineId" class="medicine-draft-item">
+                  <div class="medicine-draft-title">
+                    <div>
+                      <strong>{{ item.medicineName || item.medicineId }}</strong>
+                      <small>{{ item.spec || '规格待确认' }} · {{ item.medicineId }}</small>
+                    </div>
+                    <el-button
+                      type="primary"
+                      plain
+                      size="small"
+                      :disabled="isCompleted"
+                      @click="applyMedicineRecommendation(item)"
+                    >
+                      带入处方
+                    </el-button>
+                  </div>
+                  <p><b>建议用法：</b>{{ item.usage || '请医生补充' }}；数量 {{ item.quantity || 1 }}</p>
+                  <p v-if="item.reason"><b>推荐依据：</b>{{ item.reason }}</p>
+                  <p v-if="item.warnings?.length" class="medicine-item-warning"><b>注意：</b>{{ item.warnings.join('；') }}</p>
+                </article>
+              </div>
+              <div v-else class="medicine-draft-empty">当前未生成可带入处方的数据库药品，请先补充病历信息后重试。</div>
             </div>
             <div v-for="message in medicineMessages" :key="message.id" class="chat-message" :class="'is-' + message.role">
               <div class="bubble">
@@ -410,12 +450,13 @@
               type="textarea"
               :rows="4"
               resize="none"
-              :disabled="isCompleted || medicineAiLoading"
-              placeholder="输入用药问题，或直接点击根据病历推荐"
+              :disabled="isCompleted || medicineAiLoading || medicineDraftLoading"
+              placeholder="输入具体药品知识或用药安全问题"
             />
             <div class="medicine-actions">
               <el-button
                 plain
+                :loading="medicineDraftLoading"
                 :disabled="isCompleted || medicineAiLoading"
                 @click="askMedicineRecommendation"
               >
@@ -443,7 +484,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, MagicStick, MoreFilled, Promotion } from '@element-plus/icons-vue'
 import { getConsultDetail, saveDraft, confirmRecord, confirmMedicalOrder, getConsultReports, completeConsult, createPrescription, type MedicalOrderConfirmResult } from '@/api/doctor/consult'
-import { assistantChat, analyzeReport, recommendExamItems, type AiAssistantActionType, type AiAssistantChatResponse, type ReportAnalysisResponse } from '@/api/doctor/ai'
+import { assistantChat, analyzeReport, generatePrescriptionDraft, recommendExamItems, type AiAssistantActionType, type AiAssistantChatResponse, type PrescriptionDraftMedicine, type PrescriptionDraftResponse, type ReportAnalysisResponse } from '@/api/doctor/ai'
 import { getMedicineList } from '@/api/doctor/medicine'
 import type { Medicine } from '@/types/admin/adminMedicine'
 import { medicalItemOptions, normalizeExamRecommendResponse, type NormalizedExamRecommendation } from '@/utils/examRecommendation'
@@ -501,8 +542,10 @@ const aiLoading = ref(false)
 const chatInput = ref('')
 const chatMessages = ref<ChatMessage[]>([])
 const medicineAiLoading = ref(false)
+const medicineDraftLoading = ref(false)
 const medicineQuestion = ref('')
 const medicineMessages = ref<ChatMessage[]>([])
+const medicineDraft = ref<PrescriptionDraftResponse | null>(null)
 const medicineSessionId = ref(`medicine_${registerId}_${Date.now()}`)
 const reportLoading = ref(false)
 const reportsLoading = ref(false)
@@ -790,9 +833,6 @@ function openPrescriptionStep() {
 
 function openMedicinePanel() {
   aiPanelMode.value = 'medicine'
-  if (!medicineQuestion.value.trim()) {
-    medicineQuestion.value = buildMedicineRecommendationQuestion()
-  }
 }
 
 async function openReportsStep() {
@@ -940,9 +980,36 @@ async function sendChatQuestion() {
 }
 
 async function askMedicineRecommendation() {
-  const question = buildMedicineRecommendationQuestion()
-  medicineQuestion.value = question
-  await sendMedicineQuery(question)
+  if (isCompleted.value) {
+    ElMessage.warning('接诊已完成，不能继续使用 AI 药品推荐')
+    return
+  }
+  if (!recordDesc.value.trim() && !detail.value.chiefComplaint) {
+    ElMessage.warning('请先填写主诉或病历内容')
+    return
+  }
+  medicineDraftLoading.value = true
+  try {
+    const res = await generatePrescriptionDraft({
+      registerId,
+      message: '请根据当前接诊信息生成处方草稿。',
+      currentRecordDesc: recordDesc.value,
+      symptomDescription: recordSections.value.chiefComplaint || detail.value.chiefComplaint || '',
+      conversationText: buildConversationText('根据当前病历推荐可考虑药品'),
+      structuredParameters: buildStructuredParameters(),
+      patientInformation: buildPatientInformation()
+    })
+    medicineDraft.value = res.data
+    if (!res.data?.medicines?.length) {
+      ElMessage.warning(res.data?.summary || 'AI 暂未返回可带入处方的数据库药品')
+      return
+    }
+    ElMessage.success('已生成数据库药品推荐，请医生确认')
+  } catch (e: any) {
+    showActionError(e, 'AI药品推荐失败')
+  } finally {
+    medicineDraftLoading.value = false
+  }
 }
 
 async function sendMedicineQuestion() {
@@ -1084,17 +1151,46 @@ async function appendReportAnalysisToRecord() {
   }
 }
 
-async function loadMedicineOptions() {
-  if (medicineLoading.value || medicineOptions.value.length) return
+async function loadMedicineOptions(force = false) {
+  if (medicineLoading.value) return false
+  if (!force && medicineOptions.value.length) return true
   medicineLoading.value = true
   try {
     const res = await getMedicineList()
     medicineOptions.value = res.data || []
+    return true
   } catch (e: any) {
     showActionError(e, '药品列表加载失败')
+    return false
   } finally {
     medicineLoading.value = false
   }
+}
+
+async function applyMedicineRecommendation(item: PrescriptionDraftMedicine) {
+  if (isCompleted.value) {
+    ElMessage.warning('接诊已完成，不能继续开具处方')
+    return
+  }
+  const loaded = await loadMedicineOptions(true)
+  if (!loaded) return
+  const source = medicineOptions.value.find(option => option.medicineId === item.medicineId)
+  if (!source) {
+    ElMessage.warning('该推荐药品已不在当前药品库中，请重新生成推荐')
+    return
+  }
+  rxForm.value = {
+    medicineId: source.medicineId,
+    medicineName: source.name,
+    spec: source.spec || '',
+    usage: item.usage?.trim() || source.usage || '',
+    num: Math.min(10000, Math.max(1, Math.trunc(Number(item.quantity || 1)))),
+    price: Number(source.price || 0)
+  }
+  activeFlowView.value = 'prescription'
+  showPrescriptionDialog.value = true
+  showExamDialog.value = false
+  ElMessage.success('已带入处方，请确认用法、数量和费用后提交')
 }
 
 function loadMedicinesOnOpen(open: boolean) {
@@ -1176,20 +1272,6 @@ function buildPatientInformation() {
     department: detail.value.department || '',
     chiefComplaint: detail.value.chiefComplaint || ''
   }
-}
-
-function buildMedicineRecommendationQuestion() {
-  return [
-    '请根据以下接诊信息推荐可考虑的药品方案。',
-    '要求：只给正常文字，不要使用 Markdown 符号；说明推荐药品、适应依据、常用用法用量、禁忌和注意事项；最后提醒由接诊医生结合检查检验结果确认后开具处方。',
-    `患者：${patientName.value}，${genderLabel(detail.value.gender)}，${detail.value.patientAge || '--'}岁，${detail.value.department || '--'}`,
-    `主诉：${recordSections.value.chiefComplaint || detail.value.chiefComplaint || '未填写'}`,
-    `现病史：${recordSections.value.presentHistory || '未填写'}`,
-    `既往史/过敏史：${recordSections.value.pastHistory || '未填写'}`,
-    `辅助检查/报告：${recordSections.value.auxiliaryExam || '暂无'}`,
-    `诊断意见：${recordSections.value.diagnosis || '未填写'}`,
-    `处理计划：${recordSections.value.treatmentPlan || '未填写'}`
-  ].join('\n')
 }
 
 async function readMedicineStream(response: Response, target: ChatMessage) {
@@ -1344,6 +1426,12 @@ function urgencyTag(value: string) {
   return 'info'
 }
 
+function medicineRiskTag(value?: string) {
+  if (value === 'CRITICAL' || value === 'HIGH') return 'danger'
+  if (value === 'MEDIUM' || value === 'UNKNOWN') return 'warning'
+  return 'success'
+}
+
 function statusLabel(status: string) {
   const labels: Record<string, string> = {
     PENDING: '待接诊',
@@ -1488,6 +1576,22 @@ function statusLabel(status: string) {
 .ai-tabs button.active { background: #315fbb; color: #fff; box-shadow: 0 10px 20px rgba(49, 95, 187, .18); }
 .chat-list { display: flex; flex: 1 1 auto; flex-direction: column; gap: 12px; min-height: 360px; overflow: auto; padding: 18px; background: #f7faff; }
 .medicine-chat-list { display: flex; flex: 1 1 auto; flex-direction: column; gap: 12px; min-height: 360px; overflow: auto; padding: 18px; background: #f7faff; }
+.medicine-draft { display: grid; gap: 10px; }
+.medicine-draft-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.medicine-draft-head > strong { color: #102033; font-size: 15px; }
+.medicine-draft-summary { margin: 0; color: #475569; font-size: 13px; line-height: 1.65; }
+.medicine-draft-notice { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid #bfdbfe; border-radius: 10px; background: #eff6ff; color: #1e40af; font-size: 12px; line-height: 1.55; }
+.medicine-draft-notice.is-warning { border-color: #fde68a; background: #fffbeb; color: #92400e; }
+.medicine-draft-list { display: grid; gap: 10px; }
+.medicine-draft-item { padding: 12px; border: 1px solid #dbe7f6; border-radius: 12px; background: #fff; box-shadow: 0 8px 20px rgba(49, 95, 187, .06); }
+.medicine-draft-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.medicine-draft-title > div { display: grid; gap: 3px; min-width: 0; }
+.medicine-draft-title strong { color: #102033; font-size: 14px; }
+.medicine-draft-title small { color: #64748b; font-size: 11px; overflow-wrap: anywhere; }
+.medicine-draft-item p { margin: 8px 0 0; color: #475569; font-size: 12px; line-height: 1.6; }
+.medicine-draft-item b { color: #334155; }
+.medicine-draft-item .medicine-item-warning { color: #92400e; }
+.medicine-draft-empty { padding: 12px; border: 1px dashed #cbd5e1; border-radius: 10px; color: #64748b; font-size: 12px; line-height: 1.6; }
 .chat-empty { padding: 18px; border: 1px solid #dbeafe; border-radius: 14px; background: #fff; color: #475569; line-height: 1.7; }
 .chat-empty p { margin: 0; font-size: 13px; }
 .empty-title { font-size: 15px; font-weight: 800; color: #102033; margin-bottom: 6px; }

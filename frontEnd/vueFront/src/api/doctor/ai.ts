@@ -40,6 +40,42 @@ export function assistantChat(data: {
   return request.post<AiAssistantChatResponse>('/ai-service/reception/chat', data, { timeout: 120000 })
 }
 
+export interface PrescriptionDraftMedicine {
+  medicineId: string
+  medicineName?: string
+  spec?: string
+  usage?: string
+  quantity?: number
+  reason?: string
+  warnings?: string[]
+}
+
+export interface PrescriptionDraftResponse {
+  status?: string
+  summary?: string
+  overallRiskLevel?: string
+  medicines?: PrescriptionDraftMedicine[]
+  missingInformation?: string[]
+  warnings?: string[]
+  modelVersion?: string
+  fallback?: boolean
+}
+
+export interface PrescriptionDraftRequest {
+  registerId: string
+  message?: string
+  currentRecordDesc?: string
+  symptomDescription?: string
+  conversationText?: string
+  structuredParameters?: Record<string, string>
+  followUpAnswers?: Record<string, string>
+  patientInformation?: Record<string, string>
+}
+
+export function generatePrescriptionDraft(data: PrescriptionDraftRequest) {
+  return request.post<PrescriptionDraftResponse>('/ai-service/prescription/draft', data, { timeout: 120000 })
+}
+
 export interface ReportAnalysisResponse {
   summary?: string
   riskLevel?: 'LOW' | 'MEDIUM' | 'HIGH' | string
