@@ -61,4 +61,28 @@ public interface DoctorScheduleMapper extends BaseMapper<DoctorSchedule> {
     @ResultMap("doctorScheduleResult")
     List<DoctorSchedule> selectByDoctorIdAndDate(@Param("doctorId") String doctorId,
                                                  @Param("workDate") LocalDate workDate);
+
+    /**
+     * 批量查询指定医生当天有效排班
+     */
+    @Select({
+            "<script>",
+            "SELECT schedule_id, plan_id, doctor_id, doctor_name, dept_id, ",
+            "work_date, start_time, end_time, max_num, remain_num, ",
+            "status, price, room, source_type, schedule_status, ",
+            "create_time, update_time ",
+            "FROM doctor_schedule ",
+            "WHERE doctor_id IN ",
+            "<foreach collection='doctorIds' item='doctorId' open='(' separator=',' close=')'>",
+            "#{doctorId}",
+            "</foreach>",
+            "AND work_date = #{workDate} ",
+            "AND status = 1 ",
+            "AND schedule_status = 'PUBLISHED' ",
+            "ORDER BY doctor_id ASC, start_time ASC",
+            "</script>"
+    })
+    @ResultMap("doctorScheduleResult")
+    List<DoctorSchedule> selectPublishedByDoctorIdsAndDate(@Param("doctorIds") List<String> doctorIds,
+                                                           @Param("workDate") LocalDate workDate);
 }

@@ -4,6 +4,7 @@ import com.cloudbrainmed.common.exception.BusinessException;
 import com.cloudbrainmed.doctor.dto.MedicalReportSubmitRequest;
 import com.cloudbrainmed.doctor.entity.MedicalReport;
 import com.cloudbrainmed.doctor.mapper.MedicalOrderMapper;
+import com.cloudbrainmed.doctor.service.DoctorScheduleService;
 import com.cloudbrainmed.doctor.service.DoctorTaskService;
 import com.cloudbrainmed.doctor.service.AgingService;
 import com.cloudbrainmed.doctor.service.OrderItemService;
@@ -32,14 +33,17 @@ public class DoctorTaskServiceImpl implements DoctorTaskService {
 
     private final MedicalOrderMapper medicalOrderMapper;
     private final OrderItemService orderItemService;
+    private final DoctorScheduleService doctorScheduleService;
     private final AgingService agingService;
 
     public DoctorTaskServiceImpl(
             MedicalOrderMapper medicalOrderMapper,
             OrderItemService orderItemService,
+            DoctorScheduleService doctorScheduleService,
             AgingService agingService) {
         this.medicalOrderMapper = medicalOrderMapper;
         this.orderItemService = orderItemService;
+        this.doctorScheduleService = doctorScheduleService;
         this.agingService = agingService;
     }
 
@@ -70,11 +74,14 @@ public class DoctorTaskServiceImpl implements DoctorTaskService {
     @Override
     @Transactional
     public void startTask(String orderItemId, String doctorId) {
+        log.info("StartTask request received, orderItemId={}, doctorId={}", orderItemId, doctorId);
         MedicalOrderMapper.DoctorTaskDetailVo task =
                 medicalOrderMapper.selectTaskDetailById(orderItemId);
         if (task == null) {
             throw new BusinessException("任务不存在");
         }
+        log.info("StartTask loaded task, orderItemId={}, status={}, assignedDoctorId={}, patientId={}, itemCode={}, itemCategory={}",
+                orderItemId, task.getStatus(), task.getAssignedDoctorId(), task.getPatientId(), task.getItemCode(), task.getItemCategory());
 
         String status = task.getStatus();
         if ("COMPLETED".equals(status)) {
@@ -94,11 +101,16 @@ public class DoctorTaskServiceImpl implements DoctorTaskService {
         if (orderItemService.hasPatientInProgress(task.getPatientId())) {
             throw new BusinessException("该患者已有检查项目正在处理中，请等待完成后再处理");
         }
+        if (!doctorScheduleService.isDoctorAvailable(doctorId, LocalDateTime.now())) {
+            throw new BusinessException("当前医生不在排班时间内，无法领取检查检验任务");
+        }
         if (orderItemService.hasDoctorInProgress(doctorId)) {
             throw new BusinessException("您已有正在处理的任务，请先完成当前任务");
         }
 
+        log.info("StartTask calling claimTask, orderItemId={}, doctorId={}", orderItemId, doctorId);
         boolean claimed = orderItemService.claimTask(orderItemId, doctorId);
+        log.info("StartTask claimTask result, orderItemId={}, doctorId={}, claimed={}", orderItemId, doctorId, claimed);
         if (!claimed) {
             throw new BusinessException("任务已被其他医生领取");
         }
@@ -136,7 +148,10 @@ public class DoctorTaskServiceImpl implements DoctorTaskService {
             throw new BusinessException("该任务已提交报告，不可跳过");
         }
 
+        log.info("SkipTask calling releaseTask, orderItemId={}, doctorId={}, status={}, assignedDoctorId={}",
+                orderItemId, doctorId, task.getStatus(), task.getAssignedDoctorId());
         boolean released = orderItemService.releaseTask(orderItemId, doctorId);
+        log.info("SkipTask releaseTask result, orderItemId={}, doctorId={}, released={}", orderItemId, doctorId, released);
         if (!released) {
             throw new BusinessException("跳过任务失败，请重试");
         }

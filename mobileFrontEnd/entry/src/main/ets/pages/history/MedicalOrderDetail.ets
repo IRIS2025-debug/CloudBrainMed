@@ -21,6 +21,10 @@ interface MedicalOrderItem {
   conclusion?: string;
   abnormalFlag?: string;
   reportTime?: string;
+  queueCount?: number;
+  estimatedWaitMinutes?: number;
+  roomId?: string;
+  roomName?: string;
 }
 
 interface Indicator {
@@ -176,7 +180,37 @@ export struct MedicalOrderDetail {
   }
 
   private getItemStatusColor(status: string): string {
-    return status === '已完成' ? '#52C41A' : '#8C8C8C';
+    if (status === '已完成') return '#52C41A';
+    if (status === '排队中') return '#FAAD14';
+    if (status === '检查中') return '#1890FF';
+    return '#8C8C8C';
+  }
+
+  private isQueued(item: MedicalOrderItem): boolean {
+    return item.status === 'QUEUED' || item.status === '已排队';
+  }
+
+  private isInProcess(item: MedicalOrderItem): boolean {
+    return item.status === 'IN_PROCESS' || item.status === '执行中';
+  }
+
+  private isCompleted(item: MedicalOrderItem): boolean {
+    return item.status === 'COMPLETED' || item.status === '已完成';
+  }
+
+  private getQueueCount(item: MedicalOrderItem): number {
+    return item.queueCount ?? 0;
+  }
+
+  private getEstimatedWaitMinutes(item: MedicalOrderItem): number {
+    return item.estimatedWaitMinutes ?? 0;
+  }
+
+  private getRoomDisplayName(item: MedicalOrderItem): string {
+    if (item.roomId && item.roomName) {
+      return `${item.roomId}（${item.roomName}）`;
+    }
+    return item.roomName || item.roomId || '未知';
   }
 
   @Builder
@@ -216,10 +250,51 @@ export struct MedicalOrderDetail {
             .margin({ left: 6 })
         }
 
-        Text(item.status || '未知')
+        Text(this.isQueued(item) ? '排队中' : this.isInProcess(item) ? '检查中' : this.isCompleted(item) ? '已完成' : (item.status || '未知'))
           .fontSize(12)
           .fontColor(this.getItemStatusColor(item.status))
           .margin({ top: 2 })
+
+        if (this.isQueued(item)) {
+          Row() {
+            Text('前方 ')
+              .fontSize(12)
+              .fontColor('#666666')
+            Text(`${this.getQueueCount(item)}`)
+              .fontSize(12)
+              .fontColor('#EF4444')
+              .fontWeight(FontWeight.Medium)
+            Text(' 人等待中')
+              .fontSize(12)
+              .fontColor('#666666')
+          }
+          .margin({ top: 6 })
+
+          Row() {
+            Text('预计等待 ')
+              .fontSize(12)
+              .fontColor('#666666')
+            Text(`${this.getEstimatedWaitMinutes(item)}`)
+              .fontSize(12)
+              .fontColor('#EF4444')
+              .fontWeight(FontWeight.Medium)
+            Text(' 分钟')
+              .fontSize(12)
+              .fontColor('#666666')
+          }
+          .margin({ top: 2 })
+        } else if (this.isInProcess(item)) {
+          Row() {
+            Text('已分配检查室：')
+              .fontSize(12)
+              .fontColor('#666666')
+            Text(this.getRoomDisplayName(item))
+              .fontSize(12)
+              .fontColor('#1A1A1A')
+              .fontWeight(FontWeight.Medium)
+          }
+          .margin({ top: 6 })
+        }
       }
       .alignItems(HorizontalAlign.Start)
 

@@ -5,6 +5,7 @@ import com.cloudbrainmed.doctor.mapper.DoctorSkillMapper;
 import com.cloudbrainmed.doctor.mapper.MedicalOrderMapper;
 import com.cloudbrainmed.doctor.mapper.MedicalOrderMapper.QueuedTaskItem;
 import com.cloudbrainmed.doctor.service.AgingService;
+import com.cloudbrainmed.doctor.service.DoctorScheduleService;
 import com.cloudbrainmed.doctor.service.QueueService;
 import com.cloudbrainmed.doctor.vo.DoctorTaskVo;
 import lombok.extern.slf4j.Slf4j;
@@ -27,14 +28,17 @@ public class QueueServiceImpl implements QueueService {
 
     private final MedicalOrderMapper medicalOrderMapper;
     private final DoctorSkillMapper doctorSkillMapper;
+    private final DoctorScheduleService doctorScheduleService;
     private final AgingService agingService;
 
     public QueueServiceImpl(
             MedicalOrderMapper medicalOrderMapper,
             DoctorSkillMapper doctorSkillMapper,
+            DoctorScheduleService doctorScheduleService,
             AgingService agingService) {
         this.medicalOrderMapper = medicalOrderMapper;
         this.doctorSkillMapper = doctorSkillMapper;
+        this.doctorScheduleService = doctorScheduleService;
         this.agingService = agingService;
     }
 
@@ -88,6 +92,9 @@ public class QueueServiceImpl implements QueueService {
     public String findAvailableDoctor(QueuedTaskItem task, Set<String> busyDoctors) {
         Integer doctorType = "EXAM".equals(task.getItemCategory()) ? 2 :
                              "LAB".equals(task.getItemCategory()) ? 3 : null;
+        log.info("Scheduler candidate task orderItemId={}, itemCode={}, itemCategory={}, doctorType={}, busyDoctors={}",
+                task.getOrderItemId(), task.getItemCode(), task.getItemCategory(), doctorType, busyDoctors);
+
         List<DoctorSkillMapper.DoctorSkillMatch> matches =
                 doctorSkillMapper.findMatchingDoctorsByItemCode(
                         task.getItemCode(), doctorType);
@@ -96,17 +103,45 @@ public class QueueServiceImpl implements QueueService {
                     task.getItemCode(), task.getItemCategory());
             return null;
         }
+
+        List<String> candidateDoctorIds = matches.stream()
+                .map(DoctorSkillMapper.DoctorSkillMatch::getDoctorId)
+                .distinct()
+                .collect(Collectors.toList());
+        log.info("Skill matched doctors for orderItemId={} => {}", task.getOrderItemId(), candidateDoctorIds);
+
+        Set<String> availableDoctorIds = doctorScheduleService.filterAvailableDoctors(
+                candidateDoctorIds, LocalDateTime.now());
+        log.info("Schedule matched doctors for orderItemId={} => {}", task.getOrderItemId(), availableDoctorIds);
+        if (availableDoctorIds.isEmpty()) {
+            log.warn("No doctor in schedule for itemCode={} itemCategory={} candidates={}",
+                    task.getItemCode(), task.getItemCategory(), candidateDoctorIds);
+            return null;
+        }
+
         for (DoctorSkillMapper.DoctorSkillMatch match : matches) {
-            if (busyDoctors.contains(match.getDoctorId())) {
+            String doctorId = match.getDoctorId();
+            if (!availableDoctorIds.contains(doctorId)) {
+                continue;
+            }
+            if (busyDoctors.contains(doctorId)) {
+                log.info("Skip doctor {} for orderItemId={} because busyDoctors contains it",
+                        doctorId, task.getOrderItemId());
                 continue;
             }
             // 检查医生是否已有处理中的任务
-            if (medicalOrderMapper.countInProgressByDoctor(match.getDoctorId()) > 0) {
-                busyDoctors.add(match.getDoctorId());
+            int inProgressCount = medicalOrderMapper.countInProgressByDoctor(doctorId);
+            log.info("Doctor {} in-progress count for orderItemId={} => {}",
+                    doctorId, task.getOrderItemId(), inProgressCount);
+            if (inProgressCount > 0) {
+                busyDoctors.add(doctorId);
                 continue;
             }
-            return match.getDoctorId();
+            log.info("Doctor {} selected for orderItemId={}", doctorId, task.getOrderItemId());
+            return doctorId;
         }
+        log.warn("No available doctor found for orderItemId={} itemCode={} itemCategory={}",
+                task.getOrderItemId(), task.getItemCode(), task.getItemCategory());
         return null;
     }
 

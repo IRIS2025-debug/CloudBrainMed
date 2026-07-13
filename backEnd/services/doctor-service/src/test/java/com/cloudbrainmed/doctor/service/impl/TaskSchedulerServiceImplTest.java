@@ -6,6 +6,7 @@ import com.cloudbrainmed.doctor.mapper.MedicalOrderMapper;
 import com.cloudbrainmed.doctor.dto.MedicalReportSubmitRequest;
 import com.cloudbrainmed.doctor.entity.MedicalReport;
 import com.cloudbrainmed.doctor.service.AgingService;
+import com.cloudbrainmed.doctor.service.DoctorScheduleService;
 import com.cloudbrainmed.doctor.service.DoctorTaskService;
 import com.cloudbrainmed.doctor.service.OrderItemService;
 import com.cloudbrainmed.doctor.service.QueueService;
@@ -104,6 +105,7 @@ class TaskSchedulerServiceImplTest {
         DoctorTaskService doctorTaskService = new DoctorTaskServiceImpl(
                 medicalOrderMapper,
                 mock(OrderItemService.class),
+                mock(DoctorScheduleService.class),
                 agingService);
         TaskSchedulerServiceImpl service = createService(
                 medicalOrderMapper,
@@ -158,6 +160,7 @@ class TaskSchedulerServiceImplTest {
         DoctorTaskService doctorTaskService = new DoctorTaskServiceImpl(
                 medicalOrderMapper,
                 mock(OrderItemService.class),
+                mock(DoctorScheduleService.class),
                 mock(AgingService.class));
         TaskSchedulerServiceImpl service = createService(
                 medicalOrderMapper,
@@ -201,6 +204,7 @@ class TaskSchedulerServiceImplTest {
         DoctorTaskService doctorTaskService = new DoctorTaskServiceImpl(
                 medicalOrderMapper,
                 orderItemService,
+                mock(DoctorScheduleService.class),
                 mock(AgingService.class));
         TaskSchedulerServiceImpl service = createService(
                 medicalOrderMapper,

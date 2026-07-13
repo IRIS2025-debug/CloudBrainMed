@@ -18,6 +18,11 @@ public class MedicalOrderItemVo {
     private String orderId;
 
     /**
+     * 项目ID
+     */
+    private String itemId;
+
+    /**
      * 项目编码
      */
     private String itemCode;
@@ -43,9 +48,14 @@ public class MedicalOrderItemVo {
     private BigDecimal price;
 
     /**
-     * 明细状态
+     * 明细状态（展示值）
      */
     private String status;
+
+    /**
+     * 明细原始状态码
+     */
+    private String rawStatus;
 
     /**
      * 创建时间
@@ -82,6 +92,26 @@ public class MedicalOrderItemVo {
      */
     private String followUpAdvice;
 
+    /**
+     * 排队人数
+     */
+    private Integer queueCount;
+
+    /**
+     * 预计等待分钟数
+     */
+    private Integer estimatedWaitMinutes;
+
+    /**
+     * 检查室ID
+     */
+    private String roomId;
+
+    /**
+     * 检查室名称
+     */
+    private String roomName;
+
     // Getters and Setters
     public String getOrderItemId() {
         return orderItemId;
@@ -97,6 +127,14 @@ public class MedicalOrderItemVo {
 
     public void setOrderId(String orderId) {
         this.orderId = orderId;
+    }
+
+    public String getItemId() {
+        return itemId;
+    }
+
+    public void setItemId(String itemId) {
+        this.itemId = itemId;
     }
 
     public String getItemCode() {
@@ -145,6 +183,14 @@ public class MedicalOrderItemVo {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getRawStatus() {
+        return rawStatus;
+    }
+
+    public void setRawStatus(String rawStatus) {
+        this.rawStatus = rawStatus;
     }
 
     public LocalDateTime getCreateTime() {
@@ -201,5 +247,37 @@ public class MedicalOrderItemVo {
 
     public void setFollowUpAdvice(String followUpAdvice) {
         this.followUpAdvice = followUpAdvice;
+    }
+
+    public Integer getQueueCount() {
+        return queueCount;
+    }
+
+    public void setQueueCount(Integer queueCount) {
+        this.queueCount = queueCount;
+    }
+
+    public Integer getEstimatedWaitMinutes() {
+        return estimatedWaitMinutes;
+    }
+
+    public void setEstimatedWaitMinutes(Integer estimatedWaitMinutes) {
+        this.estimatedWaitMinutes = estimatedWaitMinutes;
+    }
+
+    public String getRoomId() {
+        return roomId;
+    }
+
+    public void setRoomId(String roomId) {
+        this.roomId = roomId;
+    }
+
+    public String getRoomName() {
+        return roomName;
+    }
+
+    public void setRoomName(String roomName) {
+        this.roomName = roomName;
     }
 }

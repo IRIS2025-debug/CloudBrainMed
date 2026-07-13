@@ -18,6 +18,7 @@ public class MedicalOrderItem {
     private String itemName;
     private String itemCategory;
     private String assignedDeptId;
+    private String assignedDoctorId;
     private String urgencyLevel;
     private BigDecimal price;
     private String status;
@@ -39,6 +40,8 @@ public class MedicalOrderItem {
     public void setItemCategory(String itemCategory) { this.itemCategory = itemCategory; }
     public String getAssignedDeptId() { return assignedDeptId; }
     public void setAssignedDeptId(String assignedDeptId) { this.assignedDeptId = assignedDeptId; }
+    public String getAssignedDoctorId() { return assignedDoctorId; }
+    public void setAssignedDoctorId(String assignedDoctorId) { this.assignedDoctorId = assignedDoctorId; }
     public String getUrgencyLevel() { return urgencyLevel; }
     public void setUrgencyLevel(String urgencyLevel) { this.urgencyLevel = urgencyLevel; }
     public BigDecimal getPrice() { return price; }

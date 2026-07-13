@@ -49,14 +49,6 @@ public class TaskController {
         return Result.ok(taskSchedulerService.getTaskDetail(orderItemId, doctorId));
     }
 
-    @PostMapping("/start")
-    public Result<?> startTask(@RequestHeader(value = "token", required = false) String token,
-                               @RequestBody Map<String, String> body) {
-        String doctorId = extractDoctorId(token);
-        taskSchedulerService.startTask(body.get("orderItemId"), doctorId);
-        return Result.ok();
-    }
-
     @PostMapping("/complete")
     public Result<?> completeTask(@RequestHeader(value = "token", required = false) String token,
                                   @RequestBody Map<String, String> body) {

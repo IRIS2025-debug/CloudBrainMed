@@ -7,8 +7,13 @@ import org.springframework.stereotype.Service;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.temporal.TemporalAdjusters;
-import java.util.*;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -29,7 +34,6 @@ public class DoctorScheduleServiceImpl implements DoctorScheduleService {
     @Override
     public Map<LocalDate, List<DoctorSchedule>> getWeeklyScheduleGrouped(String doctorId, LocalDate weekStart) {
         List<DoctorSchedule> schedules = getWeeklySchedule(doctorId, weekStart);
-        // 鎸夋棩鏈熷垎缁勶紝骞朵繚鎸佹棩鏈熼『搴?
         return schedules.stream()
                 .collect(Collectors.groupingBy(
                         DoctorSchedule::getWorkDate,
@@ -39,11 +43,36 @@ public class DoctorScheduleServiceImpl implements DoctorScheduleService {
     }
 
     @Override
+    public boolean isDoctorAvailable(String doctorId, LocalDateTime now) {
+        if (doctorId == null || now == null) {
+            return false;
+        }
+        boolean available = filterAvailableDoctors(List.of(doctorId), now).contains(doctorId);
+        return available;
+    }
+
+    @Override
+    public Set<String> filterAvailableDoctors(List<String> doctorIds, LocalDateTime now) {
+        if (doctorIds == null || doctorIds.isEmpty() || now == null) {
+            return Set.of();
+        }
+        LocalDate workDate = now.toLocalDate();
+        LocalTime currentTime = now.toLocalTime();
+        List<DoctorSchedule> schedules = scheduleMapper.selectPublishedByDoctorIdsAndDate(doctorIds, workDate);
+        Set<String> result = schedules.stream()
+                .filter(schedule -> schedule.getStartTime() != null && schedule.getEndTime() != null)
+                .filter(schedule -> !schedule.getStartTime().isAfter(schedule.getEndTime()))
+                .filter(schedule -> !currentTime.isBefore(schedule.getStartTime()) && !currentTime.isAfter(schedule.getEndTime()))
+                .map(DoctorSchedule::getDoctorId)
+                .collect(Collectors.toSet());
+        return result;
+    }
+
+    @Override
     public LocalDate[] getWeekRange(LocalDate date) {
         if (date == null) {
             date = LocalDate.now();
         }
-        // 浠ュ懆涓€涓轰竴鍛ㄧ殑寮€濮嬶紙ISO 鏍囧噯锛?
         LocalDate weekStart = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
         LocalDate weekEnd = weekStart.plusDays(6);
         return new LocalDate[]{weekStart, weekEnd};
