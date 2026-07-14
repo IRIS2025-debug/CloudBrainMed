@@ -68,6 +68,7 @@ public interface MedicineMapper {
 
     /**
      * 批量更新药品 - 使用 CASE WHEN (PostgreSQL)
+     * 注意：批量编辑时不更新库存字段
      */
     @Update("<script>" +
             "UPDATE medicine SET " +
@@ -96,11 +97,6 @@ public interface MedicineMapper {
             "      WHEN #{item.medicineId} THEN #{item.attention}" +
             "    </foreach>" +
             "  END, " +
-            "  stock = CASE medicine_id " +
-            "    <foreach collection='list' item='item'>" +
-            "      WHEN #{item.medicineId} THEN #{item.stock}" +
-            "    </foreach>" +
-            "  END, " +
             "  price = CASE medicine_id " +
             "    <foreach collection='list' item='item'>" +
             "      WHEN #{item.medicineId} THEN #{item.price}" +
@@ -115,7 +111,7 @@ public interface MedicineMapper {
 
     /**
      * 批量更新药品 - 只更新非空字段 (PostgreSQL)
-     * 使用动态SQL，只更新传入的非空字段
+     * 注意：批量编辑时不更新库存字段
      */
     @Update("<script>" +
             "UPDATE medicine SET " +
@@ -152,13 +148,6 @@ public interface MedicineMapper {
             "      attention = CASE medicine_id " +
             "        <foreach collection='list' item='item'>" +
             "          WHEN #{item.medicineId} THEN #{item.attention}" +
-            "        </foreach>" +
-            "      END, " +
-            "    </if>" +
-            "    <if test='list[0].stock != null'>" +
-            "      stock = CASE medicine_id " +
-            "        <foreach collection='list' item='item'>" +
-            "          WHEN #{item.medicineId} THEN #{item.stock}" +
             "        </foreach>" +
             "      END, " +
             "    </if>" +

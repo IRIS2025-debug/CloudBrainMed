@@ -9,6 +9,7 @@ public class MedicineWarnVo {
     private String spec;
     private Integer stock;
     private Integer minStock;          // 预警线（前端配置）
+    private Integer minStockPercent;   // 预警线百分比
     private String status;             // LOW_STOCK, OUT_OF_STOCK
     private String warnType;           // STOCK_WARNING, REORDER_SUGGEST
     private Integer suggestedReorder;  // 建议补货数量
@@ -22,6 +23,7 @@ public class MedicineWarnVo {
         this.spec = spec;
         this.stock = stock;
         this.minStock = minStock;
+        this.minStockPercent = stock > 0 ? (int) Math.round((minStock * 100.0) / stock) : 0;
         this.status = status;
         this.warnType = warnType;
         this.suggestedReorder = suggestedReorder;
@@ -41,7 +43,13 @@ public class MedicineWarnVo {
     public void setStock(Integer stock) { this.stock = stock; }
 
     public Integer getMinStock() { return minStock; }
-    public void setMinStock(Integer minStock) { this.minStock = minStock; }
+    public void setMinStock(Integer minStock) {
+        this.minStock = minStock;
+        this.minStockPercent = stock != null && stock > 0 ? (int) Math.round((minStock * 100.0) / stock) : 0;
+    }
+
+    public Integer getMinStockPercent() { return minStockPercent; }
+    public void setMinStockPercent(Integer minStockPercent) { this.minStockPercent = minStockPercent; }
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }

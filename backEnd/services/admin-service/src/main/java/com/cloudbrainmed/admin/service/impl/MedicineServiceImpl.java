@@ -16,8 +16,8 @@ import java.util.UUID;
 @Service
 public class MedicineServiceImpl implements MedicineService {
 
-    // 默认预警线
-    private static final int DEFAULT_MIN_STOCK = 10;
+    // 默认预警线百分比（20%）
+    private static final int DEFAULT_WARN_PERCENT = 20;
     // 默认建议补货量
     private static final int DEFAULT_REORDER_QUANTITY = 50;
 
@@ -87,11 +87,16 @@ public class MedicineServiceImpl implements MedicineService {
 
     @Override
     public List<MedicineWarnVo> getWarnList(Integer minStockThreshold) {
-        int threshold = minStockThreshold != null ? minStockThreshold : DEFAULT_MIN_STOCK;
+        // 如果传入阈值，直接使用；否则使用默认20%
         List<Medicine> allMedicines = medicineMapper.selectAll();
         List<MedicineWarnVo> warnList = new ArrayList<>();
 
         for (Medicine m : allMedicines) {
+            // 计算预警线：库存的20%
+            int threshold = minStockThreshold != null ? minStockThreshold : (int) Math.ceil(m.getStock() * 0.2);
+            // 至少为1
+            threshold = Math.max(threshold, 1);
+
             if (m.getStock() <= threshold) {
                 String status = m.getStock() == 0 ? "OUT_OF_STOCK" : "LOW_STOCK";
                 warnList.add(new MedicineWarnVo(
@@ -105,13 +110,16 @@ public class MedicineServiceImpl implements MedicineService {
 
     @Override
     public List<MedicineWarnVo> getReorderSuggestions(Integer minStockThreshold, Integer reorderQuantity) {
-        int threshold = minStockThreshold != null ? minStockThreshold : DEFAULT_MIN_STOCK;
         int reorderQty = reorderQuantity != null ? reorderQuantity : DEFAULT_REORDER_QUANTITY;
 
         List<Medicine> allMedicines = medicineMapper.selectAll();
         List<MedicineWarnVo> suggestions = new ArrayList<>();
 
         for (Medicine m : allMedicines) {
+            // 计算预警线：库存的20%
+            int threshold = minStockThreshold != null ? minStockThreshold : (int) Math.ceil(m.getStock() * 0.2);
+            threshold = Math.max(threshold, 1);
+
             if (m.getStock() <= threshold + reorderQty) {
                 String status = m.getStock() == 0 ? "OUT_OF_STOCK" : "LOW_STOCK";
                 // 建议补货量：如果库存为0，补货量为 reorderQty * 2，否则为 reorderQty
@@ -136,12 +144,14 @@ public class MedicineServiceImpl implements MedicineService {
         for (MedicineDto dto : dtoList) {
             Medicine entity = new Medicine();
             entity.setMedicineId(dto.getMedicineId());
+            // 只更新非空字段，不更新库存
             entity.setName(dto.getName());
             entity.setSpec(dto.getSpec());
             entity.setUsage(dto.getUsage());
             entity.setIndication(dto.getIndication());
             entity.setAttention(dto.getAttention());
-            entity.setStock(dto.getStock());
+            // 批量编辑时不修改库存
+            // entity.setStock(dto.getStock());
             entity.setPrice(dto.getPrice());
             entities.add(entity);
         }
@@ -160,10 +170,13 @@ public class MedicineServiceImpl implements MedicineService {
         }
         MedicineDto dto = new MedicineDto();
         BeanUtils.copyProperties(medicine, dto);
-        // 计算状态
-        dto.setStatus(determineStatus(medicine.getStock(), DEFAULT_MIN_STOCK));
-        dto.setMinStock(DEFAULT_MIN_STOCK);
+        // 计算预警线：库存的20%
+        int minStock = (int) Math.ceil(medicine.getStock() * 0.2);
+        minStock = Math.max(minStock, 1);
+        dto.setMinStock(minStock);
         dto.setReorderQuantity(DEFAULT_REORDER_QUANTITY);
+        // 计算状态
+        dto.setStatus(determineStatus(medicine.getStock(), minStock));
         return dto;
     }
 

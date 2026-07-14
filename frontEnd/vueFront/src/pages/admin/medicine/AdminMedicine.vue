@@ -122,6 +122,16 @@
           <el-option label="按价格从高到低" value="price_desc" />
           <el-option label="按价格从低到高" value="price_asc" />
         </el-select>
+
+        <el-tag 
+          type="warning" 
+          size="default" 
+          style="margin-left: 8px; cursor: pointer;"
+          @click="openWarnConfigDialog"
+        >
+          <el-icon><Setting /></el-icon>
+          预警线: {{ warnPercentConfig }}%
+        </el-tag>
       </div>
       
       <div class="toolbar-right">
@@ -161,8 +171,9 @@
         style="width: 100%"
         @selection-change="handleSelectionChange"
         :row-class-name="getRowClassName"
+        row-key="medicineId"
       >
-        <el-table-column type="selection" width="40" />
+        <el-table-column type="selection" width="40" :reserve-selection="true" />
         
         <el-table-column prop="name" label="药品名称" min-width="150">
           <template #default="{ row }">
@@ -197,7 +208,16 @@
           </template>
         </el-table-column>
         
-        <el-table-column prop="minStock" label="预警线" width="80" align="center" />
+        <el-table-column prop="minStock" label="预警线" width="130" align="center">
+          <template #default="{ row }">
+            <el-tooltip :content="`当前库存的 ${getWarnPercent(row)}%`" placement="top">
+              <span>{{ row.minStock }}</span>
+              <span style="color: #909399; font-size: 12px; margin-left: 2px;">
+                ({{ getWarnPercent(row) }}%)
+              </span>
+            </el-tooltip>
+          </template>
+        </el-table-column>
         
         <el-table-column prop="price" label="单价" width="110" align="center">
           <template #default="{ row }">
@@ -276,7 +296,12 @@
           <el-descriptions-item label="库存数量">
             <span :class="getStockClass(detailData)">{{ detailData.stock }}</span>
           </el-descriptions-item>
-          <el-descriptions-item label="预警线">{{ detailData.minStock }}</el-descriptions-item>
+          <el-descriptions-item label="预警线">
+            {{ detailData.minStock }}
+            <span style="color: #909399; font-size: 12px;">
+              ({{ getWarnPercent(detailData) }}%)
+            </span>
+          </el-descriptions-item>
           <el-descriptions-item label="单价">¥{{ Number(detailData.price).toFixed(2) }}</el-descriptions-item>
           <el-descriptions-item label="状态">
             <el-tag :type="getStatusType(detailData.status)">{{ getStatusText(detailData.status) }}</el-tag>
@@ -414,36 +439,21 @@
             {{ selectedRows.map(r => r.name).join('、') }}
           </span>
         </div>
+        <div class="info-row" style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e5e7eb;">
+          <span class="info-label">当前预警线：</span>
+          <span class="info-value" style="color: #d97706;">
+            {{ warnPercentConfig }}%
+          </span>
+        </div>
       </div>
-      <el-form ref="batchFormRef" :model="batchFormData" label-width="100px">
-        <el-form-item label="库存数量">
-          <el-input-number 
-            v-model="batchFormData.stock" 
-            :min="0" 
-            :step="10" 
-            controls-position="right" 
-            style="width: 100%" 
-            placeholder="不修改请留空"
-          />
-          <div class="form-hint">留空表示不修改</div>
-        </el-form-item>
+      
+      <el-form ref="batchFormRef" :model="batchFormData" label-width="120px">
         <el-form-item label="单价">
           <el-input-number 
             v-model="batchFormData.price" 
             :min="0" 
             :precision="2" 
             :step="0.5" 
-            controls-position="right" 
-            style="width: 100%" 
-            placeholder="不修改请留空"
-          />
-          <div class="form-hint">留空表示不修改</div>
-        </el-form-item>
-        <el-form-item label="预警线">
-          <el-input-number 
-            v-model="batchFormData.minStock" 
-            :min="0" 
-            :step="1" 
             controls-position="right" 
             style="width: 100%" 
             placeholder="不修改请留空"
@@ -465,6 +475,83 @@
       <template #footer>
         <el-button @click="batchEditDialogVisible = false">取消</el-button>
         <el-button type="primary" :loading="batchEditLoading" @click="handleBatchEditConfirm">确认修改</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 预警线配置弹窗 -->
+    <el-dialog v-model="warnConfigDialogVisible" title="预警线配置" width="420px" destroy-on-close>
+      <div class="warn-config-content">
+        <el-alert 
+          title="预警线将根据所有药品的当前库存统一计算" 
+          type="info" 
+          :closable="false"
+          show-icon
+          style="margin-bottom: 20px;"
+        />
+        
+        <div class="config-preview">
+          <div class="preview-item">
+            <span class="preview-label">当前预警线百分比：</span>
+            <span class="preview-value" style="color: #d97706; font-weight: 700;">
+              {{ warnPercentConfig }}%
+            </span>
+          </div>
+          <div class="preview-item">
+            <span class="preview-label">受影响的药品数量：</span>
+            <span class="preview-value">{{ totalCount }} 个</span>
+          </div>
+          <div class="preview-item">
+            <span class="preview-label">当前预警药品：</span>
+            <span class="preview-value" :style="{ color: warningCount > 0 ? '#dc2626' : '#67C23A' }">
+              {{ warningCount }} 个
+            </span>
+          </div>
+        </div>
+
+        <el-form label-width="140px">
+          <el-form-item label="预警线百分比">
+            <el-input-number 
+              v-model="warnConfigForm.percent" 
+              :min="1" 
+              :max="100"
+              :step="5" 
+              controls-position="right" 
+              style="width: 100%" 
+            >
+              <template #suffix>
+                <span style="color: #909399; font-size: 14px;">%</span>
+              </template>
+            </el-input-number>
+            <div class="form-hint">设置为当前库存的百分之多少</div>
+          </el-form-item>
+        </el-form>
+
+        <div v-if="warnConfigForm.percent !== warnPercentConfig" class="preview-result">
+          <el-divider>预览效果</el-divider>
+          <div class="preview-item">
+            <span class="preview-label">修改后预警药品：</span>
+            <span class="preview-value" :style="{ color: previewWarningCount > 0 ? '#dc2626' : '#67C23A' }">
+              {{ previewWarningCount }} 个
+            </span>
+          </div>
+          <div v-if="previewWarningCount > 0" class="preview-drugs">
+            <span class="preview-label">涉及药品：</span>
+            <span class="preview-value" style="font-size: 13px; color: #6b7280;">
+              {{ previewDrugNames.join('、') }}
+            </span>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="warnConfigDialogVisible = false">取消</el-button>
+        <el-button 
+          type="primary" 
+          :loading="warnConfigLoading" 
+          @click="handleWarnConfigConfirm"
+          :disabled="warnConfigForm.percent === warnPercentConfig"
+        >
+          确认修改
+        </el-button>
       </template>
     </el-dialog>
 
@@ -516,7 +603,14 @@
             <span class="warn-stock">{{ row.stock }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="minStock" label="预警线" width="90" align="center" />
+        <el-table-column prop="minStock" label="预警线" width="110" align="center">
+          <template #default="{ row }">
+            {{ row.minStock }}
+            <span style="color: #909399; font-size: 11px;">
+              ({{ getWarnPercent(row as unknown as Medicine) }}%)
+            </span>
+          </template>
+        </el-table-column>
         <el-table-column prop="status" label="状态" width="110" align="center">
           <template #default="{ row }">
             <el-tag :type="row.status === 'OUT_OF_STOCK' ? 'danger' : 'warning'" size="default" effect="dark">
@@ -560,7 +654,7 @@ import {
   Plus, Search, Refresh, View, Edit, Delete, Minus, 
   Box, WarningFilled, CircleCloseFilled, Check, 
   TrendCharts, Timer, Warning, Bell, ArrowDown,
-  PieChart, Download, CircleClose, List
+  PieChart, Setting, CircleClose, List
 } from '@element-plus/icons-vue'
 import {
   getMedicineList,
@@ -571,7 +665,7 @@ import {
   addStock,
   getWarnings
 } from '@/api/admin/medicine'
-import type { Medicine, MedicineDto, MedicineWarnVo } from '@/types/admin/adminMedicine'
+import type { Medicine, MedicineDto, MedicineWarnVo, MedicineStatus } from '@/types/admin/adminMedicine'
 
 // ============================================================
 // 状态定义
@@ -585,6 +679,7 @@ const sortField = ref<string>('name_asc')
 const currentPage = ref<number>(1)
 const pageSize = ref<number>(10)
 const selectedRows = ref<Medicine[]>([])
+const selectedIds = ref<Set<string>>(new Set())
 
 const tableData = ref<Medicine[]>([])
 const filteredData = ref<Medicine[]>([])
@@ -629,19 +724,26 @@ const warnDialogVisible = ref<boolean>(false)
 const warnList = ref<MedicineWarnVo[]>([])
 const warnFilter = ref<string>('all')
 
+// 预警线配置
+const WARN_PERCENT_KEY = 'medicine_warn_percent'
+const warnPercentConfig = ref<number>(20)
+const warnConfigDialogVisible = ref<boolean>(false)
+const warnConfigLoading = ref<boolean>(false)
+const warnConfigForm = reactive<{
+  percent: number
+}>({
+  percent: 20
+})
+
 // 批量编辑相关
 const batchEditDialogVisible = ref<boolean>(false)
 const batchEditLoading = ref<boolean>(false)
 const batchFormRef = ref<FormInstance | null>(null)
 const batchFormData = reactive<{
-  stock: number | null
   price: number | null
-  minStock: number | null
   reorderQuantity: number | null
 }>({
-  stock: null,
   price: null,
-  minStock: null,
   reorderQuantity: null
 })
 
@@ -687,6 +789,28 @@ const filteredWarnList = computed(() => {
     return warnList.value
   }
   return warnList.value.filter((item: MedicineWarnVo) => item.status === warnFilter.value)
+})
+
+// 预览预警数量
+const previewWarningCount = computed(() => {
+  if (!tableData.value.length) return 0
+  const percent = warnConfigForm.percent
+  return tableData.value.filter((item: Medicine) => {
+    const minStock = calculateMinStock(item.stock, percent)
+    return item.stock <= minStock
+  }).length
+})
+
+const previewDrugNames = computed(() => {
+  if (!tableData.value.length) return []
+  const percent = warnConfigForm.percent
+  return tableData.value
+    .filter((item: Medicine) => {
+      const minStock = calculateMinStock(item.stock, percent)
+      return item.stock <= minStock
+    })
+    .map((item: Medicine) => item.name)
+    .slice(0, 10) // 只显示前10个
 })
 
 // ============================================================
@@ -747,9 +871,15 @@ function getStatusText(status: string): string {
 }
 
 function getStockClass(row: Medicine): string {
+  if (!row) return ''
   if (row.stock === 0) return 'stock-danger'
   if (row.stock <= (row.minStock || 10)) return 'stock-warning'
   return 'stock-normal'
+}
+
+function getWarnPercent(row: Medicine): number {
+  if (!row || row.stock === 0) return 0
+  return Math.round((row.minStock / row.stock) * 100)
 }
 
 function getRowClassName({ row }: { row: Medicine }): string {
@@ -765,27 +895,60 @@ function sortByPinyin(data: Medicine[]): Medicine[] {
   })
 }
 
+// 获取存储的百分比
+function getStoredWarnPercent(): number {
+  const stored = localStorage.getItem(WARN_PERCENT_KEY)
+  if (stored) {
+    const parsed = parseInt(stored)
+    if (!isNaN(parsed) && parsed > 0 && parsed <= 100) {
+      return parsed
+    }
+  }
+  return 20
+}
+
+// 保存百分比
+function saveWarnPercent(percent: number): void {
+  localStorage.setItem(WARN_PERCENT_KEY, String(percent))
+  warnPercentConfig.value = percent
+}
+
+// 计算预警线
+function calculateMinStock(stock: number, percent?: number): number {
+  const p = percent !== undefined ? percent : warnPercentConfig.value
+  return Math.max(1, Math.ceil(stock * (p / 100)))
+}
+
+// 判断状态
+function determineStatus(stock: number, minStock: number): MedicineStatus {
+  if (stock <= 0) return 'OUT_OF_STOCK'
+  if (stock <= minStock) return 'LOW_STOCK'
+  return 'NORMAL'
+}
+
 async function fetchData(): Promise<void> {
   loading.value = true
   try {
     const res = await getMedicineList(keyword.value)
     if (res.code === 200) {
-      tableData.value = sortByPinyin(res.data || [])
+      const percent = warnPercentConfig.value
+      tableData.value = (res.data || []).map((item: Medicine) => {
+        const minStock = calculateMinStock(item.stock, percent)
+        return {
+          ...item,
+          minStock: minStock,
+          status: determineStatus(item.stock, minStock)
+        }
+      }) as Medicine[]
+      tableData.value = sortByPinyin(tableData.value)
       
-      totalCount.value = tableData.value.length
-      
-      const warningItems = tableData.value.filter(
-        (item: Medicine) => item.status === 'LOW_STOCK' || item.status === 'OUT_OF_STOCK'
+      // 恢复之前选中的行
+      const selectedRowsFromIds = tableData.value.filter(
+        (item: Medicine) => selectedIds.value.has(item.medicineId)
       )
-      warningCount.value = warningItems.length
+      selectedRows.value = selectedRowsFromIds
       
-      outOfStockCount.value = tableData.value.filter(
-        (item: Medicine) => item.status === 'OUT_OF_STOCK'
-      ).length
-      
-      normalCount.value = tableData.value.filter(
-        (item: Medicine) => item.status === 'NORMAL'
-      ).length
+      updateStatistics()
     } else {
       ElMessage.error(res.message || '获取数据失败')
     }
@@ -797,12 +960,39 @@ async function fetchData(): Promise<void> {
   }
 }
 
+function updateStatistics(): void {
+  totalCount.value = tableData.value.length
+  
+  const warningItems = tableData.value.filter(
+    (item: Medicine) => item.status === 'LOW_STOCK' || item.status === 'OUT_OF_STOCK'
+  )
+  warningCount.value = warningItems.length
+  
+  outOfStockCount.value = tableData.value.filter(
+    (item: Medicine) => item.status === 'OUT_OF_STOCK'
+  ).length
+  
+  normalCount.value = tableData.value.filter(
+    (item: Medicine) => item.status === 'NORMAL'
+  ).length
+}
+
 async function fetchWarnings(): Promise<void> {
   warnLoading.value = true
   try {
     const res = await getWarnings()
     if (res.code === 200) {
-      warnList.value = sortByPinyinWarn(res.data || [])
+      const percent = warnPercentConfig.value
+      warnList.value = (res.data || []).map((item: MedicineWarnVo) => {
+        const minStock = calculateMinStock(item.stock, percent)
+        return {
+          ...item,
+          minStock: minStock,
+          status: item.stock <= 0 ? 'OUT_OF_STOCK' : 
+                  item.stock <= minStock ? 'LOW_STOCK' : 'NORMAL'
+        }
+      })
+      warnList.value = sortByPinyinWarn(warnList.value)
       warnFilter.value = 'all'
       warnDialogVisible.value = true
     } else {
@@ -828,7 +1018,17 @@ async function handleWarningCardClick(type: 'warning' | 'danger'): Promise<void>
   try {
     const res = await getWarnings()
     if (res.code === 200) {
-      warnList.value = sortByPinyinWarn(res.data || [])
+      const percent = warnPercentConfig.value
+      warnList.value = (res.data || []).map((item: MedicineWarnVo) => {
+        const minStock = calculateMinStock(item.stock, percent)
+        return {
+          ...item,
+          minStock: minStock,
+          status: item.stock <= 0 ? 'OUT_OF_STOCK' : 
+                  item.stock <= minStock ? 'LOW_STOCK' : 'NORMAL'
+        }
+      })
+      warnList.value = sortByPinyinWarn(warnList.value)
       warnFilter.value = type === 'danger' ? 'OUT_OF_STOCK' : 'all'
       warnDialogVisible.value = true
     } else {
@@ -865,7 +1065,52 @@ function handleSizeChange(): void {
 }
 
 function handleSelectionChange(rows: Medicine[]): void {
+  selectedIds.value = new Set(rows.map(r => r.medicineId))
   selectedRows.value = rows
+}
+
+// ============================================================
+// 预警线配置
+// ============================================================
+
+function openWarnConfigDialog(): void {
+  warnConfigForm.percent = warnPercentConfig.value
+  warnConfigDialogVisible.value = true
+}
+
+async function handleWarnConfigConfirm(): Promise<void> {
+  if (warnConfigForm.percent === warnPercentConfig.value) {
+    ElMessage.warning('预警线百分比未发生变化')
+    return
+  }
+  
+  // 显示确认对话框
+  try {
+    const newCount = previewWarningCount.value
+    let confirmMessage = `确定将预警线从 ${warnPercentConfig.value}% 修改为 ${warnConfigForm.percent}% 吗？\n`
+    confirmMessage += `修改后将影响 ${totalCount.value} 个药品，其中 ${newCount} 个药品将处于预警状态。`
+    
+    await ElMessageBox.confirm(confirmMessage, '预警线修改确认', {
+      type: 'warning',
+      confirmButtonText: '确认修改',
+      cancelButtonText: '取消'
+    })
+  } catch {
+    return
+  }
+  
+  warnConfigLoading.value = true
+  try {
+    saveWarnPercent(warnConfigForm.percent)
+    warnConfigDialogVisible.value = false
+    ElMessage.success(`预警线已修改为 ${warnPercentConfig.value}%`)
+    await fetchData()
+  } catch (error) {
+    console.error('修改预警线失败:', error)
+    ElMessage.error('修改预警线失败')
+  } finally {
+    warnConfigLoading.value = false
+  }
 }
 
 // ============================================================
@@ -881,10 +1126,7 @@ function handleBatchCommand(command: string): void {
   if (command === 'delete') {
     handleBatchDelete()
   } else if (command === 'edit') {
-    // 重置批量编辑表单
-    batchFormData.stock = null
     batchFormData.price = null
-    batchFormData.minStock = null
     batchFormData.reorderQuantity = null
     batchEditDialogVisible.value = true
   }
@@ -923,6 +1165,8 @@ async function handleBatchDelete(): Promise<void> {
     } else {
       ElMessage.error('批量删除失败')
     }
+    selectedRows.value = []
+    selectedIds.value = new Set()
     await fetchData()
   } catch (error) {
     if (error !== 'cancel') {
@@ -933,15 +1177,26 @@ async function handleBatchDelete(): Promise<void> {
 }
 
 async function handleBatchEditConfirm(): Promise<void> {
-  // 检查是否有任何字段需要更新
   const hasChanges = 
-    batchFormData.stock !== null ||
     batchFormData.price !== null ||
-    batchFormData.minStock !== null ||
     batchFormData.reorderQuantity !== null
   
   if (!hasChanges) {
     ElMessage.warning('请至少修改一个字段')
+    return
+  }
+  
+  try {
+    let confirmMessage = `确定要批量编辑 ${selectedRows.value.length} 个药品吗？\n`
+    if (batchFormData.price !== null) confirmMessage += `• 单价改为: ${batchFormData.price}\n`
+    if (batchFormData.reorderQuantity !== null) confirmMessage += `• 建议补货量改为: ${batchFormData.reorderQuantity}`
+    
+    await ElMessageBox.confirm(confirmMessage, '批量编辑确认', {
+      type: 'info',
+      confirmButtonText: '确认修改',
+      cancelButtonText: '取消'
+    })
+  } catch {
     return
   }
   
@@ -950,49 +1205,46 @@ async function handleBatchEditConfirm(): Promise<void> {
     let successCount = 0
     let failCount = 0
     const names: string[] = []
-    const updatePromises = selectedRows.value.map(async (row) => {
-      const updateData: MedicineDto = {
-        medicineId: row.medicineId,
-        name: row.name,
-        spec: row.spec,
-        usage: row.usage || '',
-        indication: row.indication || '',
-        attention: row.attention || '',
-        stock: batchFormData.stock !== null ? batchFormData.stock : row.stock,
-        price: batchFormData.price !== null ? batchFormData.price : row.price,
-        minStock: batchFormData.minStock !== null ? batchFormData.minStock : row.minStock,
-        reorderQuantity: batchFormData.reorderQuantity !== null ? batchFormData.reorderQuantity : row.reorderQuantity
-      }
-      
+    
+    for (const row of selectedRows.value) {
       try {
+        const updateData: MedicineDto = {
+          medicineId: row.medicineId,
+          name: row.name,
+          spec: row.spec,
+          usage: row.usage || '',
+          indication: row.indication || '',
+          attention: row.attention || '',
+          stock: row.stock,
+          price: batchFormData.price !== null ? batchFormData.price : row.price,
+          reorderQuantity: batchFormData.reorderQuantity !== null ? batchFormData.reorderQuantity : row.reorderQuantity
+        }
+        
         const res = await updateMedicine(updateData)
         if (res.code === 200) {
           successCount++
           names.push(row.name)
-          return true
         } else {
           failCount++
-          return false
+          console.error(`更新失败: ${row.name}`, res.message)
         }
       } catch (e) {
         failCount++
-        console.error(e)
-        return false
+        console.error(`更新异常: ${row.name}`, e)
       }
-    })
-    
-    await Promise.all(updatePromises)
+    }
     
     if (successCount > 0) {
       const changes: string[] = []
-      if (batchFormData.stock !== null) changes.push(`库存=${batchFormData.stock}`)
       if (batchFormData.price !== null) changes.push(`单价=${batchFormData.price}`)
-      if (batchFormData.minStock !== null) changes.push(`预警线=${batchFormData.minStock}`)
       if (batchFormData.reorderQuantity !== null) changes.push(`补货量=${batchFormData.reorderQuantity}`)
       
       ElMessage.success(`成功更新 ${successCount} 个药品${failCount > 0 ? `，${failCount} 个失败` : ''}`)
       addOperationLog('批量编辑', `${successCount} 个药品: ${changes.join('、')}`)
       batchEditDialogVisible.value = false
+      
+      selectedRows.value = []
+      selectedIds.value = new Set()
       await fetchData()
     } else {
       ElMessage.error('批量更新失败')
@@ -1196,7 +1448,7 @@ function quickAddStock(row: MedicineWarnVo): void {
       attention: '',
       minStock: row.minStock,
       reorderQuantity: 50,
-      status: row.status as Medicine['status'],
+      status: row.status as MedicineStatus,
       createTime: ''
     }
     addStockTarget.value = target
@@ -1240,6 +1492,7 @@ function handleWarnFilterChange(): void {}
 // 生命周期
 // ============================================================
 onMounted(() => {
+  warnPercentConfig.value = getStoredWarnPercent()
   fetchData()
 })
 </script>
@@ -1658,6 +1911,55 @@ onMounted(() => {
   z-index: 1000;
 }
 
+/* 预警线配置弹窗样式 */
+.warn-config-content {
+  padding: 8px 0;
+}
+
+.config-preview {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.preview-item {
+  display: flex;
+  padding: 4px 0;
+}
+
+.preview-label {
+  width: 140px;
+  color: #6b7280;
+  flex-shrink: 0;
+}
+
+.preview-value {
+  font-weight: 500;
+  color: #0f172a;
+}
+
+.preview-result {
+  margin-top: 12px;
+}
+
+.preview-drugs {
+  display: flex;
+  padding: 4px 0;
+  flex-wrap: wrap;
+}
+
+.preview-drugs .preview-label {
+  width: 140px;
+  color: #6b7280;
+  flex-shrink: 0;
+}
+
+.preview-drugs .preview-value {
+  flex: 1;
+  word-break: break-all;
+}
+
 @media (max-width: 1400px) {
   .action-buttons .el-button {
     padding: 4px 4px;
@@ -1774,6 +2076,18 @@ onMounted(() => {
   .warn-tabs .el-radio-button .el-radio-button__inner {
     width: 100%;
     text-align: center;
+  }
+  .preview-item {
+    flex-direction: column;
+  }
+  .preview-label {
+    width: 100%;
+  }
+  .preview-drugs {
+    flex-direction: column;
+  }
+  .preview-drugs .preview-label {
+    width: 100%;
   }
 }
 
