@@ -1,3 +1,4 @@
+// common/PatientManager.ts
 import preferences from '@ohos.data.preferences';
 
 export interface PatientInfo {
@@ -9,6 +10,7 @@ export interface PatientInfo {
   genderText: string;
   age: number;
   birthday?: string;
+  address?: string;  // 【新增】地址字段
   loginTime?: number;
   expiresIn?: number;
 }
@@ -20,10 +22,8 @@ export class PatientManager {
 
   /**
    * 保存患者信息（仅存 AppStorage，内存级）
-   * 注意：使用静态方法，不能使用 this，要用 PatientManager.xxx
    */
   static savePatientInfo(info: PatientInfo): void {
-    // 使用 PatientManager.KEY 而不是 this.KEY
     AppStorage.setOrCreate<PatientInfo>(PatientManager.KEY, info);
     console.info('PatientManager: 已保存到 AppStorage');
   }
@@ -32,7 +32,6 @@ export class PatientManager {
    * 获取患者信息
    */
   static getPatientInfo(): PatientInfo | null {
-    // 使用 PatientManager.KEY 而不是 this.KEY
     const info = AppStorage.get<PatientInfo>(PatientManager.KEY);
     if (info) {
       return info;
@@ -45,7 +44,6 @@ export class PatientManager {
    * 清除患者信息
    */
   static clearPatientInfo(): void {
-    // 使用 PatientManager.KEY 而不是 this.KEY
     AppStorage.delete(PatientManager.KEY);
     console.info('PatientManager: 已清除');
   }
@@ -54,7 +52,7 @@ export class PatientManager {
    * 检查 Token 是否有效
    */
   static isTokenValid(): boolean {
-    const info = PatientManager.getPatientInfo();  // 使用 PatientManager. 而不是 this.
+    const info = PatientManager.getPatientInfo();
     if (!info?.token) {
       return false;
     }
@@ -112,6 +110,11 @@ export class PatientManager {
   static getPhone(): string {
     const info = PatientManager.getPatientInfo();
     return info?.phone ?? '';
+  }
+
+  static getAddress(): string {
+    const info = PatientManager.getPatientInfo();
+    return info?.address ?? '';
   }
 
   /**
