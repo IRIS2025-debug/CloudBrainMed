@@ -58,7 +58,7 @@ public class PatientProfileServiceImpl implements PatientProfileService {
     @Override
     public void updateInfo(String patientId, String name, String gender, String address, String birthday) {
         Patient patient = patientMapper.selectById(patientId);
-        if (patient == null) throw new BusinessException("\u60a3\u8005\u4e0d\u5b58\u5728");
+        if (patient == null) throw new BusinessException("患者不存在");
         if (name != null && !name.isEmpty()) patient.setName(name);
         if (gender != null && !gender.isEmpty()) patient.setGender(parseGender(gender));
         if (address != null) patient.setAddress(address);
@@ -165,6 +165,28 @@ public class PatientProfileServiceImpl implements PatientProfileService {
             throw new BusinessException("\u8be5\u8eab\u4efd\u8bc1\u53f7\u5df2\u88ab\u4f7f\u7528");
         }
         patientMapper.updateIdCard(patientId, newIdCard);
+    }
+
+    @Override
+    public void updateAddress(String patientId, String address) {
+        if (address == null) {
+            throw new BusinessException("地址不能为空");
+        }
+        if (address.length() > 100) {
+            throw new BusinessException("地址长度不能超过100个字符");
+        }
+
+        Patient patient = patientMapper.selectById(patientId);
+        if (patient == null) {
+            throw new BusinessException("患者不存在");
+        }
+
+        // 如果地址没有变化，直接返回
+        if (Objects.equals(address, patient.getAddress())) {
+            return;
+        }
+
+        patientMapper.updateAddress(patientId, address);
     }
 
     private void validateAvatar(byte[] fileBytes, String originalFilename) {

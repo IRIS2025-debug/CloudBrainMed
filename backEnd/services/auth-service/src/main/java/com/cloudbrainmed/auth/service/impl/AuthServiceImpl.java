@@ -49,6 +49,8 @@ public class AuthServiceImpl implements AuthService {
         Patient patient = new Patient();
         patient.setPatientId(generatePatientId());
         patient.setName(registerDTO.getName());
+        Integer gender = registerDTO.getGenderFromIdCard();
+        patient.setGender(gender);
         patient.setGender(registerDTO.getGender());
         patient.setPhone(registerDTO.getPhone());
         patient.setIdCard(registerDTO.getIdCard());

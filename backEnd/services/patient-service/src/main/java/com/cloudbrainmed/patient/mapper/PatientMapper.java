@@ -70,4 +70,10 @@ public interface PatientMapper {
     @Update("UPDATE patient SET id_card = #{idCard}, update_time = NOW() WHERE patient_id = #{patientId}")
     int updateIdCard(@Param("patientId") String patientId, @Param("idCard") String idCard);
 
+    /**
+     * 更新患者地址
+     */
+    @Update("UPDATE patient SET address = #{address}, update_time = NOW() WHERE patient_id = #{patientId}")
+    int updateAddress(@Param("patientId") String patientId, @Param("address") String address);
+
 }

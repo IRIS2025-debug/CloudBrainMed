@@ -11,4 +11,5 @@ public interface PatientProfileService {
     void changePassword(String patientId, String oldPassword, String newPassword);
     void verifyIdCard(String patientId, String password);
     void changeIdCard(String patientId, String newIdCard, String password);
+    void updateAddress(String patientId, String address);
 }

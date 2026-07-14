@@ -26,17 +26,15 @@ public class PatientInfoDto {
     @Pattern(regexp = "^1[3-9]\\d{9}$", message = "手机号格式不正确")
     private String phone;
 
-    @NotBlank(message = "身份证号不能为空")  // 新增：身份证不能为空
+    @NotBlank(message = "身份证号不能为空")
     @Pattern(regexp = "^[1-9]\\d{5}(18|19|20)\\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\\d|3[01])\\d{3}[\\dXx]$",
-            message = "身份证号格式不正确")  // 可选：添加身份证格式校验
+            message = "身份证号格式不正确")
     private String idCard;
 
     @Size(max = 100, message = "地址长度不能超过100")
-    private String address;  // 数据库允许为空，所以不加 @NotBlank
+    private String address;
 
-    private LocalDate birthday;  // 数据库允许为空，不加校验
-
-    // password 字段不包含在更新个人信息的 DTO 中（单独修改密码接口）
+    private LocalDate birthday;
 
     // Getters and Setters
     public String getPatientId() {

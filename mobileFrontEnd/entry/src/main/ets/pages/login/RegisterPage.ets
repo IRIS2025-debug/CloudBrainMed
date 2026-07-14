@@ -11,6 +11,7 @@ interface RegisterParams {
   idCard: string;
   password: string;
   confirmPassword: string;
+  // gender 字段由后端从身份证号自动计算，前端无需传递
 }
 
 interface RegisterData {
@@ -19,6 +20,7 @@ interface RegisterData {
   phone: string;
   birthday: string;
   age: number;
+  genderText: string; // 新增性别文字
 }
 
 interface ApiResponse<T> {
@@ -52,7 +54,66 @@ struct RegisterPage {
   @State showPassword: boolean = false;
   @State showConfirmPassword: boolean = false;
 
+  // 【新增】从身份证号解析出的性别信息（仅用于显示提示）
+  @State detectedGenderText: string = '';
+  @State showGenderHint: boolean = false;
+
   private baseUrl: string = APIConfig.AUTH_SERVICE_URL;
+
+  /**
+   * 【新增】从身份证号解析性别
+   * @param idCard 身份证号
+   * @returns 性别文字：'男' | '女' | ''
+   */
+  private parseGenderFromIdCard(idCard: string): string {
+    if (!idCard || idCard.length === 0) {
+      return '';
+    }
+
+    try {
+      let genderChar: string;
+      if (idCard.length === 18) {
+        // 18位身份证取第17位（索引16）
+        genderChar = idCard.charAt(16);
+      } else if (idCard.length === 15) {
+        // 15位身份证取第15位（索引14）
+        genderChar = idCard.charAt(14);
+      } else {
+        return '';
+      }
+
+      const genderNum = parseInt(genderChar);
+      if (isNaN(genderNum)) {
+        return '';
+      }
+
+      // 奇数男，偶数女
+      return genderNum % 2 === 1 ? '男' : '女';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  /**
+   * 【新增】身份证号变化时自动检测性别
+   */
+  private onIdCardChange(value: string): void {
+    this.idCard = value;
+    if (this.idCardError) this.idCardError = '';
+
+    // 检查身份证号是否足够长以识别性别
+    if (value.length >= 15) {
+      const gender = this.parseGenderFromIdCard(value);
+      if (gender) {
+        this.detectedGenderText = gender;
+        this.showGenderHint = true;
+      } else {
+        this.showGenderHint = false;
+      }
+    } else {
+      this.showGenderHint = false;
+    }
+  }
 
   private validateForm(): boolean {
     let isValid = true;
@@ -116,6 +177,17 @@ struct RegisterPage {
   private async register(): Promise<void> {
     if (!this.validateForm()) {
       return;
+    }
+
+    // 【新增】注册前显示性别提示确认
+    if (this.showGenderHint) {
+      const gender = this.parseGenderFromIdCard(this.idCard);
+      if (gender) {
+        promptAction.showToast({
+          message: `检测到性别：${gender}`,
+          duration: 1500
+        });
+      }
     }
 
     this.isLoading = true;
@@ -339,12 +411,32 @@ struct RegisterPage {
 
             // ===== 身份证号 =====
             Column() {
-              Text('身份证号')
-                .fontSize(14)
-                .fontColor('#333333')
-                .fontWeight(500)
-                .margin({ bottom: 8 })
-                .width('100%')
+              Row() {
+                Text('身份证号')
+                  .fontSize(14)
+                  .fontColor('#333333')
+                  .fontWeight(500)
+
+                Blank()
+
+                // 【新增】性别自动检测提示
+                if (this.showGenderHint && this.detectedGenderText) {
+                  Row() {
+                    Text('检测到性别：')
+                      .fontSize(12)
+                      .fontColor('#8a8a8a')
+                    Text(this.detectedGenderText)
+                      .fontSize(13)
+                      .fontColor(this.detectedGenderText === '男' ? '#2563eb' : '#eb2f96')
+                      .fontWeight(FontWeight.Medium)
+                  }
+                  .padding({ left: 12, right: 12, top: 4, bottom: 4 })
+                  .backgroundColor('#f0f5ff')
+                  .borderRadius(12)
+                }
+              }
+              .width('100%')
+              .margin({ bottom: 8 })
 
               TextInput({ placeholder: '请输入您的身份证号', text: this.idCard })
                 .width('100%')
@@ -361,8 +453,7 @@ struct RegisterPage {
                   color: this.idCardFocused ? '#2563eb' : 'transparent'
                 })
                 .onChange((value: string) => {
-                  this.idCard = value;
-                  if (this.idCardError) this.idCardError = '';
+                  this.onIdCardChange(value);
                 })
                 .onFocus(() => {
                   this.idCardFocused = true;
@@ -378,6 +469,13 @@ struct RegisterPage {
                   .margin({ top: 6 })
                   .width('100%')
               }
+
+              // 【新增】提示用户性别将自动识别
+              Text('✧ 系统将根据身份证号自动识别性别')
+                .fontSize(11)
+                .fontColor('#bfbfbf')
+                .margin({ top: 6 })
+                .width('100%')
             }
             .margin({ bottom: 16 })
             .width('100%')
@@ -405,7 +503,7 @@ struct RegisterPage {
                   width: 1.5,
                   color: this.passwordFocused ? '#2563eb' : 'transparent'
                 })
-                .showPasswordIcon(true)  // 显示密码眼睛图标
+                .showPasswordIcon(true)
                 .onChange((value: string) => {
                   this.password = value;
                   if (this.passwordError) this.passwordError = '';
@@ -443,7 +541,7 @@ struct RegisterPage {
                   width: 1.5,
                   color: this.confirmPasswordFocused ? '#2563eb' : 'transparent'
                 })
-                .showPasswordIcon(true)  // 显示密码眼睛图标
+                .showPasswordIcon(true)
                 .onChange((value: string) => {
                   this.confirmPassword = value;
                   if (this.passwordError) this.passwordError = '';

@@ -120,6 +120,16 @@ public class PatientMobileProfileController {
         return Result.ok();
     }
 
+    /** 4.3.1.8 修改地址 */
+    @PutMapping("/update-address")
+    public Result<?> updateAddress(@RequestHeader(value = "token", required = false) String token,
+                                   @RequestBody Map<String, String> body) {
+        String patientId = extractPatientId(token);
+        String address = body.get("address");
+        profileService.updateAddress(patientId, address);
+        return Result.ok("地址修改成功");
+    }
+
     // ==================== 4.3.2 挂号记录 ====================
 
     /** 查询患者挂号记录列表 */

@@ -6,7 +6,7 @@ import java.time.LocalDate;
 
 /**
  * 注册请求DTO
- * 生日将从身份证号自动计算，无需前端传递
+ * 生日将从身份证号自动计算，性别也将从身份证号自动识别
  */
 public class authRegisterDto {
 
@@ -14,8 +14,8 @@ public class authRegisterDto {
     @Size(min = 2, max = 20, message = "姓名长度必须在2-20之间")
     private String name;
 
-    // 修改：性别改为可选，注册时不强制要求
-    private Integer gender;  // 移除 @NotNull 注解
+    // 性别不再需要前端传递，由后端根据身份证号自动识别
+    private Integer gender;  // 后端会自动填充
 
     @NotBlank(message = "手机号不能为空")
     @Pattern(regexp = "^1[3-9]\\d{9}$", message = "手机号格式不正确")
@@ -26,8 +26,7 @@ public class authRegisterDto {
             message = "身份证号格式不正确")
     private String idCard;
 
-    // 修改：地址改为可选，注册时不强制要求
-    private String address;  // 移除 @NotBlank 注解
+    private String address;
 
     @NotBlank(message = "密码不能为空")
     @Size(min = 6, max = 20, message = "密码长度必须在6-20之间")
@@ -93,21 +92,48 @@ public class authRegisterDto {
 
         try {
             String birthdayStr;
-            // 身份证号第7-14位是出生日期
             if (idCard.length() == 18) {
-                birthdayStr = idCard.substring(6, 14);  // 19900307
+                birthdayStr = idCard.substring(6, 14);
             } else if (idCard.length() == 15) {
-                birthdayStr = "19" + idCard.substring(6, 12);  // 19900307
+                birthdayStr = "19" + idCard.substring(6, 12);
             } else {
                 return null;
             }
 
-            // 格式化为 yyyy-MM-dd
             String formattedDate = birthdayStr.substring(0, 4) + "-"
                     + birthdayStr.substring(4, 6) + "-"
                     + birthdayStr.substring(6, 8);
 
             return LocalDate.parse(formattedDate);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * 从身份证号识别性别
+     * @return 1-男, 2-女, null-无法识别
+     */
+    public Integer getGenderFromIdCard() {
+        if (idCard == null || idCard.isEmpty()) {
+            return null;
+        }
+
+        try {
+            char genderChar;
+            if (idCard.length() == 18) {
+                // 18位身份证：第17位为性别标识，奇数男，偶数女
+                genderChar = idCard.charAt(16);
+            } else if (idCard.length() == 15) {
+                // 15位身份证：第15位为性别标识，奇数男，偶数女
+                genderChar = idCard.charAt(14);
+            } else {
+                return null;
+            }
+
+            int genderNum = Character.getNumericValue(genderChar);
+            // 奇数代表男性，偶数代表女性
+            return (genderNum % 2 == 1) ? 1 : 2;
         } catch (Exception e) {
             return null;
         }
