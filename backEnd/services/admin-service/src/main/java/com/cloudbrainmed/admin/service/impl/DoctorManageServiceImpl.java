@@ -44,7 +44,12 @@ public class DoctorManageServiceImpl implements DoctorManageService {
 
     @Override
     public void addDoctor(String name, Integer gender, String phone, String email,
-                          String position, String goodAt, String introduction, String departmentId) {
+                          String position, String goodAt, String introduction,
+                          String departmentId, Integer doctorType) {
+        if (doctorType == null || (doctorType != 1 && doctorType != 2 && doctorType != 3)) {
+            throw new BusinessException("医生类型不合法");
+        }
+
         // 校验手机号唯一性
         if (phone != null && !phone.isEmpty()) {
             LambdaQueryWrapper<DoctorManage> qw = new LambdaQueryWrapper<>();
@@ -64,6 +69,7 @@ public class DoctorManageServiceImpl implements DoctorManageService {
         doctor.setGoodAt(goodAt);
         doctor.setIntroduction(introduction);
         doctor.setDepartmentId(departmentId);
+        doctor.setDoctorType(doctorType);
         doctor.setPassword("123456");
         doctor.setStatus(1);
         doctor.setIsDeleted(0);
@@ -75,7 +81,7 @@ public class DoctorManageServiceImpl implements DoctorManageService {
     @Override
     public void updateDoctor(String doctorId, String name, Integer gender, String phone, String email,
                              String position, String goodAt, String introduction,
-                             String departmentId, Integer status) {
+                             String departmentId, Integer doctorType, Integer status) {
         DoctorManage doctor = doctorManageMapper.selectById(doctorId);
         if (doctor == null || (doctor.getIsDeleted() != null && doctor.getIsDeleted() == 1)) {
             throw new BusinessException("医生不存在");
@@ -100,6 +106,12 @@ public class DoctorManageServiceImpl implements DoctorManageService {
         if (goodAt != null) doctor.setGoodAt(goodAt);
         if (introduction != null) doctor.setIntroduction(introduction);
         if (departmentId != null) doctor.setDepartmentId(departmentId);
+        if (doctorType != null) {
+            if (doctorType != 1 && doctorType != 2 && doctorType != 3) {
+                throw new BusinessException("医生类型不合法");
+            }
+            doctor.setDoctorType(doctorType);
+        }
         if (status != null) doctor.setStatus(status);
 
         doctorManageMapper.updateById(doctor);

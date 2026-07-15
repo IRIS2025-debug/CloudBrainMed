@@ -20,6 +20,7 @@ export function addDoctor(data: {
   goodAt: string
   introduction: string
   departmentId: string
+  doctorType: number
 }) {
   return request.post('/admin-service/doctor-manage/add', data)
 }
@@ -35,6 +36,7 @@ export function updateDoctor(data: {
   goodAt: string
   introduction: string
   departmentId: string
+  doctorType: number
   status: number
 }) {
   return request.put('/admin-service/doctor-manage/update', data)

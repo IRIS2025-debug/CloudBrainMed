@@ -13,11 +13,13 @@ public interface DoctorManageService {
 
     /** 新增医生 */
     void addDoctor(String name, Integer gender, String phone, String email,
-                   String position, String goodAt, String introduction, String departmentId);
+                   String position, String goodAt, String introduction,
+                   String departmentId, Integer doctorType);
 
     /** 修改医生信息 */
     void updateDoctor(String doctorId, String name, Integer gender, String phone, String email,
-                      String position, String goodAt, String introduction, String departmentId, Integer status);
+                      String position, String goodAt, String introduction, String departmentId,
+                      Integer doctorType, Integer status);
 
     /** 删除医生（软删除） */
     void deleteDoctor(String doctorId);

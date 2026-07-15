@@ -166,11 +166,16 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="所属科室" prop="departmentId">
-              <el-select v-model="form.departmentId" placeholder="请选择科室" style="width: 100%">
+              <el-select
+                v-model="form.departmentId"
+                placeholder="请选择科室"
+                style="width: 100%"
+                @change="handleDeptChange"
+              >
                 <el-option
                   v-for="d in deptList"
                   :key="d.deptId"
-                  :label="d.deptName"
+                  :label="formatDeptOptionLabel(d)"
                   :value="d.deptId"
                 />
               </el-select>
@@ -230,6 +235,20 @@ interface DeptItem {
   deptName: string
 }
 
+const deptDoctorTypeMap: Record<string, number> = {
+  内科: 1,
+  外科: 1,
+  脑科: 1,
+  检验科: 3,
+  放射科: 2,
+}
+
+const doctorTypeLabelMap: Record<number, string> = {
+  1: '看诊医生',
+  2: '检查医生',
+  3: '检验医生',
+}
+
 const doctors = ref<DoctorItem[]>([])
 const deptList = ref<DeptItem[]>([])
 const loading = ref(false)
@@ -249,6 +268,7 @@ const form = reactive({
   goodAt: '',
   introduction: '',
   departmentId: '',
+  doctorType: 1,
 })
 
 const rules = {
@@ -293,6 +313,20 @@ function handleSearch() {
   // computed 自动响应
 }
 
+function getDoctorTypeByDeptName(deptName: string) {
+  return deptDoctorTypeMap[deptName] ?? 1
+}
+
+function formatDeptOptionLabel(dept: DeptItem) {
+  const doctorType = getDoctorTypeByDeptName(dept.deptName)
+  return `${dept.deptName}（${doctorTypeLabelMap[doctorType]}）`
+}
+
+function handleDeptChange(deptId: string) {
+  const dept = deptList.value.find(item => item.deptId === deptId)
+  form.doctorType = dept ? getDoctorTypeByDeptName(dept.deptName) : 1
+}
+
 function openAddDialog() {
   isEdit.value = false
   form.doctorId = ''
@@ -304,6 +338,7 @@ function openAddDialog() {
   form.goodAt = ''
   form.introduction = ''
   form.departmentId = ''
+  form.doctorType = 1
   formRef.value?.clearValidate()
   dialogVisible.value = true
 }
@@ -319,6 +354,7 @@ function openEditDialog(row: DoctorItem) {
   form.goodAt = row.goodAt
   form.introduction = row.introduction
   form.departmentId = row.departmentId
+  handleDeptChange(row.departmentId)
   formRef.value?.clearValidate()
   dialogVisible.value = true
 }
