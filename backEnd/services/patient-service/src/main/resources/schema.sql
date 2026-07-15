@@ -34,5 +34,8 @@ CREATE INDEX IF NOT EXISTS idx_register_report_patient_id_visit_date
 ALTER TABLE prescription
     ADD COLUMN IF NOT EXISTS medicine_id VARCHAR(32);
 
+ALTER TABLE prescription
+    ADD COLUMN IF NOT EXISTS stock_deducted BOOLEAN NOT NULL DEFAULT FALSE;
+
 ALTER TABLE patient
     ADD COLUMN IF NOT EXISTS avatar VARCHAR(255);
