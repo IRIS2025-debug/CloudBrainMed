@@ -118,6 +118,7 @@ const adminMenus = [
   { path: '/admin/medicine', title: '药品管理', icon: 'UserFilled', group: '管理员端' },
   { path: '/admin/scheduling', title: '排班管理', icon: 'DataAnalysis', group: '管理员端' },
   { path: '/admin/ml/dashboard', title: 'AI 推理看板', icon: 'DataAnalysis', group: '管理员端' },
+  { path: '/admin/data', title: 'AI 统计数据看板', icon: 'DataAnalysis', group: '管理员端' },
 ]
 
 // ==================== 角色判断（从 sessionStorage 获取）====================

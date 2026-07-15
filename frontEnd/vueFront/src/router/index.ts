@@ -111,6 +111,12 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 3 }
     },
     {
+      path: '/admin/data',
+      name: 'data',
+      component: () => import('@/pages/admin/data/data.vue'),
+      meta: { requiresAuth: true, role: 3 }
+    },
+    {
       // 检验医生首页统一走 /doctor/home（页面按 doctorType=3 自适应）。
       path: '/inspection-doctor/home',
       redirect: '/doctor/home',

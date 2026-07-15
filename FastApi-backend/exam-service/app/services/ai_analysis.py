@@ -8,7 +8,6 @@ from datetime import datetime
 # LangChain 0.3.x 正确的导入方式
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
-from langchain_core.output_parsers import JsonOutputParser
 
 from app.config.settings import settings
 

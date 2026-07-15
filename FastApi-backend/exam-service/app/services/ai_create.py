@@ -8,7 +8,6 @@ logger = logging.getLogger(__name__)
 # 延迟导入，避免无密钥启动时报错
 AsyncOpenAI = None
 
-
 class AIConclusionService:
     """AI生成检验结论服务，懒加载大模型客户端，无密钥不初始化OpenAI"""
     def __init__(self):
