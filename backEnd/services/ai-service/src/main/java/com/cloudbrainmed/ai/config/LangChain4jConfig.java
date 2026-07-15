@@ -28,7 +28,7 @@ public class LangChain4jConfig {
                 .modelName(modelName)
                 .temperature(temperature)
                 .maxTokens(maxTokens)
-                .timeout(Duration.ofSeconds(60))
+                .timeout(Duration.ofSeconds(300))  // ← 改为300秒
                 .build();
     }
 

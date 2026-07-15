@@ -15,12 +15,16 @@ import com.cloudbrainmed.ai.service.AiScheduleService;
 import com.cloudbrainmed.api.feign.AdminFeignClient;
 import com.cloudbrainmed.common.result.Result;
 import com.cloudbrainmed.common.result.ResultCode;
+import com.cloudbrainmed.payment.controller.PayController;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -39,6 +43,8 @@ import java.util.regex.Pattern;
 @Service
 public class AiScheduleServiceImpl implements AiScheduleService {
 
+    private static final Logger log = LoggerFactory.getLogger(AiScheduleServiceImpl.class);
+
     private static final int MAX_GENERATED_ITEMS = 100;
 
     private final ChatClient chatClient;
@@ -52,7 +58,13 @@ public class AiScheduleServiceImpl implements AiScheduleService {
             AdminFeignClient adminFeignClient,
             @Value("${spring.ai.openai.chat.options.model:deepseek-v4-flash}")
             String modelName) {
-        this.chatClient = chatClientBuilder.build();
+        this.chatClient = chatClientBuilder
+                .defaultOptions(OpenAiChatOptions.builder()
+                        .model(modelName)
+                        .temperature(0.1)
+                        .maxTokens(4096)
+                        .build())
+                .build();
         this.objectMapper = objectMapper;
         this.adminFeignClient = adminFeignClient;
         this.modelName = modelName;
@@ -62,6 +74,11 @@ public class AiScheduleServiceImpl implements AiScheduleService {
     public AiScheduleGenerateResponse preview(
             AiScheduleGenerateRequest request, String adminId) {
         List<String> warnings = new ArrayList<>();
+
+        // 添加日志：记录原始需求
+        String requirement = valueOrDefault(request.getRequirement(), "");
+        log.info("AI排班预览 - 原始需求: {}", requirement);
+
         List<DoctorSchedule> existingSchedules =
                 fetchExistingSchedules(request, warnings);
         List<DoctorSchedule> roomUsages =
@@ -71,17 +88,18 @@ public class AiScheduleServiceImpl implements AiScheduleService {
         try {
             String reply = chatClient.prompt(new Prompt(buildMessages(
                     request, existingSchedules, roomUsages))).call().content();
+            log.info("AI排班预览 - AI回复长度: {}", reply.length());
             response = parseReply(reply);
             response.setFallback(false);
             response.setStatus("SUCCESS");
         } catch (Exception exception) {
+            log.error("AI排班预览失败，使用降级方案", exception);
             response = buildRuleBasedFallback(request);
             response.setFallback(true);
             response.setStatus("FALLBACK");
             warnings.add("AI model is unavailable; generated a rule-based schedule draft.");
             warnings.add("Error type: " + exception.getClass().getSimpleName());
         }
-
         normalizeResponse(response, request);
         response.getWarnings().addAll(0, warnings);
         response.setModelVersion(modelName);
@@ -198,15 +216,19 @@ public class AiScheduleServiceImpl implements AiScheduleService {
         String text = requirement.toLowerCase().trim();
 
         // ===== 1. 工作日/周末规则 =====
-        if (containsAny(text, "周六周日休息", "周末休息", "周六日休息", "双休", "周六周日不上班", "周六日不上班")) {
+        if (containsAny(text, "周六周日休息", "周末休息", "周六日休息", "双休",
+                "周六周日不上班", "周六日不上班", "每周末休息", "周末都休息",
+                "周六日都休息", "周末全休")) {
             req.weekendOff = true;
-        } else if (containsAny(text, "周六上班", "周日上班", "周末上班", "周末也上班", "包括周末")) {
+        } else if (containsAny(text, "周六上班", "周日上班", "周末上班", "周末也上班",
+                "包括周末", "含周末", "周末也排", "周末也要", "周六周日上班",
+                "周末不休息", "周末正常上班")) {
             req.weekendOn = true;
-        } else if (containsAny(text, "周六休息", "周六不上班")) {
+        } else if (containsAny(text, "周六休息", "周六不上班", "周六不排班")) {
             req.saturdayOff = true;
-        } else if (containsAny(text, "周日休息", "周日不上班")) {
+        } else if (containsAny(text, "周日休息", "周日不上班", "周日不排班")) {
             req.sundayOff = true;
-        } else if (containsAny(text, "无休", "不休息", "每天上班", "天天上班", "全年无休")) {
+        } else if (containsAny(text, "无休", "不休息", "每天上班", "天天上班", "全年无休", "全周无休")) {
             req.noDayOff = true;
         }
 
@@ -223,23 +245,33 @@ public class AiScheduleServiceImpl implements AiScheduleService {
             req.shiftMode = "ALTERNATE_DAY_NIGHT";
         }
 
-        // 单一时段模式
-        else if (containsAny(text, "只排上午", "只上上午", "仅上午", "只排上午的班", "只要上午", "仅排上午")) {
+        // 单一时段模式 - 增强匹配
+        else if (containsAny(text, "只排上午", "只上上午", "仅上午", "只排上午的班",
+                "只要上午", "仅排上午", "上午半天", "上午班", "排上午",
+                "上午值班", "上午出诊", "上午坐诊", "只有上午", "仅有上午",
+                "上午门诊", "只上午")) {
             req.shiftMode = "MORNING_ONLY";
-        } else if (containsAny(text, "只排下午", "只上下午", "仅下午", "只排下午的班", "只要下午", "仅排下午")) {
+        } else if (containsAny(text, "只排下午", "只上下午", "仅下午", "只排下午的班",
+                "只要下午", "仅排下午", "下午半天", "下午班", "排下午",
+                "下午值班", "下午出诊", "下午坐诊", "只有下午", "仅有下午",
+                "下午门诊", "只下午")) {
             req.shiftMode = "AFTERNOON_ONLY";
         } else if (containsAny(text, "只排晚上", "只上晚上", "仅晚上", "只排晚上的班",
-                "只排夜班", "只上夜班", "仅夜班", "只要晚上", "只要夜班")) {
+                "只排夜班", "只上夜班", "仅夜班", "只要晚上", "只要夜班",
+                "只有晚上", "仅有晚上", "晚上门诊", "夜班门诊", "只晚上",
+                "夜班出诊", "晚上出诊")) {
             req.shiftMode = "NIGHT_ONLY";
-        } else if (containsAny(text, "只排早班", "只上早班", "仅早班")) {
+        } else if (containsAny(text, "只排早班", "只上早班", "仅早班", "早班门诊")) {
             req.shiftMode = "MORNING_SHIFT_ONLY";
-        } else if (containsAny(text, "只排白班", "只上白班", "仅白班")) {
+        } else if (containsAny(text, "只排白班", "只上白班", "仅白班", "白班门诊")) {
             req.shiftMode = "DAY_SHIFT_ONLY";
         }
 
         // 混合模式
         else if (containsAny(text, "上午和下午", "上下午都排", "上下午都要",
-                "上午下午都排", "全天", "整天", "全天班")) {
+                "上午下午都排", "全天", "整天", "全天班", "全天出诊", "全天坐诊",
+                "全天值班", "一天全天", "全日出诊", "全日门诊", "全天门诊",
+                "上午下午都要")) {
             req.shiftMode = "AM_AND_PM";
         } else if (containsAny(text, "上午和晚上", "早班和夜班")) {
             req.shiftMode = "AM_AND_NIGHT";
@@ -250,11 +282,11 @@ public class AiScheduleServiceImpl implements AiScheduleService {
         }
 
         // ===== 3. 特定日期规则 =====
-        Pattern monPattern = Pattern.compile("只排周[一1]|仅周[一1]|只在周[一1]|每周一");
-        Pattern tuePattern = Pattern.compile("只排周[二2]|仅周[二2]|只在周[二2]|每周二");
-        Pattern wedPattern = Pattern.compile("只排周[三3]|仅周[三3]|只在周[三3]|每周三");
-        Pattern thuPattern = Pattern.compile("只排周[四4]|仅周[四4]|只在周[四4]|每周四");
-        Pattern friPattern = Pattern.compile("只排周[五5]|仅周[五5]|只在周[五5]|每周五");
+        Pattern monPattern = Pattern.compile("只排周[一1]|仅周[一1]|只在周[一1]|每周一|周一门诊|周一坐诊");
+        Pattern tuePattern = Pattern.compile("只排周[二2]|仅周[二2]|只在周[二2]|每周二|周二门诊|周二坐诊");
+        Pattern wedPattern = Pattern.compile("只排周[三3]|仅周[三3]|只在周[三3]|每周三|周三门诊|周三坐诊");
+        Pattern thuPattern = Pattern.compile("只排周[四4]|仅周[四4]|只在周[四4]|每周四|周四门诊|周四坐诊");
+        Pattern friPattern = Pattern.compile("只排周[五5]|仅周[五5]|只在周[五5]|每周五|周五门诊|周五坐诊");
 
         if (monPattern.matcher(text).find()) req.mondayOnly = true;
         if (tuePattern.matcher(text).find()) req.tuesdayOnly = true;
@@ -275,11 +307,10 @@ public class AiScheduleServiceImpl implements AiScheduleService {
         }
 
         // ===== 4. 数量限制 =====
-        Pattern numPattern = Pattern.compile("排(\\d+)天|只排(\\d+)天|最多(\\d+)天");
+        Pattern numPattern = Pattern.compile("排(\\d+)天|只排(\\d+)天|最多(\\d+)天|排(\\d+)天班");
         java.util.regex.Matcher numMatcher = numPattern.matcher(text);
         if (numMatcher.find()) {
             try {
-                // 找到第一个非空的捕获组
                 for (int i = 1; i <= numMatcher.groupCount(); i++) {
                     if (numMatcher.group(i) != null) {
                         req.maxWorkingDays = Integer.parseInt(numMatcher.group(i));
@@ -289,7 +320,7 @@ public class AiScheduleServiceImpl implements AiScheduleService {
             } catch (NumberFormatException ignored) {}
         }
 
-        Pattern countPattern = Pattern.compile("(\\d+)[个条次]排班|生成(\\d+)条|排(\\d+)条");
+        Pattern countPattern = Pattern.compile("(\\d+)[个条次]排班|生成(\\d+)条|排(\\d+)条|(\\d+)条记录");
         java.util.regex.Matcher countMatcher = countPattern.matcher(text);
         if (countMatcher.find()) {
             try {
@@ -302,14 +333,17 @@ public class AiScheduleServiceImpl implements AiScheduleService {
             } catch (NumberFormatException ignored) {}
         }
 
-        // ===== 5. 优先级规则 =====
-        if (containsAny(text, "优先上午", "上午优先", "尽量上午", "尽可能上午")) {
+        // ===== 5. 优先级规则 - 增强匹配 =====
+        if (containsAny(text, "优先上午", "上午优先", "尽量上午", "尽可能上午",
+                "上午为主", "主要上午", "优先排上午")) {
             req.priority = "AM_PRIORITY";
-        } else if (containsAny(text, "优先下午", "下午优先", "尽量下午", "尽可能下午")) {
+        } else if (containsAny(text, "优先下午", "下午优先", "尽量下午", "尽可能下午",
+                "下午为主", "主要下午", "优先排下午")) {
             req.priority = "PM_PRIORITY";
-        } else if (containsAny(text, "优先晚上", "晚上优先", "尽量晚上", "优先夜班", "尽可能晚上")) {
+        } else if (containsAny(text, "优先晚上", "晚上优先", "尽量晚上", "优先夜班", "尽可能晚上",
+                "晚上为主", "主要晚上", "优先排晚上", "夜班优先")) {
             req.priority = "NIGHT_PRIORITY";
-        } else if (containsAny(text, "优先工作日", "工作日优先", "尽量工作日")) {
+        } else if (containsAny(text, "优先工作日", "工作日优先", "尽量工作日", "工作日为主")) {
             req.priority = "WEEKDAY_PRIORITY";
         }
 
@@ -335,13 +369,170 @@ public class AiScheduleServiceImpl implements AiScheduleService {
             List<DoctorSchedule> existingSchedules,
             List<DoctorSchedule> roomUsages) {
 
-        ScheduleRequirement req = parseRequirement(
-                valueOrDefault(request.getRequirement(), ""));
-
-        String systemPrompt = buildSystemPrompt(req);
-        String userPrompt = buildUserPrompt(request, existingSchedules, roomUsages, req);
+        // 直接使用原始需求，不再解析
+        String systemPrompt = buildSimpleSystemPrompt();
+        String userPrompt = buildUserPrompt(request, existingSchedules, roomUsages);
 
         return List.of(new SystemMessage(systemPrompt), new UserMessage(userPrompt));
+    }
+
+    /**
+     * 简化的 System Prompt，让AI自己理解需求
+     */
+    private String buildSimpleSystemPrompt() {
+        return """
+        You are an AI scheduling assistant for a hospital administrator.
+        Generate a doctor schedule draft based on the administrator's requirements.
+        
+        ╔══════════════════════════════════════════════════════════════╗
+        ║              CORE RULES (MUST FOLLOW)                        ║
+        ╚══════════════════════════════════════════════════════════════╝
+        
+        1. DOCTOR INFO: Use ONLY the provided doctorId, doctorName, deptId.
+        2. DATE RANGE: Generate schedules within periodStart to periodEnd (inclusive).
+        3. UNAVAILABLE DATES: Absolutely skip dates in unavailableDates list.
+        4. EXISTING SCHEDULES: Avoid time conflicts with existingSchedules.
+        5. ROOM CONFLICTS: Avoid rooms in roomUsages for the same date+time.
+        6. TIME VALIDITY: startTime must be < endTime.
+        7. QUOTA & PRICE: Use defaultMaxNum and defaultPrice unless timeWindow says otherwise.
+        
+        ╔══════════════════════════════════════════════════════════════╗
+        ║           UNDERSTAND THE ADMIN'S REQUIREMENT                 ║
+        ╚══════════════════════════════════════════════════════════════╝
+        
+        The admin has provided a natural language requirement.
+        You MUST carefully interpret it and apply ALL rules mentioned.
+        
+        Common requirement patterns and how to handle them:
+        
+        【休息/不排班】
+        - "周六休息" / "周日休息" → Skip that day entirely
+        - "周末休息" / "双休" → Skip Saturday AND Sunday
+        - "周六周日都休息" → Skip both days
+        - "周末也上班" → Include Saturday and Sunday
+        
+        【时段限制】
+        - "只排上午" / "仅上午" / "上午门诊" → ONLY morning shifts (startTime < 12:00)
+        - "只排下午" / "仅下午" / "下午门诊" → ONLY afternoon shifts (12:00 ≤ startTime < 18:00)
+        - "只排晚上" / "夜班" → ONLY night shifts (startTime ≥ 18:00)
+        - "全天" / "上午下午都排" → BOTH morning and afternoon
+        - "三班倒" / "全时段" → ALL configured timeWindows
+        
+        【交替排班】
+        - "一天上午一天下午" / "上午下午交替" → ALTERNATE: Day 1 AM, Day 2 PM, Day 3 AM...
+        - "早班晚班交替" → ALTERNATE: Day 1 morning, Day 2 night, Day 3 morning...
+        - "白班夜班交替" → ALTERNATE: Day 1 day(am+pm), Day 2 night, Day 3 day...
+        
+        【特定日期规则】
+        - "周一上午，周三下午" → Different rules for different days
+        - "周一到周五全天，周六上午" → Weekdays full day, Saturday morning only
+        - "周日只排下午" → Sunday afternoon only
+        
+        【优先级】
+        - "优先上午" / "尽量上午" → Prefer morning shifts, but use others if needed
+        - "优先下午" → Prefer afternoon shifts
+        
+        【数量限制】
+        - "只排3天" → Maximum 3 working days
+        - "排5条" → Maximum 5 schedule items
+        
+        IMPORTANT: If the requirement has MULTIPLE parts separated by commas or other punctuation,
+        treat EACH part as a separate rule that ALL must be satisfied.
+        
+        For example: "周六休息，周日下午门诊，周一到周五一天上午一天下午门诊"
+        → Part 1: Saturday = OFF (no schedules)
+        → Part 2: Sunday = AFTERNOON ONLY
+        → Part 3: Monday-Friday = ALTERNATING AM/PM
+        
+        ╔══════════════════════════════════════════════════════════════╗
+        ║                    OUTPUT FORMAT                             ║
+        ╚══════════════════════════════════════════════════════════════╝
+        
+        Return valid JSON ONLY, no markdown, no code blocks.
+        
+        {
+          "summary": "schedule strategy summary in Chinese, explain how you understood the requirement",
+          "items": [{
+            "doctorId": "doctor id",
+            "doctorName": "doctor name", 
+            "deptId": "department id",
+            "workDate": "yyyy-MM-dd",
+            "startTime": "HH:mm:ss",
+            "endTime": "HH:mm:ss",
+            "maxNum": 30,
+            "price": 0.00,
+            "room": "room name"
+          }],
+          "warnings": ["any issues or notes"],
+          "optimizationReasons": ["why this schedule pattern was chosen based on the requirement"]
+        }
+        """;
+    }
+
+    private String buildUserPrompt(
+            AiScheduleGenerateRequest request,
+            List<DoctorSchedule> existingSchedules,
+            List<DoctorSchedule> roomUsages) {
+
+        return String.format("""
+        ╔══════════════════════════════════════════════════════════════╗
+        ║                  SCHEDULE REQUEST DATA                       ║
+        ╚══════════════════════════════════════════════════════════════╝
+        
+        doctorId: %s
+        doctorName: %s
+        deptId: %s
+        periodStart: %s
+        periodEnd: %s
+        
+        ═══════════════════════════════════════════════════════════════
+        ADMINISTRATOR'S REQUIREMENT (Natural Language):
+        ═══════════════════════════════════════════════════════════════
+        %s
+        ═══════════════════════════════════════════════════════════════
+        
+        CONFIGURED PARAMETERS:
+        - defaultMaxNum: %s (max patients per schedule)
+        - defaultPrice: %s (price per schedule)
+        
+        - rooms: %s
+        - timeWindows (configured time slots): %s
+        - unavailableDates: %s
+        
+        EXISTING DATA (to avoid conflicts):
+        - existingSchedules: %s
+        - roomUsages (already occupied): %s
+        
+        ╔══════════════════════════════════════════════════════════════╗
+        ║                      YOUR TASK                              ║
+        ╚══════════════════════════════════════════════════════════════╝
+        
+        Read the ADMINISTRATOR'S REQUIREMENT carefully.
+        Understand what they want, then generate the schedule.
+        
+        KEY POINTS:
+        1. Parse ALL parts of the requirement (split by commas/periods if needed)
+        2. Apply all rules simultaneously
+        3. Use the configured timeWindows to determine available time slots
+        4. Skip unavailableDates
+        5. Avoid conflicts with existingSchedules and roomUsages
+        
+        Return ONLY valid JSON, no markdown, no extra text.
+        """,
+                request.getDoctorId(),
+                request.getDoctorName(),
+                request.getDeptId(),
+                request.getPeriodStart(),
+                request.getPeriodEnd(),
+                valueOrDefault(request.getRequirement(), "Generate a standard Monday-Friday schedule with all available time slots"),
+                request.getDefaultMaxNum(),
+                request.getDefaultPrice(),
+                toJson(request.getRooms()),
+                toJson(effectiveWindows(request)),
+                toJson(request.getUnavailableDates()),
+                toJson(existingSchedules),
+                toJson(roomUsages)
+        );
     }
 
     private String buildSystemPrompt(ScheduleRequirement req) {
@@ -890,45 +1081,19 @@ public class AiScheduleServiceImpl implements AiScheduleService {
         AiScheduleGenerateResponse response = new AiScheduleGenerateResponse();
 
         String requirement = valueOrDefault(request.getRequirement(), "");
-        ScheduleRequirement req = parseRequirement(requirement);
 
-        response.setSummary("Generated a rule-based schedule draft (fallback mode).");
-        response.setOptimizationReasons(new ArrayList<>());
-
-        if (req.weekendOff) {
-            response.getOptimizationReasons().add("周末双休（周六周日不排班）");
-        } else if (req.saturdayOff) {
-            response.getOptimizationReasons().add("周六休息");
-        } else if (req.sundayOff) {
-            response.getOptimizationReasons().add("周日休息");
-        } else if (req.weekendOn || req.noDayOff) {
-            response.getOptimizationReasons().add("周末也排班");
-        }
-
-        if (StringUtils.hasText(req.shiftMode)) {
-            response.getOptimizationReasons().add("排班模式: " + req.shiftMode);
-        }
+        response.setSummary("AI service unavailable, generated a basic schedule draft (fallback mode).");
+        response.setOptimizationReasons(List.of(
+                "降级方案：使用规则引擎生成基础排班",
+                "原始需求: " + (requirement.isEmpty() ? "无" : requirement)
+        ));
 
         List<AiScheduleTimeWindow> windows = effectiveWindows(request);
-
-        List<AiScheduleTimeWindow> morningWindows = windows.stream()
-                .filter(w -> w.getStartTime().getHour() < 12)
-                .toList();
-        List<AiScheduleTimeWindow> afternoonWindows = windows.stream()
-                .filter(w -> w.getStartTime().getHour() >= 12 && w.getStartTime().getHour() < 18)
-                .toList();
-        List<AiScheduleTimeWindow> nightWindows = windows.stream()
-                .filter(w -> w.getStartTime().getHour() >= 18)
-                .toList();
-        List<AiScheduleTimeWindow> dayWindows = windows.stream()
-                .filter(w -> w.getStartTime().getHour() < 18)
-                .toList();
-
         Set<LocalDate> unavailable = new HashSet<>(nullToEmpty(request.getUnavailableDates()));
         List<AiScheduleItem> items = new ArrayList<>();
         int roomIndex = 0;
-        int workingDayIndex = 0;
 
+        // Fallback 使用简单的规则：所有工作日 + 所有时段
         for (LocalDate date = request.getPeriodStart();
              !date.isAfter(request.getPeriodEnd());
              date = date.plusDays(1)) {
@@ -936,78 +1101,11 @@ public class AiScheduleServiceImpl implements AiScheduleService {
             if (unavailable.contains(date)) continue;
 
             DayOfWeek dow = date.getDayOfWeek();
+            // 默认周一至周五
+            if (dow == DayOfWeek.SATURDAY || dow == DayOfWeek.SUNDAY) continue;
 
-            // 周末规则
-            if (req.weekendOff && (dow == DayOfWeek.SATURDAY || dow == DayOfWeek.SUNDAY)) continue;
-            if (req.saturdayOff && dow == DayOfWeek.SATURDAY) continue;
-            if (req.sundayOff && dow == DayOfWeek.SUNDAY) continue;
-            // 默认周一至周五，跳过周末（除非明确要求周末上班）
-            if (!req.weekendOn && !req.noDayOff && !req.saturdayOn && !req.saturdayOff && !req.sundayOff
-                    && (dow == DayOfWeek.SATURDAY || dow == DayOfWeek.SUNDAY)) continue;
-
-            // 特定日期规则
-            if (req.mondayOnly && dow != DayOfWeek.MONDAY) continue;
-            if (req.tuesdayOnly && dow != DayOfWeek.TUESDAY) continue;
-            if (req.wednesdayOnly && dow != DayOfWeek.WEDNESDAY) continue;
-            if (req.thursdayOnly && dow != DayOfWeek.THURSDAY) continue;
-            if (req.fridayOnly && dow != DayOfWeek.FRIDAY) continue;
-
-            // 最大工作日限制
-            if (req.maxWorkingDays > 0 && workingDayIndex >= req.maxWorkingDays) break;
-
-            List<AiScheduleTimeWindow> windowsToUse;
-
-            switch (req.shiftMode) {
-                case "ALTERNATE_AM_PM":
-                    windowsToUse = (workingDayIndex % 2 == 0) ? morningWindows : afternoonWindows;
-                    break;
-                case "ALTERNATE_MORNING_NIGHT":
-                    windowsToUse = (workingDayIndex % 2 == 0) ? morningWindows : nightWindows;
-                    break;
-                case "ALTERNATE_DAY_NIGHT":
-                    windowsToUse = (workingDayIndex % 2 == 0) ? dayWindows : nightWindows;
-                    break;
-                case "MORNING_ONLY":
-                case "MORNING_SHIFT_ONLY":
-                    windowsToUse = morningWindows;
-                    break;
-                case "AFTERNOON_ONLY":
-                    windowsToUse = afternoonWindows;
-                    break;
-                case "NIGHT_ONLY":
-                    windowsToUse = nightWindows.isEmpty() ? windows : nightWindows;
-                    break;
-                case "DAY_SHIFT_ONLY":
-                    windowsToUse = dayWindows;
-                    break;
-                case "AM_AND_PM":
-                    windowsToUse = new ArrayList<>();
-                    windowsToUse.addAll(morningWindows);
-                    windowsToUse.addAll(afternoonWindows);
-                    break;
-                case "AM_AND_NIGHT":
-                    windowsToUse = new ArrayList<>();
-                    windowsToUse.addAll(morningWindows);
-                    windowsToUse.addAll(nightWindows);
-                    break;
-                case "PM_AND_NIGHT":
-                    windowsToUse = new ArrayList<>();
-                    windowsToUse.addAll(afternoonWindows);
-                    windowsToUse.addAll(nightWindows);
-                    break;
-                case "ALL_SHIFTS":
-                    windowsToUse = windows;
-                    break;
-                default:
-                    windowsToUse = windows;
-                    break;
-            }
-
-            if (windowsToUse.isEmpty()) continue;
-
-            for (AiScheduleTimeWindow window : windowsToUse) {
+            for (AiScheduleTimeWindow window : windows) {
                 if (items.size() >= MAX_GENERATED_ITEMS) break;
-                if (req.maxSchedules > 0 && items.size() >= req.maxSchedules) break;
 
                 AiScheduleItem item = new AiScheduleItem();
                 item.setDoctorId(request.getDoctorId());
@@ -1022,7 +1120,6 @@ public class AiScheduleServiceImpl implements AiScheduleService {
                 items.add(item);
             }
 
-            workingDayIndex++;
             if (items.size() >= MAX_GENERATED_ITEMS) break;
         }
 
