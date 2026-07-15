@@ -98,6 +98,9 @@ public class PayServiceImpl implements PayService {
         if (result != 1) {
             throw new BusinessException("支付状态更新失败");
         }
+        if ("PRESCRIPTION".equals(pay.getOrderType())) {
+            deductPrescriptionStock(pay);
+        }
         if ("MEDICAL".equals(pay.getOrderType())) {
             notifyMedicalOrderPaid(pay);
         } else {
@@ -139,6 +142,9 @@ public class PayServiceImpl implements PayService {
         int result = payMapper.updatePayStatusFrom(payId, "REFUNDED", "PAID");
         if (result != 1) {
             throw new BusinessException("支付状态更新失败");
+        }
+        if ("PRESCRIPTION".equals(pay.getOrderType())) {
+            restorePrescriptionStockIfNeeded(pay);
         }
         syncBusinessPayStatus(pay, "REFUNDED");
         return result > 0;
@@ -209,6 +215,24 @@ public class PayServiceImpl implements PayService {
                 pay.getOrderType(), pay.getBusinessId(), payStatus);
         if (updated != 1) {
             throw new BusinessException("业务支付状态同步失败");
+        }
+    }
+
+    private void deductPrescriptionStock(Pay pay) {
+        if (pay.getBusinessId() == null
+                || payMapper.deductPrescriptionStock(pay.getBusinessId()) != 1) {
+            throw new BusinessException("处方药品信息缺失、数量无效或库存不足，支付失败");
+        }
+    }
+
+    private void restorePrescriptionStockIfNeeded(Pay pay) {
+        if (pay.getBusinessId() == null) {
+            throw new BusinessException("处方药品库存回补失败，退款未完成");
+        }
+        Boolean stockDeducted = payMapper.isPrescriptionStockDeducted(pay.getBusinessId());
+        if (Boolean.TRUE.equals(stockDeducted)
+                && payMapper.restorePrescriptionStock(pay.getBusinessId()) != 1) {
+            throw new BusinessException("处方药品库存回补失败，退款未完成");
         }
     }
 

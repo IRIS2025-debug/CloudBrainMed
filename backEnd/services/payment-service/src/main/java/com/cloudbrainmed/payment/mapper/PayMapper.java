@@ -9,6 +9,10 @@ import java.util.List;
 @Mapper
 public interface PayMapper {
 
+    @Update("ALTER TABLE prescription " +
+            "ADD COLUMN IF NOT EXISTS stock_deducted BOOLEAN NOT NULL DEFAULT FALSE")
+    int ensurePrescriptionStockDeductedColumn();
+
     /**
      * 插入支付记录
      */
@@ -56,6 +60,55 @@ public interface PayMapper {
     @Update("UPDATE prescription SET pay_status = #{payStatus} WHERE prescription_id = #{businessId}")
     int updatePrescriptionPayStatus(@Param("businessId") String businessId,
                                     @Param("payStatus") String payStatus);
+
+    /**
+     * 按处方数量原子扣减库存，并记录该处方已经扣过库存。
+     */
+    @Update("""
+        WITH claimed AS (
+            UPDATE prescription AS p
+            SET stock_deducted = TRUE
+            FROM medicine AS m
+            WHERE p.prescription_id = #{prescriptionId}
+              AND p.medicine_id = m.medicine_id
+              AND p.medicine_id IS NOT NULL
+              AND p.num > 0
+              AND p.stock_deducted = FALSE
+              AND m.stock IS NOT NULL
+              AND m.stock >= p.num
+            RETURNING p.prescription_id, p.medicine_id, p.num
+        )
+        UPDATE medicine AS m
+        SET stock = m.stock - c.num
+        FROM claimed AS c
+        WHERE m.medicine_id = c.medicine_id
+          AND m.stock IS NOT NULL
+          AND m.stock >= c.num
+        """)
+    int deductPrescriptionStock(@Param("prescriptionId") String prescriptionId);
+
+    /**
+     * 仅对实际扣过库存的处方原子回补库存。
+     */
+    @Update("""
+        WITH claimed AS (
+            UPDATE prescription AS p
+            SET stock_deducted = FALSE
+            WHERE p.prescription_id = #{prescriptionId}
+              AND p.medicine_id IS NOT NULL
+              AND p.num > 0
+              AND p.stock_deducted = TRUE
+            RETURNING p.prescription_id, p.medicine_id, p.num
+        )
+        UPDATE medicine AS m
+        SET stock = m.stock + c.num
+        FROM claimed AS c
+        WHERE m.medicine_id = c.medicine_id
+        """)
+    int restorePrescriptionStock(@Param("prescriptionId") String prescriptionId);
+
+    @Select("SELECT stock_deducted FROM prescription WHERE prescription_id = #{prescriptionId}")
+    Boolean isPrescriptionStockDeducted(@Param("prescriptionId") String prescriptionId);
 
     @Update("UPDATE registration SET pay_status = #{payStatus} WHERE register_id = #{businessId}")
     int updateRegistrationPayStatus(@Param("businessId") String businessId,
