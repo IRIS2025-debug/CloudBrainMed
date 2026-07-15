@@ -26,6 +26,9 @@ public class PgVectorConfig {
     @Value("${spring.ai.vectorstore.pgvector.schema-name:public}")
     private String schemaName;
 
+    @Value("${spring.ai.embedding.dimensions:1024}")
+    private int embeddingDimensions;
+
     public PgVectorConfig(JdbcTemplate jdbcTemplate, EmbeddingModel embeddingModel) {
         this.jdbcTemplate = jdbcTemplate;
         this.embeddingModel = embeddingModel;
@@ -37,6 +40,7 @@ public class PgVectorConfig {
         return PgVectorStore.builder(jdbcTemplate, embeddingModel)
                 .vectorTableName(medicineTableName)          // ✅ 正确的方法名
                 .indexType(PgVectorStore.PgIndexType.valueOf(indexType.toUpperCase()))
+                .dimensions(embeddingDimensions)
                 .initializeSchema(true)
                 .schemaName(schemaName)
                 .build();
@@ -48,6 +52,7 @@ public class PgVectorConfig {
         return PgVectorStore.builder(jdbcTemplate, embeddingModel)
                 .vectorTableName(consultTableName)           // ✅ 正确的方法名
                 .indexType(PgVectorStore.PgIndexType.valueOf(indexType.toUpperCase()))
+                .dimensions(embeddingDimensions)
                 .initializeSchema(true)
                 .schemaName(schemaName)
                 .build();
