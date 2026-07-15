@@ -129,9 +129,7 @@ public class DoctorServiceImpl implements DoctorService {
         }
         String currentPassword = doctor.getPassword();
         String oldEncrypted = encryptPassword(oldPassword);
-        boolean matchesPlain = oldPassword.equals(currentPassword);
-        boolean matchesEncrypted = oldEncrypted.equals(currentPassword);
-        if (!matchesPlain && !matchesEncrypted) {
+        if (!oldEncrypted.equals(currentPassword)) {
             throw new BusinessException("原密码不正确");
         }
         doctor.setPassword(encryptPassword(newPassword));
