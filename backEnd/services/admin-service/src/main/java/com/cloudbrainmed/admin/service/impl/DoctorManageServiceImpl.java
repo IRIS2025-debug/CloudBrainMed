@@ -10,7 +10,9 @@ import com.cloudbrainmed.admin.vo.DoctorManageVo;
 import com.cloudbrainmed.common.exception.BusinessException;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
+import org.springframework.util.DigestUtils;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -70,7 +72,7 @@ public class DoctorManageServiceImpl implements DoctorManageService {
         doctor.setIntroduction(introduction);
         doctor.setDepartmentId(departmentId);
         doctor.setDoctorType(doctorType);
-        doctor.setPassword("123456");
+        doctor.setPassword(encryptPassword("123456"));
         doctor.setStatus(1);
         doctor.setIsDeleted(0);
         doctor.setCreateTime(new Date());
@@ -159,5 +161,9 @@ public class DoctorManageServiceImpl implements DoctorManageService {
             }
         }
         return vo;
+    }
+
+    private String encryptPassword(String password) {
+        return DigestUtils.md5DigestAsHex(password.getBytes(StandardCharsets.UTF_8));
     }
 }
