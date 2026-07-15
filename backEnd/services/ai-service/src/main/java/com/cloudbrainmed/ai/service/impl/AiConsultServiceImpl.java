@@ -40,8 +40,6 @@ import java.util.stream.Collectors;
 @Slf4j
 public class AiConsultServiceImpl implements AiConsultService {
 
-    // ========== 已全部删除会话缓存相关变量 ==========
-
     private final ChatClient chatClient;
     private final DoctorMapper doctorMapper;
     private final DepartmentMapper departmentMapper;
@@ -53,7 +51,7 @@ public class AiConsultServiceImpl implements AiConsultService {
     private String globalSystemPrompt;
     private String consultationSystemPrompt;
 
-    // ==================== 配置参数 ====================
+    // ==================== 配置参数（增大超时相关配置） ====================
     @Value("${spring.ai.openai.chat.options.model:deepseek-v4-flash}")
     private String modelName;
 
@@ -62,6 +60,10 @@ public class AiConsultServiceImpl implements AiConsultService {
 
     @Value("${spring.ai.openai.chat.options.max-tokens:800}")
     private Integer maxTokens;
+
+    // 新增：超时时间配置
+    @Value("${spring.ai.openai.timeout:300000}")
+    private long timeoutMillis;
 
     // ==================== 构造器注入 ====================
     public AiConsultServiceImpl(
@@ -104,6 +106,7 @@ public class AiConsultServiceImpl implements AiConsultService {
     public void init() {
         loadPromptFiles();
         log.info("✅ AiConsultService 初始化完成（无会话记忆，每轮独立问诊）");
+        log.info("✅ AI问诊超时配置: {}ms, 模型: {}, maxTokens: {}", timeoutMillis, modelName, maxTokens);
     }
 
     private void loadPromptFiles() {
@@ -191,7 +194,7 @@ public class AiConsultServiceImpl implements AiConsultService {
         return null;
     }
 
-    // ==================== 核心业务方法（纯单次主诉，无任何历史对话） ====================
+    // ==================== 核心业务方法 ====================
     @Override
     public AiRecommendResponseVo recommendDoctor(String sessionId, ConsultRecommendDto consultRecommendDto) {
         String chiefComplaint = consultRecommendDto.getChiefComplaint();
@@ -275,8 +278,10 @@ public class AiConsultServiceImpl implements AiConsultService {
                 .emergency(aiResult.getEmergency())
                 .build();
     }
-    // ==================== AI单次问诊调用（空历史，无记忆） ====================
+
+    // ==================== AI单次问诊调用（增加超时处理） ====================
     private AiDepartmentRecommendationDto analyzeSingleDept(String chiefComplaint, String deptList, String systemPrompt) {
+        long startTime = System.currentTimeMillis();
         try {
             String userPrompt = buildSingleUserPrompt(chiefComplaint, deptList);
             List<Message> emptyHistory = new ArrayList<>();
@@ -295,11 +300,21 @@ public class AiConsultServiceImpl implements AiConsultService {
                     .call()
                     .content();
 
+            long elapsed = System.currentTimeMillis() - startTime;
+            log.info("🤖 Tool模式AI响应完成，耗时: {}ms, 响应长度: {}", elapsed, responseStr.length());
             log.info("🤖 Tool模式AI原始响应: {}", responseStr);
+
             AiDepartmentRecommendationDto dto = parseResponse(responseStr);
             return dto;
         } catch (Exception e) {
-            log.error("单次独立问诊AI分析失败", e);
+            long elapsed = System.currentTimeMillis() - startTime;
+            log.error("单次独立问诊AI分析失败，耗时: {}ms, 错误类型: {}", elapsed, e.getClass().getSimpleName(), e);
+
+            // 判断是否是超时异常
+            if (e.getMessage() != null && e.getMessage().contains("timeout")) {
+                log.warn("AI问诊超时，使用降级方案。超时配置: {}ms", timeoutMillis);
+            }
+
             return getFallbackResult();
         }
     }
@@ -425,7 +440,6 @@ public class AiConsultServiceImpl implements AiConsultService {
         Map<String, String> deptIdNameMap = departmentMapper.getDeptIdToNameMap();
         List<RecommendDoctorVo> result = new ArrayList<>();
         for (Doctor doc : doctors) {
-            // 修复Integer isDeleted语法报错
             if (doc.getStatus() == null || doc.getStatus() != 1
                     || (doc.getIsDeleted() != null && doc.getIsDeleted() == 1)) {
                 continue;
