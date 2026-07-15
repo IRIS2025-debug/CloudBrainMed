@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @Slf4j
 @RestController
-@RequestMapping({"/ai/admin", "/ai-service/ai/admin"})
+@RequestMapping({ "/ai-service/ai/admin"})
 @RequiredArgsConstructor
 @Tag(name = "管理员医疗运营数据统计分析智能体")
 public class AdminAgentController {
