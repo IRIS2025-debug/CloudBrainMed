@@ -46,7 +46,8 @@ public class UserManageController {
                 (String) body.get("position"),
                 (String) body.get("goodAt"),
                 (String) body.get("introduction"),
-                (String) body.get("departmentId")
+                (String) body.get("departmentId"),
+                body.get("doctorType") != null ? Integer.valueOf(body.get("doctorType").toString()) : null
         );
         return Result.ok();
     }
@@ -66,6 +67,7 @@ public class UserManageController {
                 (String) body.get("goodAt"),
                 (String) body.get("introduction"),
                 (String) body.get("departmentId"),
+                body.get("doctorType") != null ? Integer.valueOf(body.get("doctorType").toString()) : null,
                 body.get("status") != null ? Integer.valueOf(body.get("status").toString()) : null
         );
         return Result.ok();
