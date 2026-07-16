@@ -108,3 +108,24 @@ export function batchUpdateMedicine(data: MedicineDto[]): Promise<ApiResponse<nu
     data
   })
 }
+
+/**
+ * 获取全局预警线
+ */
+export function getGlobalWarnThreshold(): Promise<ApiResponse<number>> {
+  return request({
+    url: '/admin-service/medicine/global-warn-threshold',
+    method: 'get'
+  })
+}
+
+/**
+ * 更新全局预警线
+ */
+export function updateGlobalWarnThreshold(threshold: number): Promise<ApiResponse<number>> {
+  return request({
+    url: '/admin-service/medicine/global-warn-threshold',
+    method: 'put',
+    data: { threshold }
+  })
+}

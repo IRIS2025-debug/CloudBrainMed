@@ -5,13 +5,13 @@ import { HttpUtil } from '../common/HttpUtil';
 import { LogoIcon } from '../common/LogoIcon';
 import { APIConfig } from '../common/APIConfig';
 
+// 注册请求参数（包含确认密码字段）
 interface RegisterParams {
   name: string;
   phone: string;
   idCard: string;
   password: string;
-  confirmPassword: string;
-  // gender 字段由后端从身份证号自动计算，前端无需传递
+  confirmPassword: string;  // 确认密码字段
 }
 
 interface RegisterData {
@@ -20,7 +20,7 @@ interface RegisterData {
   phone: string;
   birthday: string;
   age: number;
-  genderText: string; // 新增性别文字
+  genderText: string;
 }
 
 interface ApiResponse<T> {
@@ -54,70 +54,12 @@ struct RegisterPage {
   @State showPassword: boolean = false;
   @State showConfirmPassword: boolean = false;
 
-  // 【新增】从身份证号解析出的性别信息（仅用于显示提示）
-  @State detectedGenderText: string = '';
-  @State showGenderHint: boolean = false;
-
   private baseUrl: string = APIConfig.AUTH_SERVICE_URL;
-
-  /**
-   * 【新增】从身份证号解析性别
-   * @param idCard 身份证号
-   * @returns 性别文字：'男' | '女' | ''
-   */
-  private parseGenderFromIdCard(idCard: string): string {
-    if (!idCard || idCard.length === 0) {
-      return '';
-    }
-
-    try {
-      let genderChar: string;
-      if (idCard.length === 18) {
-        // 18位身份证取第17位（索引16）
-        genderChar = idCard.charAt(16);
-      } else if (idCard.length === 15) {
-        // 15位身份证取第15位（索引14）
-        genderChar = idCard.charAt(14);
-      } else {
-        return '';
-      }
-
-      const genderNum = parseInt(genderChar);
-      if (isNaN(genderNum)) {
-        return '';
-      }
-
-      // 奇数男，偶数女
-      return genderNum % 2 === 1 ? '男' : '女';
-    } catch (e) {
-      return '';
-    }
-  }
-
-  /**
-   * 【新增】身份证号变化时自动检测性别
-   */
-  private onIdCardChange(value: string): void {
-    this.idCard = value;
-    if (this.idCardError) this.idCardError = '';
-
-    // 检查身份证号是否足够长以识别性别
-    if (value.length >= 15) {
-      const gender = this.parseGenderFromIdCard(value);
-      if (gender) {
-        this.detectedGenderText = gender;
-        this.showGenderHint = true;
-      } else {
-        this.showGenderHint = false;
-      }
-    } else {
-      this.showGenderHint = false;
-    }
-  }
 
   private validateForm(): boolean {
     let isValid = true;
 
+    // 姓名验证
     if (!this.name.trim()) {
       this.nameError = '请输入姓名';
       isValid = false;
@@ -128,6 +70,7 @@ struct RegisterPage {
       this.nameError = '';
     }
 
+    // 手机号验证
     const phoneRegex = /^1[3-9]\d{9}$/;
     if (!this.phone.trim()) {
       this.phoneError = '请输入手机号';
@@ -139,6 +82,7 @@ struct RegisterPage {
       this.phoneError = '';
     }
 
+    // 身份证验证
     const idCardRegex = /^[1-9]\d{5}(18|19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])\d{3}[\dXx]$/;
     if (!this.idCard.trim()) {
       this.idCardError = '请输入身份证号';
@@ -150,6 +94,7 @@ struct RegisterPage {
       this.idCardError = '';
     }
 
+    // 密码验证（包含确认密码比对）
     if (!this.password.trim()) {
       this.passwordError = '请输入密码';
       isValid = false;
@@ -163,6 +108,7 @@ struct RegisterPage {
       this.passwordError = '';
     }
 
+    // 协议确认
     if (!this.agreeProtocol) {
       promptAction.showToast({
         message: '请同意用户协议和隐私政策',
@@ -179,26 +125,16 @@ struct RegisterPage {
       return;
     }
 
-    // 【新增】注册前显示性别提示确认
-    if (this.showGenderHint) {
-      const gender = this.parseGenderFromIdCard(this.idCard);
-      if (gender) {
-        promptAction.showToast({
-          message: `检测到性别：${gender}`,
-          duration: 1500
-        });
-      }
-    }
-
     this.isLoading = true;
     const context = getContext(this);
 
+    // 构建请求参数（包含 confirmPassword）
     const requestData: RegisterParams = {
       name: this.name,
       phone: this.phone,
       idCard: this.idCard,
       password: this.password,
-      confirmPassword: this.confirmPassword
+      confirmPassword: this.confirmPassword  // 传递确认密码
     };
 
     try {
@@ -209,8 +145,11 @@ struct RegisterPage {
       );
 
       if (result.code === 200) {
+        const genderText = result.data?.genderText || '未知';
+        const age = result.data?.age || 0;
+
         promptAction.showToast({
-          message: '🎉 注册成功！请登录',
+          message: `🎉 注册成功！性别：${genderText}，年龄：${age}岁`,
           duration: 2000
         });
 
@@ -411,32 +350,12 @@ struct RegisterPage {
 
             // ===== 身份证号 =====
             Column() {
-              Row() {
-                Text('身份证号')
-                  .fontSize(14)
-                  .fontColor('#333333')
-                  .fontWeight(500)
-
-                Blank()
-
-                // 【新增】性别自动检测提示
-                if (this.showGenderHint && this.detectedGenderText) {
-                  Row() {
-                    Text('检测到性别：')
-                      .fontSize(12)
-                      .fontColor('#8a8a8a')
-                    Text(this.detectedGenderText)
-                      .fontSize(13)
-                      .fontColor(this.detectedGenderText === '男' ? '#2563eb' : '#eb2f96')
-                      .fontWeight(FontWeight.Medium)
-                  }
-                  .padding({ left: 12, right: 12, top: 4, bottom: 4 })
-                  .backgroundColor('#f0f5ff')
-                  .borderRadius(12)
-                }
-              }
-              .width('100%')
-              .margin({ bottom: 8 })
+              Text('身份证号')
+                .fontSize(14)
+                .fontColor('#333333')
+                .fontWeight(500)
+                .margin({ bottom: 8 })
+                .width('100%')
 
               TextInput({ placeholder: '请输入您的身份证号', text: this.idCard })
                 .width('100%')
@@ -453,7 +372,8 @@ struct RegisterPage {
                   color: this.idCardFocused ? '#2563eb' : 'transparent'
                 })
                 .onChange((value: string) => {
-                  this.onIdCardChange(value);
+                  this.idCard = value;
+                  if (this.idCardError) this.idCardError = '';
                 })
                 .onFocus(() => {
                   this.idCardFocused = true;
@@ -470,8 +390,8 @@ struct RegisterPage {
                   .width('100%')
               }
 
-              // 【新增】提示用户性别将自动识别
-              Text('✧ 系统将根据身份证号自动识别性别')
+              // 提示信息：性别和年龄将由系统自动识别
+              Text('✧ 系统将根据身份证号自动识别性别和计算年龄')
                 .fontSize(11)
                 .fontColor('#bfbfbf')
                 .margin({ top: 6 })
