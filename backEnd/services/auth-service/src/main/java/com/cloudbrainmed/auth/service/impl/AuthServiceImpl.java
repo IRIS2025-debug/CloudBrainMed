@@ -49,14 +49,24 @@ public class AuthServiceImpl implements AuthService {
         Patient patient = new Patient();
         patient.setPatientId(generatePatientId());
         patient.setName(registerDTO.getName());
-        Integer gender = registerDTO.getGenderFromIdCard();
-        patient.setGender(gender);
-        patient.setGender(registerDTO.getGender());
+
+        // 从身份证号自动计算性别（优先）
+        Integer genderFromIdCard = registerDTO.getGenderFromIdCard();
+        if (genderFromIdCard != null) {
+            patient.setGender(genderFromIdCard);
+        } else {
+            // 如果身份证无法识别性别，使用前端传递的（兼容处理）
+            patient.setGender(registerDTO.getGender());
+        }
+
         patient.setPhone(registerDTO.getPhone());
         patient.setIdCard(registerDTO.getIdCard());
         patient.setAddress(registerDTO.getAddress());
+
+        // 从身份证号自动计算生日
         LocalDate birthday = registerDTO.getBirthdayFromIdCard();
         patient.setBirthday(birthday);
+
         patient.setPassword(encryptPassword(registerDTO.getPassword()));
         patient.setCreateTime(LocalDateTime.now());
         patient.setUpdateTime(LocalDateTime.now());

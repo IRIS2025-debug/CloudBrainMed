@@ -15,7 +15,7 @@ public class authRegisterDto {
     private String name;
 
     // 性别不再需要前端传递，由后端根据身份证号自动识别
-    private Integer gender;  // 后端会自动填充
+    private Integer gender;   // 后端会自动填充
 
     @NotBlank(message = "手机号不能为空")
     @Pattern(regexp = "^1[3-9]\\d{9}$", message = "手机号格式不正确")

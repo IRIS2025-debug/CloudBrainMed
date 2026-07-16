@@ -56,7 +56,7 @@ public class MedicineManageController {
     }
 
     /**
-     * 更新药品
+     * 更新药品 - 不修改库存
      */
     @PutMapping("/update")
     public Map<String, Object> update(@RequestBody MedicineDto dto) {
@@ -134,7 +134,7 @@ public class MedicineManageController {
     }
 
     /**
-     * 批量更新药品
+     * 批量更新药品 - 不修改库存
      */
     @PutMapping("/batch-update")
     public Map<String, Object> batchUpdate(@RequestBody List<MedicineDto> dtoList) {
@@ -142,6 +142,34 @@ public class MedicineManageController {
         Map<String, Object> result = new HashMap<>();
         result.put("code", success ? 200 : 500);
         result.put("message", success ? "批量更新成功" : "批量更新失败");
+        return result;
+    }
+
+    /**
+     * 获取全局预警线
+     */
+    @GetMapping("/global-warn-threshold")
+    public Map<String, Object> getGlobalWarnThreshold() {
+        Integer threshold = medicineService.getGlobalWarnThreshold();
+        Map<String, Object> result = new HashMap<>();
+        result.put("code", 200);
+        result.put("data", threshold);
+        return result;
+    }
+
+    /**
+     * 更新全局预警线
+     */
+    @PutMapping("/global-warn-threshold")
+    public Map<String, Object> updateGlobalWarnThreshold(@RequestBody Map<String, Integer> params) {
+        Integer threshold = params.get("threshold");
+        boolean success = medicineService.updateGlobalWarnThreshold(threshold);
+        Map<String, Object> result = new HashMap<>();
+        result.put("code", success ? 200 : 500);
+        result.put("message", success ? "全局预警线更新成功" : "全局预警线更新失败");
+        if (success) {
+            result.put("data", threshold);
+        }
         return result;
     }
 }

@@ -16,10 +16,13 @@ import java.util.UUID;
 @Service
 public class MedicineServiceImpl implements MedicineService {
 
-    // 默认预警线百分比（20%）
-    private static final int DEFAULT_WARN_PERCENT = 20;
+    // 默认预警线固定值（全局）
+    private static final int DEFAULT_MIN_STOCK = 10;
     // 默认建议补货量
     private static final int DEFAULT_REORDER_QUANTITY = 50;
+
+    // 全局预警线（所有药品共用）
+    private volatile int globalWarnThreshold = DEFAULT_MIN_STOCK;
 
     private final MedicineMapper medicineMapper;
 
@@ -58,6 +61,7 @@ public class MedicineServiceImpl implements MedicineService {
     public boolean update(MedicineDto dto) {
         Medicine medicine = new Medicine();
         BeanUtils.copyProperties(dto, medicine);
+        // 更新时不修改库存
         return medicineMapper.update(medicine) > 0;
     }
 
@@ -87,16 +91,14 @@ public class MedicineServiceImpl implements MedicineService {
 
     @Override
     public List<MedicineWarnVo> getWarnList(Integer minStockThreshold) {
-        // 如果传入阈值，直接使用；否则使用默认20%
+        // 使用传入值或全局预警线
+        int threshold = minStockThreshold != null ? minStockThreshold : globalWarnThreshold;
+        threshold = Math.max(threshold, 1);
+
         List<Medicine> allMedicines = medicineMapper.selectAll();
         List<MedicineWarnVo> warnList = new ArrayList<>();
 
         for (Medicine m : allMedicines) {
-            // 计算预警线：库存的20%
-            int threshold = minStockThreshold != null ? minStockThreshold : (int) Math.ceil(m.getStock() * 0.2);
-            // 至少为1
-            threshold = Math.max(threshold, 1);
-
             if (m.getStock() <= threshold) {
                 String status = m.getStock() == 0 ? "OUT_OF_STOCK" : "LOW_STOCK";
                 warnList.add(new MedicineWarnVo(
@@ -110,19 +112,16 @@ public class MedicineServiceImpl implements MedicineService {
 
     @Override
     public List<MedicineWarnVo> getReorderSuggestions(Integer minStockThreshold, Integer reorderQuantity) {
+        int threshold = minStockThreshold != null ? minStockThreshold : globalWarnThreshold;
+        threshold = Math.max(threshold, 1);
         int reorderQty = reorderQuantity != null ? reorderQuantity : DEFAULT_REORDER_QUANTITY;
 
         List<Medicine> allMedicines = medicineMapper.selectAll();
         List<MedicineWarnVo> suggestions = new ArrayList<>();
 
         for (Medicine m : allMedicines) {
-            // 计算预警线：库存的20%
-            int threshold = minStockThreshold != null ? minStockThreshold : (int) Math.ceil(m.getStock() * 0.2);
-            threshold = Math.max(threshold, 1);
-
             if (m.getStock() <= threshold + reorderQty) {
                 String status = m.getStock() == 0 ? "OUT_OF_STOCK" : "LOW_STOCK";
-                // 建议补货量：如果库存为0，补货量为 reorderQty * 2，否则为 reorderQty
                 int suggested = m.getStock() == 0 ? reorderQty * 2 : reorderQty;
                 suggestions.add(new MedicineWarnVo(
                         m.getMedicineId(), m.getName(), m.getSpec(), m.getStock(),
@@ -144,21 +143,32 @@ public class MedicineServiceImpl implements MedicineService {
         for (MedicineDto dto : dtoList) {
             Medicine entity = new Medicine();
             entity.setMedicineId(dto.getMedicineId());
-            // 只更新非空字段，不更新库存
             entity.setName(dto.getName());
             entity.setSpec(dto.getSpec());
             entity.setUsage(dto.getUsage());
             entity.setIndication(dto.getIndication());
             entity.setAttention(dto.getAttention());
-            // 批量编辑时不修改库存
-            // entity.setStock(dto.getStock());
+            // 批量更新时不修改库存
             entity.setPrice(dto.getPrice());
             entities.add(entity);
         }
 
-        // 使用批量更新（只更新非空字段）
         int result = medicineMapper.batchUpdateSelective(entities);
         return result == dtoList.size();
+    }
+
+    @Override
+    public boolean updateGlobalWarnThreshold(Integer threshold) {
+        if (threshold == null || threshold < 0) {
+            return false;
+        }
+        this.globalWarnThreshold = threshold;
+        return true;
+    }
+
+    @Override
+    public Integer getGlobalWarnThreshold() {
+        return this.globalWarnThreshold;
     }
 
     /**
@@ -170,13 +180,11 @@ public class MedicineServiceImpl implements MedicineService {
         }
         MedicineDto dto = new MedicineDto();
         BeanUtils.copyProperties(medicine, dto);
-        // 计算预警线：库存的20%
-        int minStock = (int) Math.ceil(medicine.getStock() * 0.2);
-        minStock = Math.max(minStock, 1);
-        dto.setMinStock(minStock);
+        // 使用全局预警线
+        dto.setMinStock(globalWarnThreshold);
         dto.setReorderQuantity(DEFAULT_REORDER_QUANTITY);
         // 计算状态
-        dto.setStatus(determineStatus(medicine.getStock(), minStock));
+        dto.setStatus(determineStatus(medicine.getStock(), globalWarnThreshold));
         return dto;
     }
 
