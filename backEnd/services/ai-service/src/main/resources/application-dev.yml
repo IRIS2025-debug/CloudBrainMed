@@ -52,7 +52,7 @@ spring:
       host: 127.0.0.1
       port: 6379
       timeout: 3000ms
-      password: ${REDIS_PASSWORD:123456}
+      password: ${REDIS_PASSWORD:Redis2026SecureKey}
       database: 0
       lettuce:
         pool:
