@@ -8,8 +8,10 @@ import com.cloudbrainmed.common.exception.BusinessException;
 import jakarta.annotation.Resource;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.util.DigestUtils;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -54,13 +56,11 @@ public class AccountServiceImpl implements AccountService {
 
     @Override
     public String uploadAvatar(String adminId, byte[] fileBytes, String originalFilename) {
-        // 1. 校验管理员存在
         Account admin = accountMapper.selectById(adminId);
         if (admin == null) {
             throw new BusinessException("管理员信息不存在");
         }
 
-        // 2. 提取扩展名，生成唯一文件名
         String ext = "";
         int dotIdx = originalFilename.lastIndexOf(".");
         if (dotIdx >= 0) {
@@ -68,7 +68,6 @@ public class AccountServiceImpl implements AccountService {
         }
         String filename = adminId + "_" + UUID.randomUUID().toString().replace("-", "") + ext;
 
-        // 3. 确保目录存在，写入文件到本地磁盘
         try {
             Path dir = Paths.get(avatarUploadDir);
             Files.createDirectories(dir);
@@ -78,10 +77,7 @@ public class AccountServiceImpl implements AccountService {
             throw new RuntimeException("头像上传失败，无法保存文件", e);
         }
 
-        // 4. 构造可访问的 URL 路径
         String avatarUrl = "/files/avatar/admin/" + filename;
-
-        // 5. 更新数据库中的 avatar 字段
         admin.setAvatar(avatarUrl);
         accountMapper.updateById(admin);
 
@@ -94,10 +90,31 @@ public class AccountServiceImpl implements AccountService {
         if (admin == null) {
             throw new BusinessException("管理员信息不存在");
         }
-        if (!admin.getPassword().equals(oldPassword)) {
+
+        String storedPassword = admin.getPassword();
+        String inputOldPassword = encryptPassword(oldPassword);
+        boolean matches = storedPassword != null && storedPassword.equals(inputOldPassword);
+        if (!matches) {
+            System.out.println("[admin-change-password] adminId=" + adminId
+                    + ", dbPasswordLength=" + (storedPassword == null ? 0 : storedPassword.length())
+                    + ", dbPasswordLooksLikeMd5=" + looksLikeMd5(storedPassword)
+                    + ", inputPasswordLength=" + (oldPassword == null ? 0 : oldPassword.length())
+                    + ", compareResult=" + matches);
             throw new BusinessException("原密码错误");
         }
-        admin.setPassword(newPassword);
+
+        admin.setPassword(encryptPassword(newPassword));
         accountMapper.updateById(admin);
+    }
+
+    private String encryptPassword(String password) {
+        if (password == null) {
+            return null;
+        }
+        return DigestUtils.md5DigestAsHex(password.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private boolean looksLikeMd5(String password) {
+        return password != null && password.matches("^[a-fA-F0-9]{32}$");
     }
 }
